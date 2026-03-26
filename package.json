@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "name": "aiman",
   "version": "0.1.0",
   "private": true,
@@ -47,4 +48,57 @@
       "prettier --write"
     ]
   }
+=======
+   "name": "aiman",
+   "version": "0.1.0",
+   "private": true,
+   "type": "module",
+   "engines": {
+      "node": ">=24"
+   },
+   "bin": {
+      "aiman": "./dist/cli.js"
+   },
+   "scripts": {
+      "start": "tsx src/cli.ts",
+      "prepare": "husky",
+      "build": "tsc -p tsconfig.build.json",
+      "typecheck": "tsc -p tsconfig.json --noEmit",
+      "lint": "eslint src test --max-warnings=0",
+      "lint:fix": "npm run lint -- --fix",
+      "format": "prettier --write .",
+      "format:check": "prettier --check .",
+      "test": "node --import tsx --test test/*.test.ts",
+      "coverage": "c8 --reporter=text --reporter=lcov npm test",
+      "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build"
+   },
+   "dependencies": {
+      "gray-matter": "^4.0.3",
+      "yargs": "^17.7.2",
+      "zod": "^4.3.6"
+   },
+   "devDependencies": {
+      "@eslint/js": "^10.0.1",
+      "@types/node": "^24.0.10",
+      "@types/yargs": "^17.0.33",
+      "c8": "^11.0.0",
+      "eslint": "^10.1.0",
+      "eslint-config-prettier": "^10.1.8",
+      "globals": "^17.4.0",
+      "husky": "^9.1.7",
+      "lint-staged": "^16.4.0",
+      "prettier": "^3.8.1",
+      "tsx": "^4.20.5",
+      "typescript": "^5.8.3",
+      "typescript-eslint": "^8.57.2"
+   },
+   "lint-staged": {
+      "*.{ts,js,mjs,cjs}": [
+         "eslint --fix"
+      ],
+      "*.{ts,js,mjs,cjs,json,md,yml,yaml}": [
+         "prettier --write"
+      ]
+   }
+>>>>>>> master
 }
