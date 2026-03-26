@@ -74,12 +74,12 @@
    },
    "dependencies": {
       "gray-matter": "^4.0.3",
-      "yargs": "^17.7.2",
+      "yargs": "^18.0.0",
       "zod": "^4.3.6"
    },
    "devDependencies": {
       "@eslint/js": "^10.0.1",
-      "@types/node": "^24.0.10",
+      "@types/node": "^25.5.0",
       "@types/yargs": "^17.0.33",
       "c8": "^11.0.0",
       "eslint": "^10.1.0",
