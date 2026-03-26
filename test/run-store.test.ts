@@ -4,7 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { RunStore } from "../src/lib/run-store.mjs";
+import { RunStore } from "../src/lib/run-store.js";
 
 test("RunStore persists workspace-local runs", async () => {
   const workspaceDir = await mkdtemp(path.join(os.tmpdir(), "run-store-"));
@@ -16,6 +16,7 @@ test("RunStore persists workspace-local runs", async () => {
     agentSource: "project",
     provider: "codex",
     model: "gpt-5",
+    reasoningEffort: "medium",
     taskPrompt: "Find risks.",
     assembledPrompt: "Task body",
     workspace: workspaceDir,
@@ -25,9 +26,12 @@ test("RunStore persists workspace-local runs", async () => {
   });
 
   const runs = await runStore.listRuns();
+  const [storedRun] = runs;
 
   assert.equal(runs.length, 1);
-  assert.equal(runs[0].agentName, "research");
+  assert.ok(storedRun);
+  assert.equal(storedRun.agentName, "research");
   assert.equal(run.status, "pending");
-  assert.equal(runs[0].timeoutMs, 5000);
+  assert.equal(storedRun.reasoningEffort, "medium");
+  assert.equal(storedRun.timeoutMs, 5000);
 });

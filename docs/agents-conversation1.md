@@ -19,25 +19,24 @@ Would you like me to generate the file structure for your StateProvider so you c
 To build this orchestrator in March 2026, you need to implement a Dependency Injection pattern. This allows your "Main Agent" to interact with a stable interface while you swap the underlying storage from a flat file (PLANS.md) to a database (SQLite) without rewriting your tool logic.
 
 1. The Core Interface: StateProvider
-This is the "Contract" that defines how your orchestrator talks to its memory. Whether it's a Markdown parser or a SQL client, it must fulfill these methods.
+   This is the "Contract" that defines how your orchestrator talks to its memory. Whether it's a Markdown parser or a SQL client, it must fulfill these methods.
 
 TypeScript
 // state-provider.interface.ts
 export interface Task {
-  id: string;
-  agent: 'gemini' | 'codex' | 'claude';
-  description: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  result?: string;
-  timestamp: number;
+id: string;
+agent: 'gemini' | 'codex' | 'claude';
+description: string;
+status: 'pending' | 'running' | 'completed' | 'failed';
+result?: string;
+timestamp: number;
 }
 
 export interface StateProvider {
-  getTasks(): Promise<Task[]>;
-  updateTask(id: string, update: Partial<Task>): Promise<void>;
-  logAudit(agent: string, rawOutput: string): Promise<void>;
-}
-2. The Implementation Logic
+getTasks(): Promise<Task[]>;
+updateTask(id: string, update: Partial<Task>): Promise<void>;
+logAudit(agent: string, rawOutput: string): Promise<void>;
+} 2. The Implementation Logic
 You will start with the FileStateProvider. It uses a regex-based parser to read your PLANS.md as a live data structure.
 
 File Provider: Reads PLANS.md, converts Markdown checkboxes ([ ] or [x]) into the Task object, and writes them back.
@@ -45,18 +44,18 @@ File Provider: Reads PLANS.md, converts Markdown checkboxes ([ ] or [x]) into th
 Database Migration: When you’re ready for SQLite, you simply create a SQLiteStateProvider that implements the same interface using a library like better-sqlite3.
 
 3. The Orchestration Tool (delegate_task)
-This is the "Logic Layer" that your Main Agent triggers via MCP. It handles the specific CLI flags and the environment isolation.
+   This is the "Logic Layer" that your Main Agent triggers via MCP. It handles the specific CLI flags and the environment isolation.
 
 TypeScript
 // dispatcher.ts
 import { spawn } from 'child_process';
 
 export class AgentDispatcher {
-  constructor(private state: StateProvider) {}
+constructor(private state: StateProvider) {}
 
-  async execute(agent: string, task: Task) {
-    // 1. Mark task as 'running' in the state
-    await this.state.updateTask(task.id, { status: 'running' });
+async execute(agent: string, task: Task) {
+// 1. Mark task as 'running' in the state
+await this.state.updateTask(task.id, { status: 'running' });
 
     // 2. Construct the CLI command (e.g., codex exec "task")
     // We use 'stdio: pipe' to capture logs for the "View"
@@ -73,9 +72,9 @@ export class AgentDispatcher {
       const finalStatus = code === 0 ? 'completed' : 'failed';
       await this.state.updateTask(task.id, { status: finalStatus });
     });
-  }
+
 }
-4. Deterministic "Takeaways" for 2026
+} 4. Deterministic "Takeaways" for 2026
 Context Injection: Your tool should look for an AGENTS.md file in the current directory. Before calling the CLI, it should prepend the content of AGENTS.md to the prompt. This ensures the sub-agent knows the "Rules of the House."
 
 Handoff via "Pulse": Use a standard JSON block at the top of your PLANS.md called AGENT_STATE. This allows Agent B to "rehydrate" its memory by reading the specific variables exported by Agent A.

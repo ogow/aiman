@@ -4,14 +4,15 @@
 
 Implemented:
 
-- official MCP SDK over stdio
+- CLI interface for agent and run management
 - merged home and workspace agent registry
 - project precedence on name collision
 - model-aware agent definitions
-- readable colored tool errors
+- readable terminal and JSON errors
 - workspace-local run state and JSONL traces
 - provider-specific run planning for `codex`, `claude`, and `gemini`
-- timeout-aware runs with stronger cancellation handling and clearer terminal summaries
+- detached run workers so run lifecycle commands work across separate CLI invocations
+- timeout-aware runs with stronger cancellation handling and clearer summaries
 
 ## Next Priorities
 
@@ -35,24 +36,23 @@ Move workspace run state from JSON files to SQLite when concurrency, auditabilit
 
 ### 1. RunStore is not concurrency-safe
 
-`RunStore` uses read-modify-write updates against one JSON file with a shared temporary filename. Parallel writes can fail or drop updates, so the current storage path is fragile under concurrent tool calls.
+`RunStore` uses read-modify-write updates against one JSON file with a shared temporary filename. Parallel writes can fail or drop updates, so the current storage path is fragile under concurrent commands.
 
 ### 2. Malformed agent files can break registry reads
 
-`AgentRegistry` currently assumes every agent file parses cleanly. One bad file in `.aiman/agents/` can break `agent_list`, `agent_get`, and any run flow that depends on agent lookup.
+`AgentRegistry` currently assumes every agent file parses cleanly. One bad file in `.aiman/agents/` can break `agent list`, `agent get`, and any run flow that depends on agent lookup.
 
 ### 3. Agent name normalization can overwrite definitions
 
 Agent filenames are slugified and lowercased, but visible agent identity still uses the raw `name`. That means names such as `Frontend` and `frontend` can collide on disk and overwrite one another unexpectedly.
 
-### 4. Runner event handlers are not hardened against storage failures
+### 4. Detached workers still rely on JSON file coordination
 
-The async child-process event handlers write to the run store directly without defensive error handling. If a log append or run update fails, the process can surface unhandled promise rejections instead of degrading cleanly.
+CLI run supervision now works across separate commands, but detached workers still coordinate through the same JSON state and JSONL traces. That keeps the implementation small, but it means concurrent updates remain vulnerable to write races until storage is upgraded.
 
 ## Nice-to-Have
 
 - richer run summaries
 - artifact collection
-- MCP task support for long-running operations
 - import and export for agent packs
 - agent versioning or inheritance

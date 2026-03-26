@@ -21,7 +21,7 @@ Provider-native home skills should stay in:
 
 - `~/.agents/skills/<skill-name>/SKILL.md`
 
-These agents are visible in every workspace that uses the MCP server unless a project agent with the same name overrides them.
+These agents are visible in every workspace that uses the CLI unless a project agent with the same name overrides them.
 
 ## Workspace Storage
 
@@ -85,8 +85,10 @@ Intended direction:
 Minimal frontmatter contract:
 
 - required: `name`, `provider`
-- optional: `description`, `model`
+- optional: `description`, `model`, `reasoningEffort`
 - body: provider-native prompt text passed through as-is
+
+`reasoningEffort` is validated against the selected provider/model capability config, not a single global enum.
 
 Example:
 
@@ -95,7 +97,8 @@ Example:
 name: code-reviewer
 provider: codex
 description: Reviews code for risks and quality
-model: gpt-5
+model: gpt-5.4
+reasoningEffort: medium
 ---
 
 Review the current change carefully.

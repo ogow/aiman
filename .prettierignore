@@ -1,6 +1,4 @@
-.aiman/
-.DS_Store
 coverage
-.husky/_
 dist
 node_modules
+package-lock.json

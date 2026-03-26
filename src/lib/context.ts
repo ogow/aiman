@@ -1,7 +1,9 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-async function readOptionalText(filePath) {
+import type { Agent } from "./types.js";
+
+async function readOptionalText(filePath: string): Promise<string | null> {
   try {
     await stat(filePath);
     return await readFile(filePath, "utf8");
@@ -10,8 +12,18 @@ async function readOptionalText(filePath) {
   }
 }
 
-export async function assemblePrompt({ rootDir, workspace, agent, taskPrompt }) {
-  const sections = [];
+export async function assemblePrompt({
+  rootDir,
+  workspace,
+  agent,
+  taskPrompt
+}: {
+  rootDir: string;
+  workspace: string;
+  agent: Pick<Agent, "systemPrompt">;
+  taskPrompt: string;
+}): Promise<string> {
+  const sections: string[] = [];
   const candidateAgentsFiles = [
     path.join(workspace, "AGENTS.md"),
     path.join(rootDir, "AGENTS.md")

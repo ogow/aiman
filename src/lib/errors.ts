@@ -1,3 +1,9 @@
+import type {
+  AppErrorDetails,
+  AppErrorOptions,
+  SerializedAppError
+} from "./types.js";
+
 const ANSI = {
   reset: "\u001b[0m",
   red: "\u001b[31m",
@@ -5,18 +11,23 @@ const ANSI = {
   bold: "\u001b[1m"
 };
 
-function colorize(color, text) {
+function colorize(color: string, text: string): string {
   return `${color}${text}${ANSI.reset}`;
 }
 
 export class AppError extends Error {
+  code: string;
+  title: string;
+  fix: string | null;
+  details: AppErrorDetails;
+
   constructor({
     code,
     title,
     message,
     fix = null,
     details = null
-  }) {
+  }: AppErrorOptions) {
     super(message);
     this.name = this.constructor.name;
     this.code = code;
@@ -27,7 +38,7 @@ export class AppError extends Error {
 }
 
 export class ValidationError extends AppError {
-  constructor(message, options = {}) {
+  constructor(message: string, options: Partial<AppErrorOptions> = {}) {
     super({
       code: "validation_error",
       title: "Validation failed",
@@ -38,7 +49,7 @@ export class ValidationError extends AppError {
 }
 
 export class AgentNotFoundError extends AppError {
-  constructor(agentName) {
+  constructor(agentName: string) {
     super({
       code: "agent_not_found",
       title: "Agent not found",
@@ -49,12 +60,21 @@ export class AgentNotFoundError extends AppError {
 }
 
 export class AgentConfigError extends AppError {
-  constructor({ filePath, message, fix = null }) {
+  constructor({
+    filePath,
+    message,
+    fix = null
+  }: {
+    filePath: string;
+    message: string;
+    fix?: string | null;
+  }) {
     super({
       code: "agent_config_error",
       title: "Invalid agent file",
       message: `Agent file '${filePath}' is invalid: ${message}`,
-      fix: fix ?? "Fix the frontmatter/body in that Markdown file and try again.",
+      fix:
+        fix ?? "Fix the frontmatter/body in that Markdown file and try again.",
       details: {
         filePath
       }
@@ -63,7 +83,7 @@ export class AgentConfigError extends AppError {
 }
 
 export class RunNotFoundError extends AppError {
-  constructor(runId) {
+  constructor(runId: string) {
     super({
       code: "run_not_found",
       title: "Run not found",
@@ -74,7 +94,15 @@ export class RunNotFoundError extends AppError {
 }
 
 export class ModelNotFoundError extends AppError {
-  constructor({ provider, model, availableModels }) {
+  constructor({
+    provider,
+    model,
+    availableModels
+  }: {
+    provider: string;
+    model: string;
+    availableModels: string[];
+  }) {
     super({
       code: "model_not_found",
       title: "Model not found",
@@ -92,8 +120,29 @@ export class ModelNotFoundError extends AppError {
   }
 }
 
+export class ReasoningEffortNotSupportedError extends AppError {
+  constructor({
+    provider,
+    reasoningEffort
+  }: {
+    provider: string;
+    reasoningEffort: string;
+  }) {
+    super({
+      code: "reasoning_effort_not_supported",
+      title: "Reasoning effort not supported",
+      message: `Provider '${provider}' does not support reasoning effort '${reasoningEffort}'.`,
+      fix: "Omit reasoningEffort for this provider, or add provider-specific support in the model config.",
+      details: {
+        provider,
+        reasoningEffort
+      }
+    });
+  }
+}
+
 export class RunnerNotFoundError extends AppError {
-  constructor(provider) {
+  constructor(provider: string) {
     super({
       code: "runner_not_found",
       title: "Runner not found",
@@ -104,7 +153,7 @@ export class RunnerNotFoundError extends AppError {
 }
 
 export class BinaryNotFoundError extends AppError {
-  constructor(command) {
+  constructor(command: string) {
     super({
       code: "binary_not_found",
       title: "Command not found",
@@ -114,13 +163,21 @@ export class BinaryNotFoundError extends AppError {
   }
 }
 
-export function toAppError(error) {
+export function toAppError(error: unknown): AppError {
   if (error instanceof AppError) {
     return error;
   }
 
-  if (error?.code === "ENOENT" && error?.syscall === "spawn") {
-    return new BinaryNotFoundError(error.path ?? "unknown");
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT" &&
+    "syscall" in error &&
+    error.syscall === "spawn"
+  ) {
+    const spawnError = error as { path?: string };
+    return new BinaryNotFoundError(spawnError.path ?? "unknown");
   }
 
   return new AppError({
@@ -131,16 +188,21 @@ export function toAppError(error) {
   });
 }
 
-export function formatErrorMessage(error) {
+export function formatErrorMessage(error: unknown): string {
   const appError = toAppError(error);
   const lines = [
-    colorize(ANSI.red, `${ANSI.bold}ERROR:${ANSI.reset}${ANSI.red} ${appError.title}${ANSI.reset}`),
+    colorize(
+      ANSI.red,
+      `${ANSI.bold}ERROR:${ANSI.reset}${ANSI.red} ${appError.title}${ANSI.reset}`
+    ),
     colorize(ANSI.red, appError.message)
   ];
 
   if (appError.details) {
     for (const [key, value] of Object.entries(appError.details)) {
-      const renderedValue = Array.isArray(value) ? value.join(", ") : String(value);
+      const renderedValue = Array.isArray(value)
+        ? value.join(", ")
+        : String(value);
       lines.push(colorize(ANSI.red, `${key}: ${renderedValue}`));
     }
   }
@@ -152,7 +214,7 @@ export function formatErrorMessage(error) {
   return lines.join("\n");
 }
 
-export function serializeError(error) {
+export function serializeError(error: unknown): SerializedAppError {
   const appError = toAppError(error);
 
   return {

@@ -2,7 +2,7 @@
 
 ## Goal
 
-`aiman` is a local MCP server for managing reusable agents and spawning agent runs through existing CLIs.
+`aiman` is a local CLI for managing reusable agents and spawning agent runs through existing provider CLIs.
 
 The system is designed around three concerns:
 
@@ -10,7 +10,7 @@ The system is designed around three concerns:
 - run orchestration
 - workspace-local execution state
 
-Skills are intentionally out of scope for this MCP. Provider-native skills should stay in the standard skill folders that the downstream CLIs already understand:
+Skills are intentionally out of scope for `aiman`. Provider-native skills should stay in the standard skill folders that the downstream CLIs already understand:
 
 - `~/.agents/skills`
 - `<workspace>/.agents/skills`
@@ -28,50 +28,34 @@ There is no first-class `skill` entity in `aiman`.
 
 Agent configuration is authored as Markdown with YAML frontmatter and a Markdown prompt body. The prompt body is provider-native text passed through as-is to the downstream CLI.
 
-An agent contains:
-
-- `name`
-- `provider`
-- `description` (optional)
-- `model` (optional)
-- `systemPrompt`
-
-An agent does not contain skill definitions or skill references. If a task should force a provider-native skill, mention that skill in the task prompt using the provider's normal invocation style.
-
 A run contains:
 
-- `agentName`
-- `agentSource`
-- `provider`
-- `model`
-- `taskPrompt`
-- `assembledPrompt`
-- `workspace`
-- `status`
-- `timeoutMs`
-- `command`
-- `args`
-- timestamps, exit code, and summary
+- agent identity and source
+- provider, model, and reasoning effort
+- task prompt and assembled prompt
+- workspace, write scope, and timeout
+- resolved command, args, and env
+- status, pid, timestamps, exit code, and summary
 
 ## Main Components
 
-### MCP Server
+### CLI entrypoint
 
-The server uses `@modelcontextprotocol/sdk` over stdio.
+The CLI parses subcommands, resolves input from flags, files, or stdin, and renders either human-readable output or `--json`.
 
-Current tool surface:
+Public command surface:
 
-- `agent_create`
-- `agent_list`
-- `agent_get`
-- `run_spawn`
-- `run_get`
-- `run_list`
-- `run_wait`
-- `run_cancel`
-- `run_logs`
+- `aiman agent list`
+- `aiman agent get <name>`
+- `aiman agent create ...`
+- `aiman run spawn ...`
+- `aiman run list`
+- `aiman run get <run-id>`
+- `aiman run wait <run-id>`
+- `aiman run cancel <run-id>`
+- `aiman run logs <run-id>`
 
-Entry point: [src/index.mjs](/Users/ogow/Code/aiman/src/index.mjs)
+Entry point: [src/cli.ts](/Users/ogow/Code/aiman/src/cli.ts)
 
 ### Agent Registry
 
@@ -79,25 +63,34 @@ The registry loads agents from both home and workspace storage, merges them, and
 
 If the same agent exists in both scopes, only the workspace version is visible.
 
-Implementation: [src/lib/agent-registry.mjs](/Users/ogow/Code/aiman/src/lib/agent-registry.mjs)
+Implementation: [src/lib/agent-registry.ts](/Users/ogow/Code/aiman/src/lib/agent-registry.ts)
 
 ### Run Manager
 
-The run manager resolves a visible agent, assembles the final prompt, asks the provider adapter for a concrete run plan, and spawns the underlying process. It also enforces optional run timeouts, records cancellation requests, and keeps terminal summaries readable.
+The run manager resolves a visible agent, assembles the final prompt, asks the provider adapter for a concrete run plan, stores the queued run, and then either:
 
-Implementation: [src/lib/runner.mjs](/Users/ogow/Code/aiman/src/lib/runner.mjs)
+- starts the run in-process for engine-level usage and tests
+- starts a detached worker for CLI usage so later commands can inspect or cancel the same run
+
+Implementation: [src/lib/runner.ts](/Users/ogow/Code/aiman/src/lib/runner.ts)
+
+### Detached Run Worker
+
+The worker process starts queued runs for the CLI, captures stdout and stderr into trace events, and updates final run status after completion or termination.
+
+Implementation: [src/run-worker.ts](/Users/ogow/Code/aiman/src/run-worker.ts)
 
 ### Provider Runners
 
-Provider runners own model validation and command construction for each supported CLI. Authored agent files do not override command wiring; the provider adapter decides how to invoke the downstream CLI.
+Provider runners own model validation, reasoning-effort support, and command construction for each supported CLI. Authored agent files do not override command wiring; the provider adapter decides how to invoke the downstream CLI.
 
-Implementation: [src/lib/providers/index.mjs](/Users/ogow/Code/aiman/src/lib/providers/index.mjs)
+Implementation: [src/lib/providers/index.ts](/Users/ogow/Code/aiman/src/lib/providers/index.ts)
 
 ### Run Store
 
 Run metadata and trace events are stored only in the workspace. Home storage is never used for active run state.
 
-Implementation: [src/lib/run-store.mjs](/Users/ogow/Code/aiman/src/lib/run-store.mjs)
+Implementation: [src/lib/run-store.ts](/Users/ogow/Code/aiman/src/lib/run-store.ts)
 
 ## Prompt Assembly
 
@@ -109,22 +102,24 @@ The final prompt is built from:
 
 Provider-native skills are not expanded into the assembled prompt. If the selected CLI supports skills, it discovers them from the standard skill folders while running in the workspace.
 
-Implementation: [src/lib/context.mjs](/Users/ogow/Code/aiman/src/lib/context.mjs)
+Implementation: [src/lib/context.ts](/Users/ogow/Code/aiman/src/lib/context.ts)
 
 ## Error Handling
 
-Errors are normalized into explicit application errors and returned as readable MCP tool errors with ANSI color formatting.
+Errors are normalized into explicit application errors and rendered as readable CLI errors or serialized JSON error payloads.
 
 Examples:
 
 - agent not found
+- run not found
 - model not found
 - command not found
 - validation failures
 
-Implementation: [src/lib/errors.mjs](/Users/ogow/Code/aiman/src/lib/errors.mjs)
+Implementation: [src/lib/errors.ts](/Users/ogow/Code/aiman/src/lib/errors.ts)
 
 ## Current Constraints
 
 - provider defaults are intentionally minimal and may still need tightening against each CLI's evolving flags
-- state uses JSON files, not SQLite
+- run state still uses JSON files, not SQLite
+- `reasoningEffort` is provider/model-configured, so support and accepted values can differ between CLIs and models

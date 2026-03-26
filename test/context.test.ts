@@ -4,7 +4,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { assemblePrompt } from "../src/lib/context.mjs";
+import { assemblePrompt } from "../src/lib/context.js";
 
 test("assemblePrompt prepends AGENTS.md and the agent prompt", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "agent-context-"));
