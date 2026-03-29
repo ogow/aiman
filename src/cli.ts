@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { main } from "./lib/cli/main.js";
+import { runCli } from "./lib/cli.js";
 
-const exitCode = await main();
+const exitCode = await runCli();
 process.exit(exitCode);

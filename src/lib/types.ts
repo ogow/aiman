@@ -1,175 +1,157 @@
-export type Scope = "home" | "project";
+export type ProviderId = "codex" | "gemini";
 
-export type RunStatus =
-   | "pending"
-   | "running"
-   | "completed"
-   | "failed"
-   | "cancelled";
+export type RunMode = "read-only" | "workspace-write";
 
-export interface AgentFrontmatter {
-   name: string;
-   provider: string;
-   description?: string;
-   model?: string;
-   reasoningEffort?: string;
-}
+export type RunStatus = "cancelled" | "error" | "success";
 
-export interface AgentConfigRecord extends AgentFrontmatter {
-   systemPrompt: string;
-}
-
-export interface AgentMetadata {
-   source: Scope;
-   path: string;
-   registryDir: string;
-}
-
-export interface Agent extends AgentConfigRecord, AgentMetadata {
+export type AgentDefinition = {
+   body: string;
    description: string;
-   model: string;
-   reasoningEffort: string;
-}
-
-export interface AgentCreateInput {
-   name?: string;
-   provider?: string;
-   description?: string;
    model?: string;
-   reasoningEffort?: string;
-   prompt?: string;
-   systemPrompt?: string;
-}
+   name: string;
+   provider: ProviderId;
+   reasoningEffort?: "high" | "low" | "medium";
+};
 
-export interface CreateAgentOptions {
-   scope?: Scope;
-}
-
-export interface RunPlan {
-   command: string;
-   args: string[];
-   env: Record<string, string>;
-}
-
-export interface Run {
-   id: string;
-   agentName: string;
-   agentSource: Scope;
-   provider: string;
-   model: string;
-   reasoningEffort: string;
-   status: RunStatus;
-   taskPrompt: string;
-   assembledPrompt: string;
-   workspace: string;
-   writeScope: string[];
-   timeoutMs: number | null;
-   command: string;
-   args: string[];
-   env: Record<string, string>;
-   createdAt: string;
-   startedAt: string | null;
-   finishedAt: string | null;
-   exitCode: number | null;
-   pid: number | null;
-   resultSummary: string | null;
-}
-
-export interface RunCreateInput {
-   id?: string;
-   agentName: string;
-   agentSource: Scope;
-   provider: string;
-   model?: string;
-   reasoningEffort?: string;
-   status?: RunStatus;
-   taskPrompt: string;
-   assembledPrompt: string;
-   workspace: string;
-   writeScope?: string[];
-   timeoutMs?: number | null;
-   command: string;
-   args?: string[];
-   env?: Record<string, string>;
-   startedAt?: string | null;
-   finishedAt?: string | null;
-   exitCode?: number | null;
-   pid?: number | null;
-   resultSummary?: string | null;
-}
-
-export type RunUpdate = Partial<Run>;
-
-export interface RunEvent<TPayload = unknown> {
-   timestamp: string;
-   type: string;
-   payload: TPayload;
-}
-
-export interface RunState {
-   runs: Run[];
-}
-
-export type AppErrorDetails = Record<string, unknown> | null;
-
-export interface AppErrorOptions {
+export type ValidationIssue = {
    code: string;
-   title: string;
+   level: "error" | "warning";
    message: string;
-   fix?: string | null;
-   details?: AppErrorDetails;
-}
+};
 
-export interface SerializedAppError {
-   code: string;
-   title: string;
-   message: string;
-   fix: string | null;
-   details: AppErrorDetails;
-}
-
-export interface ReadableInput {
-   isTTY?: boolean;
-   setEncoding(encoding: BufferEncoding): void;
-   [Symbol.asyncIterator](): AsyncIterableIterator<string | Buffer>;
-}
-
-export interface WritableOutput {
-   write(chunk: string): unknown;
-}
-
-export interface CliIO {
-   stdin: ReadableInput;
-   stdout: WritableOutput;
-   stderr: WritableOutput;
-}
-
-export interface CliResponse {
+export type PreparedInvocation = {
+   args: string[];
    command: string;
-   result: unknown;
-}
-
-export interface CliContext<TApp = unknown> {
-   io: CliIO;
    cwd: string;
-   response: CliResponse | null;
-   app: TApp | null;
-}
+   env: Record<string, string>;
+   renderedPrompt: string;
+   stdin?: string;
+};
 
-export interface ReasoningEffortConfig {
-   values: string[];
-   aliases?: Record<string, string>;
-   toCliValue?: (value: string) => string;
-}
+export type RunPaths = {
+   artifactsDir?: string;
+   promptFile: string;
+   reportFile?: string;
+   resultFile: string;
+   runDir: string;
+   stderrLog: string;
+   stdoutLog: string;
+};
 
-export interface ProviderModelConfig {
-   models: string[];
-   defaultModel?: string;
-   reasoningEffort?: ReasoningEffortConfig;
-   modelOverrides?: Record<
-      string,
-      {
-         reasoningEffort?: ReasoningEffortConfig;
-      }
-   >;
-}
+export type ReportValue =
+   | string
+   | ReportValue[]
+   | {
+        [key: string]: ReportValue;
+     };
+
+export type ReportFrontmatter = Record<string, ReportValue>;
+
+export type ReportArtifact = {
+   exists: boolean;
+   kind?: string;
+   label?: string;
+   metadata?: ReportValue;
+   path: string;
+   resolvedPath: string;
+};
+
+export type RunReport = {
+   artifacts: ReportArtifact[];
+   body?: string;
+   exists: boolean;
+   frontmatter?: ReportFrontmatter;
+   parseError?: string;
+   path: string;
+};
+
+export type UsageStats = {
+   inputTokens?: number;
+   outputTokens?: number;
+   totalTokens?: number;
+};
+
+export type PreparedRunInput = {
+   artifactsDir: string;
+   cwd: string;
+   mode: RunMode;
+   promptFile: string;
+   reportFile: string;
+   resultFile: string;
+   runId: string;
+   task: string;
+};
+
+export type CompletedRunInput = {
+   agent: AgentDefinition;
+   cwd: string;
+   endedAt: string;
+   exitCode: number | null;
+   mode: RunMode;
+   promptFile: string;
+   resultFile: string;
+   runDir: string;
+   runId: string;
+   signal: string | null;
+   startedAt: string;
+   stderr: string;
+   stderrLog: string;
+   stdout: string;
+   stdoutLog: string;
+};
+
+export type PersistedRunRecord = {
+   agent: string;
+   cwd: string;
+   durationMs: number;
+   endedAt: string;
+   errorMessage?: string;
+   exitCode: number | null;
+   finalText: string;
+   mode: RunMode;
+   paths: RunPaths;
+   provider: ProviderId;
+   runId: string;
+   signal: string | null;
+   startedAt: string;
+   status: RunStatus;
+   usage?: UsageStats;
+};
+
+export type RunResult = {
+   agent: string;
+   errorMessage?: string;
+   finalText: string;
+   mode?: RunMode;
+   provider: ProviderId;
+   reportPath?: string;
+   runId: string;
+   status: RunStatus;
+};
+
+export type StoredRunState = {
+   agent: string;
+   cwd: string;
+   endedAt?: string;
+   errorMessage?: string;
+   mode: RunMode;
+   pid?: number;
+   provider: ProviderId;
+   reportFile?: string;
+   resultFile: string;
+   runId: string;
+   startedAt: string;
+   status: RunStatus | "running";
+};
+
+export type RunInspection = (PersistedRunRecord | StoredRunState) & {
+   report: RunReport;
+};
+
+export type ProviderAdapter = {
+   detect(): Promise<ValidationIssue[]>;
+   id: ProviderId;
+   parseCompletedRun(input: CompletedRunInput): Promise<PersistedRunRecord>;
+   prepare(agent: AgentDefinition, input: PreparedRunInput): PreparedInvocation;
+   validateAgent(agent: AgentDefinition): ValidationIssue[];
+};
