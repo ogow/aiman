@@ -1,188 +1,186 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
-import path from "node:path";
-import * as z from "zod/v4";
+import { readFile, writeFile } from "node:fs/promises";
+import * as path from "node:path";
 
+import { UserError, hasErrorCode } from "./errors.js";
+import { getProjectPaths } from "./paths.js";
+import { readRunReport } from "./report.js";
 import type {
-   Run,
-   RunCreateInput,
-   RunEvent,
-   RunState,
-   RunUpdate
+   RunInspection,
+   PersistedRunRecord,
+   RunResult,
+   RunMode,
+   RunPaths,
+   StoredRunState
 } from "./types.js";
 
-const EMPTY_STATE: RunState = {
-   runs: []
+type StoredRunPaths = RunPaths & {
+   artifactsDir: string;
+   reportFile: string;
+   runFile: string;
 };
 
-const runSchema = z.object({
-   id: z.string(),
-   agentName: z.string(),
-   agentSource: z.enum(["home", "project"]),
-   provider: z.string(),
-   model: z.string(),
-   reasoningEffort: z.string(),
-   status: z.enum(["pending", "running", "completed", "failed", "cancelled"]),
-   taskPrompt: z.string(),
-   assembledPrompt: z.string(),
-   workspace: z.string(),
-   writeScope: z.array(z.string()),
-   timeoutMs: z.number().int().positive().nullable(),
-   command: z.string(),
-   args: z.array(z.string()),
-   env: z.record(z.string(), z.string()),
-   createdAt: z.string(),
-   startedAt: z.string().nullable(),
-   finishedAt: z.string().nullable(),
-   exitCode: z.number().int().nullable(),
-   pid: z.number().int().nullable(),
-   resultSummary: z.string().nullable()
-});
-const runEventSchema = z.object({
-   timestamp: z.string(),
-   type: z.string(),
-   payload: z.unknown()
-});
-const runStateSchema = z.object({
-   runs: z.array(runSchema)
-});
+export function createRunId(agentName: string): string {
+   const iso = new Date()
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}Z$/, "Z");
+   const safeAgentName = agentName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-async function exists(filePath: string): Promise<boolean> {
+   return `${iso}-${safeAgentName}-${randomUUID().slice(0, 8)}`;
+}
+
+export function buildRunPaths(runDir: string): StoredRunPaths {
+   return {
+      artifactsDir: path.join(runDir, "artifacts"),
+      promptFile: path.join(runDir, "prompt.md"),
+      reportFile: path.join(runDir, "report.md"),
+      resultFile: path.join(runDir, "result.json"),
+      runFile: path.join(runDir, "run.json"),
+      runDir,
+      stderrLog: path.join(runDir, "stderr.log"),
+      stdoutLog: path.join(runDir, "stdout.log")
+   };
+}
+
+export function createFailedRunRecord(input: {
+   agent: string;
+   cwd: string;
+   endedAt: string;
+   errorMessage: string;
+   mode: RunMode;
+   promptFile: string;
+   provider: PersistedRunRecord["provider"];
+   resultFile: string;
+   runDir: string;
+   runId: string;
+   startedAt: string;
+   stderrLog: string;
+   stdoutLog: string;
+}): PersistedRunRecord {
+   return {
+      agent: input.agent,
+      cwd: input.cwd,
+      durationMs: Date.parse(input.endedAt) - Date.parse(input.startedAt),
+      endedAt: input.endedAt,
+      errorMessage: input.errorMessage,
+      exitCode: null,
+      finalText: "",
+      mode: input.mode,
+      paths: {
+         artifactsDir: path.join(input.runDir, "artifacts"),
+         promptFile: input.promptFile,
+         reportFile: path.join(input.runDir, "report.md"),
+         resultFile: input.resultFile,
+         runDir: input.runDir,
+         stderrLog: input.stderrLog,
+         stdoutLog: input.stdoutLog
+      },
+      provider: input.provider,
+      runId: input.runId,
+      signal: null,
+      startedAt: input.startedAt,
+      status: "error"
+   };
+}
+
+export function toRunResult(record: PersistedRunRecord): RunResult {
+   return {
+      agent: record.agent,
+      finalText: record.finalText,
+      mode: record.mode,
+      provider: record.provider,
+      runId: record.runId,
+      status: record.status,
+      ...(typeof record.errorMessage === "string"
+         ? { errorMessage: record.errorMessage }
+         : {})
+   };
+}
+
+export async function writeRunState(
+   filePath: string,
+   value: StoredRunState
+): Promise<void> {
+   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function readJsonFile<T>(filePath: string): Promise<T> {
+   const raw = await readFile(filePath, "utf8");
+   return JSON.parse(raw) as T;
+}
+
+export async function persistResult(
+   record: PersistedRunRecord,
+   runFile: string
+): Promise<void> {
+   await writeFile(
+      record.paths.resultFile,
+      `${JSON.stringify(record, null, 2)}\n`,
+      "utf8"
+   );
+   await writeRunState(runFile, {
+      agent: record.agent,
+      cwd: record.cwd,
+      endedAt: record.endedAt,
+      mode: record.mode,
+      provider: record.provider,
+      ...(typeof record.paths.reportFile === "string"
+         ? { reportFile: record.paths.reportFile }
+         : {}),
+      resultFile: record.paths.resultFile,
+      runId: record.runId,
+      startedAt: record.startedAt,
+      status: record.status,
+      ...(typeof record.errorMessage === "string"
+         ? { errorMessage: record.errorMessage }
+         : {})
+   });
+}
+
+export async function readRunDetails(runId: string): Promise<RunInspection> {
+   const projectPaths = getProjectPaths();
+   const runDir = path.join(projectPaths.runsDir, runId);
+   const paths = buildRunPaths(runDir);
+   const report = await readRunReport(paths.reportFile, paths.artifactsDir);
+
    try {
-      await stat(filePath);
-      return true;
-   } catch {
-      return false;
+      const record = await readJsonFile<PersistedRunRecord>(paths.resultFile);
+      return {
+         ...record,
+         report
+      };
+   } catch (error) {
+      if (hasErrorCode(error, "ENOENT")) {
+         const state = await readJsonFile<StoredRunState>(paths.runFile);
+         return {
+            ...state,
+            report
+         };
+      }
+
+      throw error;
    }
 }
 
-export class RunStore {
-   workspaceDir: string;
-   storageDir: string;
-   statePath: string;
-   tracesDir: string;
+export async function readRunLog(
+   runId: string,
+   stream: "stderr" | "stdout"
+): Promise<string> {
+   const projectPaths = getProjectPaths();
+   const runDir = path.join(projectPaths.runsDir, runId);
+   const filePath = path.join(
+      runDir,
+      stream === "stderr" ? "stderr.log" : "stdout.log"
+   );
 
-   constructor(workspaceDir: string) {
-      this.workspaceDir = workspaceDir;
-      this.storageDir = path.join(workspaceDir, ".aiman");
-      this.statePath = path.join(this.storageDir, "state.json");
-      this.tracesDir = path.join(this.storageDir, "traces");
-   }
-
-   async init(): Promise<void> {
-      await mkdir(this.storageDir, { recursive: true });
-      await mkdir(this.tracesDir, { recursive: true });
-
-      if (!(await exists(this.statePath))) {
-         await this.#writeState(EMPTY_STATE);
-      }
-   }
-
-   async listRuns(): Promise<Run[]> {
-      const state = await this.#readState();
-      return state.runs;
-   }
-
-   async getRun(runId: string): Promise<Run | null> {
-      const state = await this.#readState();
-      return state.runs.find((run) => run.id === runId) ?? null;
-   }
-
-   async createRun(input: RunCreateInput): Promise<Run> {
-      const state = await this.#readState();
-      const now = new Date().toISOString();
-      const run: Run = {
-         id: input.id ?? randomUUID(),
-         agentName: input.agentName,
-         agentSource: input.agentSource,
-         provider: input.provider,
-         model: input.model ?? "",
-         reasoningEffort: input.reasoningEffort ?? "",
-         status: input.status ?? "pending",
-         taskPrompt: input.taskPrompt,
-         assembledPrompt: input.assembledPrompt,
-         workspace: input.workspace,
-         writeScope: input.writeScope ?? [],
-         timeoutMs: input.timeoutMs ?? null,
-         command: input.command,
-         args: input.args ?? [],
-         env: input.env ?? {},
-         createdAt: now,
-         startedAt: input.startedAt ?? null,
-         finishedAt: input.finishedAt ?? null,
-         exitCode: input.exitCode ?? null,
-         pid: input.pid ?? null,
-         resultSummary: input.resultSummary ?? null
-      };
-
-      state.runs.push(run);
-      await this.#writeState(state);
-      return run;
-   }
-
-   async updateRun(runId: string, update: RunUpdate): Promise<Run> {
-      const state = await this.#readState();
-      const index = state.runs.findIndex((run) => run.id === runId);
-
-      if (index === -1) {
-         throw new Error(`Run not found: ${runId}`);
+   try {
+      return await readFile(filePath, "utf8");
+   } catch (error) {
+      if (hasErrorCode(error, "ENOENT")) {
+         throw new UserError(`No ${stream} log exists for run "${runId}".`);
       }
 
-      const existingRun = state.runs[index];
-
-      if (!existingRun) {
-         throw new Error(`Run not found: ${runId}`);
-      }
-
-      state.runs[index] = {
-         ...existingRun,
-         ...update
-      };
-
-      await this.#writeState(state);
-      return state.runs[index];
-   }
-
-   async appendEvent<TPayload>(
-      runId: string,
-      type: string,
-      payload: TPayload
-   ): Promise<RunEvent<TPayload>> {
-      const event: RunEvent<TPayload> = {
-         timestamp: new Date().toISOString(),
-         type,
-         payload
-      };
-
-      const tracePath = path.join(this.tracesDir, `${runId}.jsonl`);
-      await writeFile(tracePath, `${JSON.stringify(event)}\n`, { flag: "a" });
-      return event;
-   }
-
-   async readEvents(runId: string, limit = 200): Promise<RunEvent[]> {
-      const tracePath = path.join(this.tracesDir, `${runId}.jsonl`);
-
-      if (!(await exists(tracePath))) {
-         return [];
-      }
-
-      const raw = await readFile(tracePath, "utf8");
-      const events = raw
-         .split("\n")
-         .filter(Boolean)
-         .map((line) => runEventSchema.parse(JSON.parse(line)));
-
-      return limit > 0 ? events.slice(-limit) : events;
-   }
-
-   async #readState(): Promise<RunState> {
-      const raw = await readFile(this.statePath, "utf8");
-      return runStateSchema.parse(JSON.parse(raw));
-   }
-
-   async #writeState(state: RunState): Promise<void> {
-      const tempPath = `${this.statePath}.tmp`;
-      await writeFile(tempPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-      await rename(tempPath, this.statePath);
+      throw error;
    }
 }

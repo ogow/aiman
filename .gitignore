@@ -1,6 +1,5 @@
 .aiman/
 .DS_Store
-coverage
-.husky/_
-dist
-node_modules
+coverage/
+dist/
+node_modules/

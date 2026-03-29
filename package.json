@@ -2,52 +2,46 @@
    "name": "aiman",
    "version": "0.1.0",
    "private": true,
+   "description": "Node 25 TypeScript CLI scaffold",
    "type": "module",
+   "packageManager": "npm@11.4.2",
    "engines": {
-      "node": ">=24"
+      "node": ">=25 <26"
    },
    "bin": {
       "aiman": "./dist/cli.js"
    },
    "scripts": {
-      "start": "tsx src/cli.ts",
-      "prepare": "husky",
+      "dev": "tsx src/cli.ts",
       "build": "tsc -p tsconfig.build.json",
       "typecheck": "tsc -p tsconfig.json --noEmit",
-      "lint": "eslint src test --max-warnings=0",
+      "lint": "oxlint -c .oxlintrc.json src test --deny warnings",
       "lint:fix": "npm run lint -- --fix",
       "format": "prettier --write .",
       "format:check": "prettier --check .",
-      "test": "node --import tsx --test test/*.test.ts",
-      "coverage": "c8 --reporter=text --reporter=lcov npm test",
-      "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build"
-   },
-   "dependencies": {
-      "gray-matter": "^4.0.3",
-      "yargs": "^18.0.0",
-      "zod": "^4.3.6"
-   },
-   "devDependencies": {
-      "@eslint/js": "^10.0.1",
-      "@types/node": "^25.5.0",
-      "@types/yargs": "^17.0.33",
-      "c8": "^11.0.0",
-      "eslint": "^10.1.0",
-      "eslint-config-prettier": "^10.1.8",
-      "globals": "^17.4.0",
-      "husky": "^9.1.7",
-      "lint-staged": "^16.4.0",
-      "prettier": "^3.8.1",
-      "tsx": "^4.20.5",
-      "typescript": "^5.8.3",
-      "typescript-eslint": "^8.57.2"
+      "test": "node --import tsx --test test/**/*.test.ts",
+      "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build",
+      "prepare": "husky"
    },
    "lint-staged": {
       "*.{ts,js,mjs,cjs}": [
-         "eslint --fix"
+         "oxlint -c .oxlintrc.json --fix --quiet"
       ],
-      "*.{ts,js,mjs,cjs,json,md,yml,yaml}": [
+      "*.{json,md,yml,yaml}": [
          "prettier --write"
       ]
+   },
+   "dependencies": {
+      "yargs": "^18.0.0"
+   },
+   "devDependencies": {
+      "@types/node": "^25.5.0",
+      "@types/yargs": "^17.0.35",
+      "husky": "^9.1.7",
+      "lint-staged": "^16.4.0",
+      "oxlint": "^1.57.0",
+      "prettier": "^3.8.1",
+      "tsx": "^4.21.0",
+      "typescript": "^6.0.2"
    }
 }
