@@ -3,11 +3,12 @@ import type { ArgumentsCamelCase, Argv } from "yargs";
 import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
 import { readRunDetails, readRunLog } from "../lib/runs.js";
+import type { RunInspection } from "../lib/types.js";
 
 type InspectArguments = {
    json?: boolean;
    runId?: string;
-   stream?: "stderr" | "stdout";
+   stream?: "prompt" | "run" | "stderr" | "stdout";
 };
 
 export const command = "inspect <runId>";
@@ -20,7 +21,7 @@ export function builder(yargs: Argv): Argv {
          type: "string"
       })
       .option("stream", {
-         choices: ["stdout", "stderr"] as const,
+         choices: ["run", "prompt", "stdout", "stderr"] as const,
          describe: "Show one log stream instead of the run record"
       })
       .option("json", {
@@ -60,6 +61,78 @@ export async function handler(
       return;
    }
 
-   process.stdout.write(JSON.stringify(run, null, 2));
-   process.stdout.write("\n");
+   process.stdout.write(renderRunSummary(run));
+}
+
+function renderRunSummary(run: RunInspection): string {
+   const lines = [
+      `runId: ${run.runId}`,
+      `status: ${run.status}`,
+      `agent: ${run.agent}`,
+      `provider: ${run.provider}`,
+      `mode: ${run.mode}`,
+      `cwd: ${run.cwd}`,
+      `startedAt: ${run.startedAt}`
+   ];
+
+   if ("endedAt" in run && typeof run.endedAt === "string") {
+      lines.push(`endedAt: ${run.endedAt}`);
+   }
+
+   if ("durationMs" in run && typeof run.durationMs === "number") {
+      lines.push(`durationMs: ${run.durationMs}`);
+   }
+
+   if ("errorMessage" in run && typeof run.errorMessage === "string") {
+      lines.push(`error: ${run.errorMessage}`);
+   }
+
+   if ("finalText" in run && typeof run.finalText === "string") {
+      lines.push(
+         "",
+         "finalText:",
+         run.finalText.length > 0 ? run.finalText : ""
+      );
+   }
+
+   lines.push(
+      "",
+      "files:",
+      `run: ${run.paths.runFile}`,
+      `prompt: ${run.paths.promptFile}`
+   );
+
+   if (run.paths.stdoutLog) {
+      lines.push(`stdout: ${run.paths.stdoutLog}`);
+   }
+
+   if (run.paths.stderrLog) {
+      lines.push(`stderr: ${run.paths.stderrLog}`);
+   }
+
+   if (run.paths.artifactsDir && run.document.artifacts.length > 0) {
+      lines.push(`artifacts: ${run.paths.artifactsDir}`);
+   }
+
+   if (run.document.frontmatter) {
+      const kind = run.document.frontmatter.kind;
+      const summary = run.document.frontmatter.summary;
+
+      if (typeof kind === "string") {
+         lines.push(`kind: ${kind}`);
+      }
+
+      if (typeof summary === "string") {
+         lines.push(`summary: ${summary}`);
+      }
+   }
+
+   lines.push(
+      "",
+      `Use "aiman inspect ${run.runId} --stream run" to read the canonical run file.`,
+      `Use "aiman inspect ${run.runId} --stream prompt" to see the exact prompt.`,
+      `Use "aiman inspect ${run.runId} --stream stdout" or "--stream stderr" for logs.`
+   );
+
+   return `${lines.join("\n")}\n`;
 }

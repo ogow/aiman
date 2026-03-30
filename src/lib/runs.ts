@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { WriteStream } from "node:fs";
 import { createWriteStream } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
@@ -21,7 +22,6 @@ import {
    writeRunState
 } from "./run-store.js";
 import { getAdapterForProvider } from "./providers/index.js";
-import { readRunReport } from "./report.js";
 import type { RunMode, RunResult } from "./types.js";
 
 const defaultTimeoutMs = 5 * 60 * 1000;
@@ -73,20 +73,28 @@ async function writeRunningState(input: {
    cwd: string;
    mode: RunMode;
    pid?: number;
+   promptFile: string;
    provider: RunResult["provider"];
-   reportFile: string;
-   resultFile: string;
+   runDir: string;
    runFile: string;
    runId: string;
+   stderrLog: string;
    startedAt: string;
+   stdoutLog: string;
 }): Promise<void> {
    await writeRunState(input.runFile, {
       agent: input.agent,
       cwd: input.cwd,
       mode: input.mode,
+      paths: {
+         artifactsDir: path.join(input.runDir, "artifacts"),
+         promptFile: input.promptFile,
+         runFile: input.runFile,
+         runDir: input.runDir,
+         stderrLog: input.stderrLog,
+         stdoutLog: input.stdoutLog
+      },
       provider: input.provider,
-      reportFile: input.reportFile,
-      resultFile: input.resultFile,
       runId: input.runId,
       startedAt: input.startedAt,
       status: "running",
@@ -94,25 +102,32 @@ async function writeRunningState(input: {
    });
 }
 
+function createLazyLogWriter(filePath: string): {
+   end(): void;
+   write(value: string): void;
+} {
+   let stream: WriteStream | undefined;
+
+   return {
+      end() {
+         stream?.end();
+      },
+      write(value) {
+         if (stream === undefined) {
+            stream = createWriteStream(filePath, {
+               encoding: "utf8"
+            });
+         }
+
+         stream.write(value);
+      }
+   };
+}
+
 async function buildRunResult(
    record: Parameters<typeof toRunResult>[0]
 ): Promise<RunResult> {
-   const result = toRunResult(record);
-   const reportFile = record.paths.reportFile;
-   const artifactsDir = record.paths.artifactsDir;
-
-   if (typeof reportFile !== "string" || typeof artifactsDir !== "string") {
-      return result;
-   }
-
-   const report = await readRunReport(reportFile, artifactsDir);
-
-   return report.exists
-      ? {
-           ...result,
-           reportPath: report.path
-        }
-      : result;
+   return toRunResult(record);
 }
 
 export async function runAgent(input: RunAgentInput): Promise<RunResult> {
@@ -136,7 +151,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
 
    await mkdir(runDir, { recursive: true });
    const paths = buildRunPaths(runDir);
-   await mkdir(paths.artifactsDir, { recursive: true });
 
    const adapter = getAdapterForProvider(agent.provider);
    const prepared = adapter.prepare(agent, {
@@ -144,8 +158,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
       cwd: runCwd,
       mode: input.mode,
       promptFile: paths.promptFile,
-      reportFile: paths.reportFile,
-      resultFile: paths.resultFile,
+      runFile: paths.runFile,
       runId,
       task: input.task
    });
@@ -155,12 +168,14 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
       agent: agent.name,
       cwd: runCwd,
       mode: input.mode,
+      promptFile: paths.promptFile,
       provider: agent.provider,
-      reportFile: paths.reportFile,
-      resultFile: paths.resultFile,
+      runDir,
       runFile: paths.runFile,
       runId,
-      startedAt
+      stderrLog: paths.stderrLog,
+      startedAt,
+      stdoutLog: paths.stdoutLog
    });
 
    const child = spawn(prepared.command, prepared.args, {
@@ -174,21 +189,19 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
       agent: agent.name,
       cwd: runCwd,
       mode: input.mode,
+      promptFile: paths.promptFile,
       provider: agent.provider,
-      reportFile: paths.reportFile,
-      resultFile: paths.resultFile,
+      runDir,
       runFile: paths.runFile,
       runId,
+      stderrLog: paths.stderrLog,
       startedAt,
+      stdoutLog: paths.stdoutLog,
       ...(typeof child.pid === "number" ? { pid: child.pid } : {})
    });
 
-   const stdoutLogStream = createWriteStream(paths.stdoutLog, {
-      encoding: "utf8"
-   });
-   const stderrLogStream = createWriteStream(paths.stderrLog, {
-      encoding: "utf8"
-   });
+   const stdoutLogWriter = createLazyLogWriter(paths.stdoutLog);
+   const stderrLogWriter = createLazyLogWriter(paths.stderrLog);
    let stdout = "";
    let stderr = "";
    let timedOut = false;
@@ -197,12 +210,12 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
    child.stdout?.on("data", (chunk: Buffer | string) => {
       const value = chunk.toString();
       stdout += value;
-      stdoutLogStream.write(value);
+      stdoutLogWriter.write(value);
    });
    child.stderr?.on("data", (chunk: Buffer | string) => {
       const value = chunk.toString();
       stderr += value;
-      stderrLogStream.write(value);
+      stderrLogWriter.write(value);
    });
 
    if (prepared.stdin !== undefined && child.stdin) {
@@ -230,8 +243,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
          clearTimeout(killTimer);
       }
 
-      stdoutLogStream.end();
-      stderrLogStream.end();
+      stdoutLogWriter.end();
+      stderrLogWriter.end();
    });
    const endedAt = new Date().toISOString();
 
@@ -244,12 +257,11 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
          mode: input.mode,
          promptFile: paths.promptFile,
          provider: agent.provider,
-         resultFile: paths.resultFile,
          runDir,
          runId,
          startedAt,
-         stderrLog: paths.stderrLog,
-         stdoutLog: paths.stdoutLog
+         ...(stderr.length > 0 ? { stderrLog: paths.stderrLog } : {}),
+         ...(stdout.length > 0 ? { stdoutLog: paths.stdoutLog } : {})
       });
 
       await persistResult(record, paths.runFile);
@@ -263,15 +275,14 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
       exitCode: completion.exitCode,
       mode: input.mode,
       promptFile: paths.promptFile,
-      resultFile: paths.resultFile,
       runDir,
       runId,
       signal: completion.signal,
       startedAt,
       stderr,
-      stderrLog: paths.stderrLog,
+      ...(stderr.length > 0 ? { stderrLog: paths.stderrLog } : {}),
       stdout,
-      stdoutLog: paths.stdoutLog
+      ...(stdout.length > 0 ? { stdoutLog: paths.stdoutLog } : {})
    });
    const finalRecord = timedOut
       ? {

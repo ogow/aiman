@@ -60,7 +60,15 @@ export async function handler(
       return;
    }
 
+   if (result.finalText.length > 0) {
+      process.stdout.write(`${result.finalText}\n\n`);
+   }
+
    process.stdout.write(`runId: ${result.runId}\n`);
    process.stdout.write(`status: ${result.status}\n`);
-   process.stdout.write(`${result.finalText}\n`);
+   process.stdout.write(`inspect: aiman inspect ${result.runId}\n`);
+   process.stdout.write(`run: aiman inspect ${result.runId} --stream run\n`);
+   process.stdout.write(
+      `prompt: aiman inspect ${result.runId} --stream prompt\n`
+   );
 }

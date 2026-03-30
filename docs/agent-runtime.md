@@ -27,9 +27,9 @@ OpenAI's agent safety guidance recommends structured outputs between nodes so un
 
 Implication for `aiman`:
 
-- `aiman run <agent>` should keep its CLI result slim and let specialists optionally write a `report.md` handoff file with YAML frontmatter.
+- `aiman run <agent>` should keep its CLI result slim and persist one canonical `run.md` file with YAML frontmatter plus a Markdown body.
 - Free-form Markdown body is fine as content, but the frontmatter should stay structured.
-- If a specialist wants to suggest follow-up work, that suggestion should live in report frontmatter or body for the caller to inspect, not become an internal autonomous handoff.
+- If a specialist wants to suggest follow-up work, that suggestion should live in run frontmatter or body for the caller to inspect, not become an internal autonomous handoff.
 
 ### 3. Subprocess reliability matters more than orchestration cleverness
 
@@ -74,12 +74,7 @@ Implication for `aiman`:
 `run`
 
 - One execution of one agent against one task.
-- Has immutable input, logs, persisted metadata, and an optional `report.md` plus `artifacts/`.
-
-`report`
-
-- Optional Markdown handoff file written inside the run directory.
-- Uses YAML frontmatter for machine-readable metadata and Markdown body for human-readable detail.
+- Has immutable input, logs, persisted metadata, one canonical `run.md`, and optional `artifacts/`.
 
 `provider adapter`
 
@@ -89,7 +84,7 @@ Implication for `aiman`:
 `run store`
 
 - Keeps the on-disk run layout boring and explicit.
-- Owns `run.json`, `result.json`, `report.md`, prompt capture, and log lookup.
+- Owns `run.md`, prompt capture, and log lookup.
 
 ## Recommended v1 Execution Pattern
 
@@ -101,7 +96,7 @@ Flow:
 2. The caller invokes `aiman run <agent> ...`.
 3. `aiman` validates the agent and runtime preconditions.
 4. The provider adapter executes the specialist in isolated context.
-5. `aiman` returns a slim normalized result and persists logs, `report.md`, and metadata under `.aiman/runs/`.
+5. `aiman` returns a slim normalized result and persists logs, `run.md`, and metadata under `.aiman/runs/`.
 6. The external caller decides whether to finish, invoke another specialist, or ask for approval.
 
 That keeps the boundary small:
@@ -121,23 +116,19 @@ Keep all execution state in repo-local `.aiman/`.
     researcher.md
   runs/
     20260328T143012Z-code-reviewer-ab12cd34/
-      run.json
+      run.md
       prompt.md
       stdout.log
       stderr.log
-      result.json
-      report.md
       artifacts/
 ```
 
 Recommended file roles:
 
-- `run.json`: persisted status snapshot for the run.
+- `run.md`: canonical persisted run record with structured frontmatter plus the final Markdown body.
 - `prompt.md`: rendered prompt sent to the downstream CLI.
 - `stdout.log` / `stderr.log`: raw subprocess output for debugging.
-- `result.json`: normalized final result.
-- `report.md`: optional structured handoff file with YAML frontmatter plus Markdown body.
-- `artifacts/`: optional files referenced from the report.
+- `artifacts/`: optional files referenced from the run frontmatter.
 
 Future additions can include `input.json` or `events.ndjson` if the calling pattern needs richer orchestration data.
 
@@ -145,9 +136,9 @@ Future additions can include `input.json` or `events.ndjson` if the calling patt
 
 Do not model `aiman` as agents talking to each other internally.
 
-Model it as an external caller delegating a bounded task to one specialist and receiving a slim runtime result plus optional `report.md` back.
+Model it as an external caller delegating a bounded task to one specialist and receiving a slim runtime result plus canonical `run.md` back.
 
-Example report frontmatter:
+Example run frontmatter:
 
 ```md
 ---
@@ -164,7 +155,7 @@ Why this is safer:
 
 - The caller remains in control.
 - `aiman` does not invent hidden routing policy.
-- Structured report metadata can be inspected before it becomes new work.
+- Structured run metadata can be inspected before it becomes new work.
 - You avoid prompt injection moving through uncontrolled transcript replay.
 
 ## Provider Adapter Contract
@@ -190,7 +181,7 @@ Important adapter responsibilities:
 - Set cwd and an allowlisted environment.
 - Parse provider-native machine-readable output when supported.
 
-Do not force one fake universal prompt format. The only universal layer should be execution metadata plus the optional `report.md` handoff contract.
+Do not force one fake universal prompt format. The only universal layer should be execution metadata plus the `run.md` contract.
 
 ## Safety Rules
 
@@ -238,7 +229,7 @@ I would avoid adding a large orchestration DSL early. Most of the value is in st
 2. Implement one provider adapter well.
 3. Implement repo-local run storage under `.aiman/runs/`.
 4. Implement safe subprocess execution with logs, timeout, and cancel.
-5. Implement file-first `report.md` handoff support for external callers.
+5. Implement file-first `run.md` support for external callers.
 6. Add a second provider adapter only after the first one is operational.
 
 ## Bottom Line

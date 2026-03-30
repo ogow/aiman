@@ -31,36 +31,38 @@ export type PreparedInvocation = {
 export type RunPaths = {
    artifactsDir?: string;
    promptFile: string;
-   reportFile?: string;
-   resultFile: string;
+   runFile: string;
    runDir: string;
-   stderrLog: string;
-   stdoutLog: string;
+   stderrLog?: string;
+   stdoutLog?: string;
 };
 
-export type ReportValue =
+export type MarkdownValue =
+   | boolean
+   | null
+   | number
    | string
-   | ReportValue[]
+   | MarkdownValue[]
    | {
-        [key: string]: ReportValue;
+        [key: string]: MarkdownValue;
      };
 
-export type ReportFrontmatter = Record<string, ReportValue>;
+export type MarkdownFrontmatter = Record<string, MarkdownValue>;
 
-export type ReportArtifact = {
+export type MarkdownArtifact = {
    exists: boolean;
    kind?: string;
    label?: string;
-   metadata?: ReportValue;
+   metadata?: MarkdownValue;
    path: string;
    resolvedPath: string;
 };
 
-export type RunReport = {
-   artifacts: ReportArtifact[];
+export type MarkdownDocument = {
+   artifacts: MarkdownArtifact[];
    body?: string;
    exists: boolean;
-   frontmatter?: ReportFrontmatter;
+   frontmatter?: MarkdownFrontmatter;
    parseError?: string;
    path: string;
 };
@@ -76,8 +78,7 @@ export type PreparedRunInput = {
    cwd: string;
    mode: RunMode;
    promptFile: string;
-   reportFile: string;
-   resultFile: string;
+   runFile: string;
    runId: string;
    task: string;
 };
@@ -89,15 +90,14 @@ export type CompletedRunInput = {
    exitCode: number | null;
    mode: RunMode;
    promptFile: string;
-   resultFile: string;
    runDir: string;
    runId: string;
    signal: string | null;
    startedAt: string;
    stderr: string;
-   stderrLog: string;
+   stderrLog?: string;
    stdout: string;
-   stdoutLog: string;
+   stdoutLog?: string;
 };
 
 export type PersistedRunRecord = {
@@ -124,7 +124,7 @@ export type RunResult = {
    finalText: string;
    mode?: RunMode;
    provider: ProviderId;
-   reportPath?: string;
+   runPath?: string;
    runId: string;
    status: RunStatus;
 };
@@ -136,16 +136,15 @@ export type StoredRunState = {
    errorMessage?: string;
    mode: RunMode;
    pid?: number;
+   paths: RunPaths;
    provider: ProviderId;
-   reportFile?: string;
-   resultFile: string;
    runId: string;
    startedAt: string;
    status: RunStatus | "running";
 };
 
 export type RunInspection = (PersistedRunRecord | StoredRunState) & {
-   report: RunReport;
+   document: MarkdownDocument;
 };
 
 export type ProviderAdapter = {

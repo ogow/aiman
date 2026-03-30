@@ -101,7 +101,7 @@ function mockFixedDate(isoString: string): () => void {
 test("runAgent uses unique run ids for same-second invocations", async (t) => {
    const fixture = await createProjectFixture(
       `#!/bin/sh
-echo '{"message":{"content":[{"text":"ok"}]}}'
+echo 'ok'
 `
    );
    const restoreProject = useProjectFixture(
@@ -137,7 +137,7 @@ echo '{"message":{"content":[{"text":"ok"}]}}'
 test("runAgent persists an error record when the provider cannot spawn", async () => {
    const fixture = await createProjectFixture(
       `#!/bin/sh
-echo '{"message":{"content":[{"text":"ok"}]}}'
+echo 'ok'
 `
    );
    const restoreProject = useProjectFixture(
@@ -163,31 +163,20 @@ echo '{"message":{"content":[{"text":"ok"}]}}'
          ".aiman",
          "runs",
          runId,
-         "run.json"
+         "run.md"
       );
-      const resultFilePath = path.join(
-         fixture.projectRoot,
-         ".aiman",
-         "runs",
-         runId,
-         "result.json"
-      );
-      const runState = JSON.parse(await readFile(runFilePath, "utf8")) as {
-         errorMessage?: string;
-         status: string;
-      };
-      const persistedResult = JSON.parse(
-         await readFile(resultFilePath, "utf8")
-      ) as {
-         errorMessage?: string;
-         status: string;
-      };
+      const persistedRun = await readFile(runFilePath, "utf8");
 
       assert.equal(result.status, "error");
       assert.match(result.errorMessage ?? "", /spawn .*ENOENT|ENOENT/);
-      assert.equal(runState.status, "error");
-      assert.equal(persistedResult.status, "error");
-      assert.equal(persistedResult.errorMessage, result.errorMessage);
+      assert.match(persistedRun, /status: error/);
+      assert.match(persistedRun, new RegExp(`runId: ${runId}`));
+      assert.match(
+         persistedRun,
+         new RegExp(
+            `errorMessage: ${String(result.errorMessage).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`
+         )
+      );
    } finally {
       restoreProject();
    }
@@ -227,31 +216,25 @@ done
          ".aiman",
          "runs",
          runId,
-         "result.json"
+         "run.md"
       );
-      const persistedResult = JSON.parse(
-         await readFile(resultFilePath, "utf8")
-      ) as {
-         errorMessage?: string;
-         status: string;
-      };
+      const persistedRun = await readFile(resultFilePath, "utf8");
 
       assert.equal(result.status, "error");
       assert.equal(result.errorMessage, "Execution timed out.");
-      assert.equal(persistedResult.status, "error");
-      assert.equal(persistedResult.errorMessage, "Execution timed out.");
+      assert.match(persistedRun, /status: error/);
+      assert.match(persistedRun, /errorMessage: Execution timed out\./);
    } finally {
       restoreProject();
    }
 });
 
-test("runAgent reports the structured report path when a report is written", async () => {
+test("runAgent reports the structured run path when a run file is written", async () => {
    const fixture = await createProjectFixture(
       `#!/bin/sh
-cat > "$AIMAN_REPORT_PATH" <<'EOF'
+cat > "$AIMAN_RUN_PATH" <<'EOF'
 ---
 kind: playwright-exploration
-status: success
 summary: Explored checkout flow
 artifacts:
   - kind: screenshot
@@ -266,8 +249,9 @@ findings:
 
 Body details.
 EOF
+mkdir -p "$AIMAN_ARTIFACTS_DIR"
 printf 'png-data' > "$AIMAN_ARTIFACTS_DIR/checkout.png"
-echo '{"message":{"content":[{"text":"Primary answer"}]}}'
+echo 'Primary answer'
 `
    );
    const restoreProject = useProjectFixture(
@@ -288,36 +272,29 @@ echo '{"message":{"content":[{"text":"Primary answer"}]}}'
 
       assert.equal(result.status, "success");
       assert.equal(result.finalText, "Primary answer");
-      const reportPath = result.reportPath ?? "";
-      assert.notEqual(reportPath, "");
-      assert.match(reportPath, new RegExp(`${runId}/report\\.md$`));
+      const runPath = result.runPath ?? "";
+      assert.notEqual(runPath, "");
+      assert.match(runPath, new RegExp(`${runId}/run\\.md$`));
 
-      const persistedResult = JSON.parse(
-         await readFile(
-            path.join(
-               fixture.projectRoot,
-               ".aiman",
-               "runs",
-               runId,
-               "result.json"
-            ),
-            "utf8"
-         )
-      ) as {
-         paths: {
-            artifactsDir?: string;
-            reportFile?: string;
-         };
-      };
+      const persistedRun = await readFile(
+         path.join(fixture.projectRoot, ".aiman", "runs", runId, "run.md"),
+         "utf8"
+      );
 
-      assert.match(
-         persistedResult.paths.artifactsDir ?? "",
-         new RegExp(`${runId}/artifacts$`)
+      assert.match(persistedRun, /kind: playwright-exploration/);
+      assert.match(persistedRun, /summary: Explored checkout flow/);
+      assert.match(persistedRun, /artifactsDir:/);
+      assert.match(persistedRun, /promptPath:/);
+      assert.match(persistedRun, /# Checkout Exploration/);
+
+      const runFiles = await readdir(
+         path.join(fixture.projectRoot, ".aiman", "runs", runId)
       );
-      assert.match(
-         persistedResult.paths.reportFile ?? "",
-         new RegExp(`${runId}/report\\.md$`)
-      );
+
+      assert.equal(runFiles.includes("report.md"), false);
+      assert.equal(runFiles.includes("result.json"), false);
+      assert.equal(runFiles.includes("run.json"), false);
+      assert.equal(runFiles.includes("stderr.log"), false);
    } finally {
       restoreProject();
    }

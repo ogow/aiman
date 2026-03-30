@@ -7,7 +7,8 @@
 - TypeScript edits should follow `docs/typescript-style.md`, which adapts the Google TypeScript Style Guide to this repo.
 - Tests use Node's built-in `node:test` runner with `assert/strict`.
 - The repo keeps durable agent memory in root-level files plus `.agents/memories/`.
-- Specialist runs can optionally persist a file-first `report.md` with YAML frontmatter plus artifacts inside each run directory; orchestration and memory still belong to the external parent agent.
+- New runs persist one canonical `run.md` with YAML frontmatter plus a Markdown body; prompt, log, and artifact files are optional run-side details that can be inspected when present.
+- `src/lib/run-doc.ts` uses `gray-matter` for the run document instead of a custom YAML/frontmatter parser.
 
 ## Agent Operating Model
 

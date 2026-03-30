@@ -256,26 +256,27 @@ test("inspects the full persisted run record", () => {
    assert.equal(result.status, 0);
 
    const payload = JSON.parse(result.stdout) as {
-      report: {
+      document: {
          artifacts: Array<{ exists: boolean; path: string }>;
          frontmatter?: { kind?: string; summary?: string };
          path: string;
       };
       finalText: string;
-      paths: { promptFile: string };
+      paths: { promptFile: string; runFile: string };
       status: string;
    };
 
    assert.equal(payload.status, "success");
    assert.equal(payload.finalText, "Final review summary");
    assert.match(payload.paths.promptFile, /prompt\.md$/);
-   assert.equal(payload.report.frontmatter?.kind, "code-review");
+   assert.match(payload.paths.runFile, /run\.md$/);
+   assert.equal(payload.document.frontmatter?.kind, "code-review");
    assert.equal(
-      payload.report.frontmatter?.summary,
+      payload.document.frontmatter?.summary,
       "Reviewed the current patch"
    );
-   assert.match(payload.report.path, /report\.md$/);
-   assert.deepEqual(payload.report.artifacts, [
+   assert.match(payload.document.path, /run\.md$/);
+   assert.deepEqual(payload.document.artifacts, [
       {
          exists: true,
          kind: "diff-note",
@@ -303,4 +304,44 @@ test("reads persisted stderr logs through inspect", () => {
 
    assert.equal(result.status, 0);
    assert.match(result.stdout, /review warning/);
+});
+
+test("reads the persisted prompt through inspect", () => {
+   const result = runCli([
+      "inspect",
+      "20260328T143012Z-code-reviewer",
+      "--stream",
+      "prompt"
+   ]);
+
+   assert.equal(result.status, 0);
+   assert.match(result.stdout, /Review the current change carefully/);
+});
+
+test("reads the persisted run file through inspect", () => {
+   const result = runCli([
+      "inspect",
+      "20260328T143012Z-code-reviewer",
+      "--stream",
+      "run"
+   ]);
+
+   assert.equal(result.status, 0);
+   assert.match(result.stdout, /runId: 20260328T143012Z-code-reviewer/);
+});
+
+test("renders a human summary for inspect by default", () => {
+   const result = runCli(["inspect", "20260328T143012Z-code-reviewer"]);
+
+   assert.equal(result.status, 0);
+   assert.match(result.stdout, /runId: 20260328T143012Z-code-reviewer/);
+   assert.match(result.stdout, /finalText:/);
+   assert.match(
+      result.stdout,
+      /Use "aiman inspect 20260328T143012Z-code-reviewer --stream run"/
+   );
+   assert.match(
+      result.stdout,
+      /Use "aiman inspect 20260328T143012Z-code-reviewer --stream prompt"/
+   );
 });

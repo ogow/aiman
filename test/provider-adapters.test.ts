@@ -32,38 +32,37 @@ test("codex adapter prepares a headless read-only invocation", () => {
       cwd: "/repo",
       mode: "read-only",
       promptFile: "/repo/.aiman/runs/run-1/prompt.md",
-      reportFile: "/repo/.aiman/runs/run-1/report.md",
-      resultFile: "/repo/.aiman/runs/run-1/result.json",
+      runFile: "/repo/.aiman/runs/run-1/run.md",
       runId: "run-1",
       task: "Review the diff"
    });
 
    assert.equal(prepared.command, "codex");
-   assert.deepEqual(prepared.args.slice(0, 8), [
+   assert.deepEqual(prepared.args.slice(0, 7), [
       "exec",
       "--sandbox",
       "read-only",
       "-a",
       "never",
       "--cd",
-      "/repo",
-      "--json"
+      "/repo"
    ]);
    assert.equal(
       prepared.env.AIMAN_ARTIFACTS_DIR,
       "/repo/.aiman/runs/run-1/artifacts"
    );
-   assert.equal(
-      prepared.env.AIMAN_REPORT_PATH,
-      "/repo/.aiman/runs/run-1/report.md"
-   );
+   assert.equal(prepared.env.AIMAN_RUN_PATH, "/repo/.aiman/runs/run-1/run.md");
    assert.equal(prepared.env.AIMAN_RUN_DIR, "/repo/.aiman/runs/run-1");
    assert.equal(prepared.env.AIMAN_RUN_ID, "run-1");
    assert.match(prepared.renderedPrompt, /Task: Review the diff/);
    assert.match(prepared.renderedPrompt, /Execution mode: read-only/);
    assert.match(
       prepared.renderedPrompt,
-      /Structured report path: \/repo\/\.aiman\/runs\/run-1\/report\.md/
+      /Optional structured run path: \/repo\/\.aiman\/runs\/run-1\/run\.md/
+   );
+   assert.match(
+      prepared.renderedPrompt,
+      /Use the optional run\/artifact paths only when your authored instructions need persisted handoff files/
    );
 });
 
@@ -74,42 +73,35 @@ test("gemini adapter prepares a headless workspace-write invocation", () => {
       cwd: "/repo",
       mode: "workspace-write",
       promptFile: "/repo/.aiman/runs/run-2/prompt.md",
-      reportFile: "/repo/.aiman/runs/run-2/report.md",
-      resultFile: "/repo/.aiman/runs/run-2/result.json",
+      runFile: "/repo/.aiman/runs/run-2/run.md",
       runId: "run-2",
       task: "Research the API"
    });
 
    assert.equal(prepared.command, "gemini");
-   assert.deepEqual(prepared.args.slice(0, 6), [
+   assert.deepEqual(prepared.args.slice(0, 4), [
       "--prompt",
       prepared.renderedPrompt,
       "--approval-mode",
-      "auto_edit",
-      "--output-format",
-      "json"
+      "auto_edit"
    ]);
    assert.equal(
       prepared.env.AIMAN_ARTIFACTS_DIR,
       "/repo/.aiman/runs/run-2/artifacts"
    );
-   assert.equal(
-      prepared.env.AIMAN_REPORT_PATH,
-      "/repo/.aiman/runs/run-2/report.md"
-   );
+   assert.equal(prepared.env.AIMAN_RUN_PATH, "/repo/.aiman/runs/run-2/run.md");
    assert.equal(prepared.env.AIMAN_RUN_DIR, "/repo/.aiman/runs/run-2");
    assert.equal(prepared.env.AIMAN_RUN_ID, "run-2");
    assert.match(prepared.renderedPrompt, /Task: Research the API/);
    assert.match(prepared.renderedPrompt, /Execution mode: workspace-write/);
 });
 
-test("codex adapter parses JSONL output and fallback files", async () => {
+test("codex adapter prefers the persisted last message over noisy stdout", async () => {
    const adapter = createCodexAdapter();
    const runDir = await mkdtemp(path.join(os.tmpdir(), "aiman-codex-"));
-   const resultFile = path.join(runDir, "result.json");
    const fallbackFile = path.join(runDir, ".codex-last-message.txt");
 
-   await writeFile(fallbackFile, "Fallback answer\n", "utf8");
+   await writeFile(fallbackFile, "Primary answer\n", "utf8");
 
    const record = await adapter.parseCompletedRun({
       agent: codexAgent,
@@ -118,37 +110,48 @@ test("codex adapter parses JSONL output and fallback files", async () => {
       exitCode: 0,
       mode: "read-only",
       promptFile: path.join(runDir, "prompt.md"),
-      resultFile,
       runDir,
       runId: "run-3",
       signal: null,
       startedAt: "2026-03-28T15:00:00.000Z",
       stderr: "",
       stderrLog: path.join(runDir, "stderr.log"),
-      stdout: [
-         JSON.stringify({
-            usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 }
-         }),
-         JSON.stringify({
-            type: "agent_message",
-            message: {
-               content: [{ type: "output_text", text: "Primary answer" }]
-            }
-         })
-      ].join("\n"),
+      stdout: "Thinking...\nPrimary answer\n",
       stdoutLog: path.join(runDir, "stdout.log")
    });
 
    assert.equal(record.status, "success");
    assert.equal(record.finalText, "Primary answer");
-   assert.deepEqual(record.usage, {
-      inputTokens: 10,
-      outputTokens: 5,
-      totalTokens: 15
-   });
+   assert.equal(record.usage, undefined);
 });
 
-test("gemini adapter parses JSON output", async () => {
+test("codex adapter falls back to stdout when no last message file exists", async () => {
+   const adapter = createCodexAdapter();
+   const runDir = await mkdtemp(path.join(os.tmpdir(), "aiman-codex-"));
+
+   const record = await adapter.parseCompletedRun({
+      agent: codexAgent,
+      cwd: "/repo",
+      endedAt: "2026-03-28T15:00:05.000Z",
+      exitCode: 0,
+      mode: "read-only",
+      promptFile: path.join(runDir, "prompt.md"),
+      runDir,
+      runId: "run-3b",
+      signal: null,
+      startedAt: "2026-03-28T15:00:00.000Z",
+      stderr: "",
+      stderrLog: path.join(runDir, "stderr.log"),
+      stdout: "Primary answer\n",
+      stdoutLog: path.join(runDir, "stdout.log")
+   });
+
+   assert.equal(record.status, "success");
+   assert.equal(record.finalText, "Primary answer");
+   assert.equal(record.usage, undefined);
+});
+
+test("gemini adapter parses plain text output", async () => {
    const adapter = createGeminiAdapter();
    const runDir = await mkdtemp(path.join(os.tmpdir(), "aiman-gemini-"));
 
@@ -159,27 +162,19 @@ test("gemini adapter parses JSON output", async () => {
       exitCode: 0,
       mode: "read-only",
       promptFile: path.join(runDir, "prompt.md"),
-      resultFile: path.join(runDir, "result.json"),
       runDir,
       runId: "run-4",
       signal: null,
       startedAt: "2026-03-28T15:00:00.000Z",
       stderr: "",
       stderrLog: path.join(runDir, "stderr.log"),
-      stdout: JSON.stringify({
-         response: { text: "Gemini answer" },
-         stats: { inputTokens: 4, outputTokens: 6, totalTokens: 10 }
-      }),
+      stdout: "Gemini answer\n",
       stdoutLog: path.join(runDir, "stdout.log")
    });
 
    assert.equal(record.status, "success");
    assert.equal(record.finalText, "Gemini answer");
-   assert.deepEqual(record.usage, {
-      inputTokens: 4,
-      outputTokens: 6,
-      totalTokens: 10
-   });
+   assert.equal(record.usage, undefined);
 });
 
 test("toRunResult keeps the external payload slim", () => {
@@ -195,8 +190,7 @@ test("toRunResult keeps the external payload slim", () => {
       paths: {
          artifactsDir: "/repo/.aiman/runs/run-5/artifacts",
          promptFile: "/repo/.aiman/runs/run-5/prompt.md",
-         reportFile: "/repo/.aiman/runs/run-5/report.md",
-         resultFile: "/repo/.aiman/runs/run-5/result.json",
+         runFile: "/repo/.aiman/runs/run-5/run.md",
          runDir: "/repo/.aiman/runs/run-5",
          stderrLog: "/repo/.aiman/runs/run-5/stderr.log",
          stdoutLog: "/repo/.aiman/runs/run-5/stdout.log"
@@ -215,6 +209,7 @@ test("toRunResult keeps the external payload slim", () => {
       mode: "read-only",
       provider: "codex",
       runId: "run-5",
+      runPath: "/repo/.aiman/runs/run-5/run.md",
       status: "success"
    });
 });

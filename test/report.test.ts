@@ -4,9 +4,9 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 
-import { readRunReport } from "../src/lib/report.js";
+import { readMarkdownDocument } from "../src/lib/run-doc.js";
 
-test("readRunReport parses YAML frontmatter and resolves artifacts", async () => {
+test("readMarkdownDocument parses YAML frontmatter and resolves artifacts", async () => {
    const runDir = await mkdtemp(path.join(os.tmpdir(), "aiman-report-"));
    const artifactsDir = path.join(runDir, "artifacts");
    const reportPath = path.join(runDir, "report.md");
@@ -37,7 +37,7 @@ Report body.
       "utf8"
    );
 
-   const report = await readRunReport(reportPath, artifactsDir);
+   const report = await readMarkdownDocument(reportPath, artifactsDir);
 
    assert.equal(report.exists, true);
    assert.equal(report.parseError, undefined);
@@ -56,7 +56,7 @@ Report body.
    assert.match(report.body ?? "", /Report body/);
 });
 
-test("readRunReport surfaces malformed frontmatter without throwing", async () => {
+test("readMarkdownDocument surfaces malformed frontmatter without throwing", async () => {
    const runDir = await mkdtemp(path.join(os.tmpdir(), "aiman-report-bad-"));
    const artifactsDir = path.join(runDir, "artifacts");
    const reportPath = path.join(runDir, "report.md");
@@ -65,16 +65,19 @@ test("readRunReport surfaces malformed frontmatter without throwing", async () =
    await writeFile(
       reportPath,
       `---
-kind playwright-exploration
+kind: [unterminated
 ---
 broken
 `,
       "utf8"
    );
 
-   const report = await readRunReport(reportPath, artifactsDir);
+   const report = await readMarkdownDocument(reportPath, artifactsDir);
 
    assert.equal(report.exists, true);
-   assert.match(report.parseError ?? "", /Invalid frontmatter line/);
+   assert.match(
+      report.parseError ?? "",
+      /unexpected end of the stream|end of the stream|missed comma between flow collection entries/i
+   );
    assert.deepEqual(report.artifacts, []);
 });

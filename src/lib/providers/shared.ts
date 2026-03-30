@@ -13,7 +13,7 @@ import type {
 
 const allowedEnvironmentKeys = [
    "AIMAN_ARTIFACTS_DIR",
-   "AIMAN_REPORT_PATH",
+   "AIMAN_RUN_PATH",
    "AIMAN_RUN_DIR",
    "AIMAN_RUN_ID",
    "AIMAN_TASK_ID",
@@ -96,7 +96,7 @@ export function buildPrompt(
       artifactsDir: string;
       cwd: string;
       mode: RunMode;
-      reportFile: string;
+      runFile: string;
       runId: string;
       task: string;
    }
@@ -108,11 +108,12 @@ Task: ${input.task}
 Working directory: ${input.cwd}
 Execution mode: ${input.mode}
 Run ID: ${input.runId}
-Artifacts directory: ${input.artifactsDir}
-Structured report path: ${input.reportFile}
+Optional artifacts directory: ${input.artifactsDir}
+Optional structured run path: ${input.runFile}
 
-Write any structured handoff report to the report path as Markdown with YAML frontmatter.
-Write any referenced files into the artifacts directory.
+Use the optional run/artifact paths only when your authored instructions need persisted handoff files.
+Create those files or directories yourself if you decide to use them.
+Do not assume any task beyond the task above.
 Return a final answer in the CLI output.`;
 }
 
@@ -125,14 +126,13 @@ export function finalizeRecord(input: {
    finalText: string;
    mode: RunMode;
    promptFile: string;
-   resultFile: string;
    runDir: string;
    runId: string;
    signal: string | null;
    startedAt: string;
    status: PersistedRunRecord["status"];
-   stderrLog: string;
-   stdoutLog: string;
+   stderrLog?: string;
+   stdoutLog?: string;
    usage?: UsageStats;
 }): PersistedRunRecord {
    return {
@@ -146,11 +146,14 @@ export function finalizeRecord(input: {
       paths: {
          artifactsDir: path.join(input.runDir, "artifacts"),
          promptFile: input.promptFile,
-         reportFile: path.join(input.runDir, "report.md"),
-         resultFile: input.resultFile,
+         runFile: path.join(input.runDir, "run.md"),
          runDir: input.runDir,
-         stderrLog: input.stderrLog,
-         stdoutLog: input.stdoutLog
+         ...(typeof input.stderrLog === "string"
+            ? { stderrLog: input.stderrLog }
+            : {}),
+         ...(typeof input.stdoutLog === "string"
+            ? { stdoutLog: input.stdoutLog }
+            : {})
       },
       provider: input.agent.provider,
       runId: input.runId,
@@ -176,47 +179,6 @@ export async function readOptionalFile(filePath: string): Promise<string> {
    }
 }
 
-export function deriveCodexLastMessagePath(resultFile: string): string {
-   return path.join(path.dirname(resultFile), ".codex-last-message.txt");
-}
-
-export function extractUsageCandidate(value: unknown): UsageStats | undefined {
-   if (typeof value !== "object" || value === null) {
-      return undefined;
-   }
-
-   const record = value as Record<string, unknown>;
-
-   const inputTokens =
-      typeof record.inputTokens === "number"
-         ? record.inputTokens
-         : typeof record.input_tokens === "number"
-           ? record.input_tokens
-           : undefined;
-   const outputTokens =
-      typeof record.outputTokens === "number"
-         ? record.outputTokens
-         : typeof record.output_tokens === "number"
-           ? record.output_tokens
-           : undefined;
-   const totalTokens =
-      typeof record.totalTokens === "number"
-         ? record.totalTokens
-         : typeof record.total_tokens === "number"
-           ? record.total_tokens
-           : undefined;
-
-   if (
-      inputTokens === undefined &&
-      outputTokens === undefined &&
-      totalTokens === undefined
-   ) {
-      return undefined;
-   }
-
-   return {
-      ...(inputTokens !== undefined ? { inputTokens } : {}),
-      ...(outputTokens !== undefined ? { outputTokens } : {}),
-      ...(totalTokens !== undefined ? { totalTokens } : {})
-   };
+export function deriveCodexLastMessagePath(runDir: string): string {
+   return path.join(runDir, ".codex-last-message.txt");
 }

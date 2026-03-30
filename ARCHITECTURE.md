@@ -12,9 +12,9 @@
 - [src/cmd/run.ts](/Users/ogow/Code/aiman/src/cmd/run.ts) is the primary execution entrypoint for running one specialist on behalf of an external caller.
 - [src/cmd/inspect.ts](/Users/ogow/Code/aiman/src/cmd/inspect.ts) exposes persisted run inspection and log access through one debug command.
 - [src/lib/agents.ts](/Users/ogow/Code/aiman/src/lib/agents.ts) loads the small agent catalog from `.aiman/agents/`, validates frontmatter, and resolves agents by file id or listed name.
-- [src/lib/report.ts](/Users/ogow/Code/aiman/src/lib/report.ts) parses optional run-level `report.md` handoff files, preserves the Markdown body, and resolves referenced artifacts inside each run directory.
+- [src/lib/run-doc.ts](/Users/ogow/Code/aiman/src/lib/run-doc.ts) reads and writes the canonical `run.md` file with `gray-matter`, while resolving any referenced artifacts inside each run directory.
 - [src/lib/runs.ts](/Users/ogow/Code/aiman/src/lib/runs.ts) orchestrates one specialist run from validation through subprocess completion.
-- [src/lib/run-store.ts](/Users/ogow/Code/aiman/src/lib/run-store.ts) owns persisted run files under `.aiman/runs/` plus the slim external result envelope.
+- [src/lib/run-store.ts](/Users/ogow/Code/aiman/src/lib/run-store.ts) owns persisted run files under `.aiman/runs/`, with `run.md` as the canonical record plus optional prompt/log/artifact side files.
 - [src/lib/providers/index.ts](/Users/ogow/Code/aiman/src/lib/providers/index.ts) selects the strict provider adapters for `codex` and `gemini`.
 - [src/lib/providers/shared.ts](/Users/ogow/Code/aiman/src/lib/providers/shared.ts) keeps the shared prompt, environment, and result-normalization helpers small and boring.
 
@@ -27,7 +27,8 @@
 - Add focused utility modules in `src/lib/` when behavior is shared or worth testing independently.
 - Keep agent loading catalog-based and simple; the repo is small enough that clarity matters more than micro-optimizing file lookups.
 - Keep run persistence boring and explicit; store files on disk instead of hiding state behind extra abstractions.
-- Keep structured specialist handoff file-first: optional `report.md` plus `artifacts/` live inside each run directory.
+- Keep the canonical run record file-first: `run.md` carries deterministic frontmatter plus the final Markdown body, and `artifacts/` remains optional.
+- Keep prompt/log/artifact files optional and inspectable rather than mandatory outputs.
 - Keep authored agent prompts provider-native; only execution metadata is normalized.
 - Keep orchestration outside `aiman`; the caller chooses which specialist to run and what to do next.
 - Return slim machine-readable output from `aiman run ... --json`; keep full execution metadata on disk and expose it through `aiman inspect`.
