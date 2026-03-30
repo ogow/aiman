@@ -7,22 +7,31 @@ import * as assert from "node:assert/strict";
 import { createCodexAdapter } from "../src/lib/providers/codex.js";
 import { createGeminiAdapter } from "../src/lib/providers/gemini.js";
 import { toRunResult } from "../src/lib/runs.js";
-import type { AgentDefinition, PersistedRunRecord } from "../src/lib/types.js";
+import type {
+   PersistedRunRecord,
+   ScopedAgentDefinition
+} from "../src/lib/types.js";
 
-const codexAgent: AgentDefinition = {
+const codexAgent: ScopedAgentDefinition = {
    body: "Review the current change carefully.",
    description: "Reviews code for risks and quality",
+   id: "code-reviewer",
    model: "gpt-5.4",
    name: "code-reviewer",
+   path: "/repo/.aiman/agents/code-reviewer.md",
    provider: "codex",
-   reasoningEffort: "medium"
+   reasoningEffort: "medium",
+   scope: "project"
 };
 
-const geminiAgent: AgentDefinition = {
+const geminiAgent: ScopedAgentDefinition = {
    body: "Research the problem space carefully.",
    description: "Research specialist",
+   id: "researcher",
    name: "researcher",
-   provider: "gemini"
+   path: "/repo/.aiman/agents/researcher.md",
+   provider: "gemini",
+   scope: "project"
 };
 
 test("codex adapter prepares a headless read-only invocation", () => {
@@ -47,6 +56,10 @@ test("codex adapter prepares a headless read-only invocation", () => {
       "--cd",
       "/repo"
    ]);
+   assert.match(
+      prepared.args.join(" "),
+      /--config model_reasoning_effort="medium"/
+   );
    assert.equal(
       prepared.env.AIMAN_ARTIFACTS_DIR,
       "/repo/.aiman/runs/run-1/artifacts"
@@ -94,6 +107,20 @@ test("gemini adapter prepares a headless workspace-write invocation", () => {
    assert.equal(prepared.env.AIMAN_RUN_ID, "run-2");
    assert.match(prepared.renderedPrompt, /Task: Research the API/);
    assert.match(prepared.renderedPrompt, /Execution mode: workspace-write/);
+});
+
+test("gemini adapter rejects reasoningEffort", () => {
+   const adapter = createGeminiAdapter();
+
+   assert.deepEqual(
+      adapter.validateAgent({ ...geminiAgent, reasoningEffort: "high" }),
+      [
+         {
+            code: "unsupported-reasoning-effort",
+            message: 'Provider "gemini" does not support reasoningEffort.'
+         }
+      ]
+   );
 });
 
 test("codex adapter prefers the persisted last message over noisy stdout", async () => {
@@ -180,6 +207,8 @@ test("gemini adapter parses plain text output", async () => {
 test("toRunResult keeps the external payload slim", () => {
    const record: PersistedRunRecord = {
       agent: "code-reviewer",
+      agentPath: "/repo/.aiman/agents/code-reviewer.md",
+      agentScope: "project",
       cwd: "/repo",
       durationMs: 5000,
       endedAt: "2026-03-28T15:00:05.000Z",
@@ -204,6 +233,8 @@ test("toRunResult keeps the external payload slim", () => {
 
    assert.deepEqual(toRunResult(record), {
       agent: "code-reviewer",
+      agentPath: "/repo/.aiman/agents/code-reviewer.md",
+      agentScope: "project",
       errorMessage: "None",
       finalText: "Final review summary",
       mode: "read-only",

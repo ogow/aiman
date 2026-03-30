@@ -22,13 +22,14 @@ import {
    writeRunState
 } from "./run-store.js";
 import { getAdapterForProvider } from "./providers/index.js";
-import type { RunMode, RunResult } from "./types.js";
+import type { AgentScope, RunMode, RunResult } from "./types.js";
 
 const defaultTimeoutMs = 5 * 60 * 1000;
 const defaultKillGraceMs = 1 * 1000;
 
 type RunAgentInput = {
    agentName: string;
+   agentScope?: AgentScope;
    cwd?: string;
    killGraceMs?: number;
    mode: RunMode;
@@ -70,6 +71,8 @@ function waitForChildCompletion(
 
 async function writeRunningState(input: {
    agent: string;
+   agentPath: string;
+   agentScope: AgentScope;
    cwd: string;
    mode: RunMode;
    pid?: number;
@@ -84,6 +87,8 @@ async function writeRunningState(input: {
 }): Promise<void> {
    await writeRunState(input.runFile, {
       agent: input.agent,
+      agentPath: input.agentPath,
+      agentScope: input.agentScope,
       cwd: input.cwd,
       mode: input.mode,
       paths: {
@@ -124,22 +129,19 @@ function createLazyLogWriter(filePath: string): {
    };
 }
 
-async function buildRunResult(
-   record: Parameters<typeof toRunResult>[0]
-): Promise<RunResult> {
-   return toRunResult(record);
-}
-
 export async function runAgent(input: RunAgentInput): Promise<RunResult> {
    const projectPaths = getProjectPaths();
    await ensureProjectDirectories(projectPaths);
 
-   const agent = await loadAgentDefinition(projectPaths, input.agentName);
+   const agent = await loadAgentDefinition(
+      projectPaths,
+      input.agentName,
+      input.agentScope
+   );
    const issues = await collectAgentRuntimeIssues(agent);
-   const errors = issues.filter((issue) => issue.level === "error");
 
-   if (errors.length > 0) {
-      throw new UserError(errors.map((issue) => issue.message).join("\n"));
+   if (issues.length > 0) {
+      throw new UserError(issues.map((issue) => issue.message).join("\n"));
    }
 
    const runId = createRunId(agent.name);
@@ -166,6 +168,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
    await writeFile(paths.promptFile, prepared.renderedPrompt, "utf8");
    await writeRunningState({
       agent: agent.name,
+      agentPath: agent.path,
+      agentScope: agent.scope,
       cwd: runCwd,
       mode: input.mode,
       promptFile: paths.promptFile,
@@ -187,6 +191,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
 
    await writeRunningState({
       agent: agent.name,
+      agentPath: agent.path,
+      agentScope: agent.scope,
       cwd: runCwd,
       mode: input.mode,
       promptFile: paths.promptFile,
@@ -251,6 +257,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
    if (completion.spawnError) {
       const record = createFailedRunRecord({
          agent: agent.name,
+         agentPath: agent.path,
+         agentScope: agent.scope,
          cwd: runCwd,
          endedAt,
          errorMessage: completion.spawnError.message,
@@ -265,7 +273,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
       });
 
       await persistResult(record, paths.runFile);
-      return buildRunResult(record);
+      return toRunResult(record);
    }
 
    const record = await adapter.parseCompletedRun({
@@ -287,14 +295,20 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
    const finalRecord = timedOut
       ? {
            ...record,
+           agentPath: agent.path,
+           agentScope: agent.scope,
            errorMessage: "Execution timed out.",
            status: "error" as const
         }
-      : record;
+      : {
+           ...record,
+           agentPath: agent.path,
+           agentScope: agent.scope
+        };
 
    await persistResult(finalRecord, paths.runFile);
 
-   return buildRunResult(finalRecord);
+   return toRunResult(finalRecord);
 }
 
 export { readRunDetails, readRunLog, toRunResult };

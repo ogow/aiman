@@ -81,3 +81,36 @@ broken
    );
    assert.deepEqual(report.artifacts, []);
 });
+
+test("readMarkdownDocument ignores artifact paths outside artifactsDir", async () => {
+   const runDir = await mkdtemp(path.join(os.tmpdir(), "aiman-report-safe-"));
+   const artifactsDir = path.join(runDir, "artifacts");
+   const reportPath = path.join(runDir, "run.md");
+
+   await mkdir(artifactsDir, { recursive: true });
+   await writeFile(
+      reportPath,
+      `---
+artifacts:
+  - kind: escaped
+    path: ../secrets.txt
+  - kind: allowed
+    path: trace.zip
+---
+Report body.
+`,
+      "utf8"
+   );
+   await writeFile(path.join(artifactsDir, "trace.zip"), "trace", "utf8");
+
+   const report = await readMarkdownDocument(reportPath, artifactsDir);
+
+   assert.deepEqual(report.artifacts, [
+      {
+         exists: true,
+         kind: "allowed",
+         path: "trace.zip",
+         resolvedPath: path.join(artifactsDir, "trace.zip")
+      }
+   ]);
+});

@@ -69,6 +69,8 @@ function renderRunSummary(run: RunInspection): string {
       `runId: ${run.runId}`,
       `status: ${run.status}`,
       `agent: ${run.agent}`,
+      `agentScope: ${run.agentScope}`,
+      `agentPath: ${run.agentPath}`,
       `provider: ${run.provider}`,
       `mode: ${run.mode}`,
       `cwd: ${run.cwd}`,

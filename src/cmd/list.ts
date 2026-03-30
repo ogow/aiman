@@ -1,11 +1,13 @@
 import type { ArgumentsCamelCase } from "yargs";
 
-import { listAgents } from "../lib/agents.js";
+import { agentScopeChoices, listAgents } from "../lib/agents.js";
 import { writeJson } from "../lib/output.js";
 import { getProjectPaths } from "../lib/paths.js";
+import type { AgentScope } from "../lib/types.js";
 
 type ListArguments = {
    json?: boolean;
+   scope?: AgentScope;
 };
 
 export const command = "list";
@@ -16,13 +18,18 @@ export const builder = {
       default: false,
       describe: "Print JSON output",
       type: "boolean"
+   },
+   scope: {
+      choices: agentScopeChoices,
+      describe: "Limit listing to one scope",
+      type: "string"
    }
 } as const;
 
 export async function handler(
    args: ArgumentsCamelCase<ListArguments>
 ): Promise<void> {
-   const agents = await listAgents(getProjectPaths());
+   const agents = await listAgents(getProjectPaths(), args.scope);
 
    if (args.json) {
       writeJson({ agents });
@@ -36,7 +43,7 @@ export async function handler(
 
    for (const agent of agents) {
       process.stdout.write(
-         `${agent.name}\t${agent.provider}\t${agent.description}\n`
+         `${agent.scope}\t${agent.name}\t${agent.provider}\t${agent.description}\n`
       );
    }
 }

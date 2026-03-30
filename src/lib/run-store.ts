@@ -28,7 +28,8 @@ type StoredRunPaths = RunPaths & {
 
 const reservedRunFrontmatterKeys = new Set([
    "agent",
-   "artifactsDir",
+   "agentPath",
+   "agentScope",
    "cwd",
    "durationMs",
    "endedAt",
@@ -36,14 +37,11 @@ const reservedRunFrontmatterKeys = new Set([
    "exitCode",
    "mode",
    "pid",
-   "promptPath",
    "provider",
    "runId",
    "signal",
    "startedAt",
    "status",
-   "stderrPath",
-   "stdoutPath",
    "usage"
 ]);
 
@@ -154,25 +152,6 @@ function getUsageStats(
    };
 }
 
-function buildRunPathsFromFrontmatter(
-   frontmatter: MarkdownFrontmatter,
-   paths: StoredRunPaths,
-   runFilePath: string
-): RunPaths {
-   const stderrPath = getStringValue(frontmatter, "stderrPath");
-   const stdoutPath = getStringValue(frontmatter, "stdoutPath");
-
-   return {
-      artifactsDir:
-         getStringValue(frontmatter, "artifactsDir") ?? paths.artifactsDir,
-      promptFile: getStringValue(frontmatter, "promptPath") ?? paths.promptFile,
-      runFile: runFilePath,
-      runDir: paths.runDir,
-      ...(typeof stderrPath === "string" ? { stderrLog: stderrPath } : {}),
-      ...(typeof stdoutPath === "string" ? { stdoutLog: stdoutPath } : {})
-   };
-}
-
 function pickAuthoredFrontmatter(
    frontmatter?: MarkdownFrontmatter
 ): MarkdownFrontmatter {
@@ -201,6 +180,8 @@ function buildRunFrontmatter(
       runId: value.runId,
       status: value.status,
       agent: value.agent,
+      agentScope: value.agentScope,
+      agentPath: value.agentPath,
       provider: value.provider,
       mode: value.mode,
       cwd: value.cwd,
@@ -213,16 +194,6 @@ function buildRunFrontmatter(
          ? { errorMessage: value.errorMessage }
          : {}),
       ...(pid !== undefined ? { pid } : {}),
-      promptPath: value.paths.promptFile,
-      ...(typeof value.paths.stdoutLog === "string"
-         ? { stdoutPath: value.paths.stdoutLog }
-         : {}),
-      ...(typeof value.paths.stderrLog === "string"
-         ? { stderrPath: value.paths.stderrLog }
-         : {}),
-      ...(typeof value.paths.artifactsDir === "string"
-         ? { artifactsDir: value.paths.artifactsDir }
-         : {}),
       ...(value.status !== "running" && "usage" in value && value.usage
          ? { usage: value.usage }
          : {})
@@ -263,6 +234,8 @@ function parseStoredStateFromDocument(
 
    const runId = getStringValue(frontmatter, "runId");
    const agent = getStringValue(frontmatter, "agent");
+   const agentPath = getStringValue(frontmatter, "agentPath");
+   const agentScope = getStringValue(frontmatter, "agentScope");
    const provider = frontmatter.provider;
    const mode = frontmatter.mode;
    const cwd = getStringValue(frontmatter, "cwd");
@@ -272,6 +245,8 @@ function parseStoredStateFromDocument(
    if (
       typeof runId !== "string" ||
       typeof agent !== "string" ||
+      (agentScope !== "project" && agentScope !== "user") ||
+      typeof agentPath !== "string" ||
       !isProviderId(provider) ||
       !isRunMode(mode) ||
       typeof cwd !== "string" ||
@@ -281,12 +256,6 @@ function parseStoredStateFromDocument(
       return undefined;
    }
 
-   const recordPaths = buildRunPathsFromFrontmatter(
-      frontmatter,
-      paths,
-      document.path
-   );
-
    if (status === "running") {
       const endedAt = getStringValue(frontmatter, "endedAt");
       const errorMessage = getStringValue(frontmatter, "errorMessage");
@@ -294,12 +263,14 @@ function parseStoredStateFromDocument(
 
       return {
          agent,
+         agentPath,
+         agentScope,
          cwd,
          ...(typeof endedAt === "string" ? { endedAt } : {}),
          ...(typeof errorMessage === "string" ? { errorMessage } : {}),
          mode,
          ...(typeof pid === "number" ? { pid } : {}),
-         paths: recordPaths,
+         paths,
          provider,
          runId,
          startedAt,
@@ -329,6 +300,8 @@ function parseStoredStateFromDocument(
 
    return {
       agent,
+      agentPath,
+      agentScope,
       cwd,
       durationMs,
       endedAt,
@@ -336,7 +309,7 @@ function parseStoredStateFromDocument(
       exitCode,
       finalText: document.body?.trimEnd() ?? "",
       mode,
-      paths: recordPaths,
+      paths,
       provider,
       runId,
       signal,
@@ -348,6 +321,8 @@ function parseStoredStateFromDocument(
 
 export function createFailedRunRecord(input: {
    agent: string;
+   agentPath: string;
+   agentScope: "project" | "user";
    cwd: string;
    endedAt: string;
    errorMessage: string;
@@ -362,6 +337,8 @@ export function createFailedRunRecord(input: {
 }): PersistedRunRecord {
    return {
       agent: input.agent,
+      agentPath: input.agentPath,
+      agentScope: input.agentScope,
       cwd: input.cwd,
       durationMs: Date.parse(input.endedAt) - Date.parse(input.startedAt),
       endedAt: input.endedAt,
@@ -392,6 +369,8 @@ export function createFailedRunRecord(input: {
 export function toRunResult(record: PersistedRunRecord): RunResult {
    return {
       agent: record.agent,
+      agentPath: record.agentPath,
+      agentScope: record.agentScope,
       finalText: record.finalText,
       mode: record.mode,
       provider: record.provider,
@@ -410,7 +389,7 @@ export async function writeRunState(
 ): Promise<void> {
    const existing = await readExistingDocument(
       filePath,
-      value.paths.artifactsDir ?? path.join(value.paths.runDir, "artifacts")
+      value.paths.artifactsDir
    );
 
    await writeMarkdownDocument({
@@ -429,7 +408,7 @@ export async function persistResult(
 ): Promise<void> {
    const existing = await readExistingDocument(
       runFile,
-      record.paths.artifactsDir ?? path.join(record.paths.runDir, "artifacts")
+      record.paths.artifactsDir
    );
 
    await writeMarkdownDocument({
@@ -483,14 +462,13 @@ export async function readRunLog(
    const runDir = path.join(projectPaths.runsDir, runId);
    const paths = buildRunPaths(runDir);
    const filePath =
-      stream === "prompt"
-         ? paths.promptFile
-         : stream === "run"
-           ? paths.runFile
-           : path.join(
-                runDir,
-                stream === "stderr" ? "stderr.log" : "stdout.log"
-             );
+      stream === "run"
+         ? paths.runFile
+         : stream === "prompt"
+           ? paths.promptFile
+           : stream === "stderr"
+             ? paths.stderrLog
+             : paths.stdoutLog;
 
    try {
       return await readFile(filePath, "utf8");

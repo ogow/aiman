@@ -35,15 +35,35 @@ Review the current change carefully.
    return { binDir, projectRoot };
 }
 
-function useProjectFixture(projectRoot: string, binDir: string): () => void {
+async function createUserHomeFixture(): Promise<string> {
+   const homeRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-home-"));
+   await mkdir(path.join(homeRoot, ".aiman", "agents"), { recursive: true });
+   return homeRoot;
+}
+
+function useProjectFixture(
+   projectRoot: string,
+   binDir: string,
+   homeRoot?: string
+): () => void {
    const originalCwd = process.cwd();
+   const originalHome = process.env.HOME;
    const originalPath = process.env.PATH;
 
    process.chdir(projectRoot);
+   if (homeRoot !== undefined) {
+      process.env.HOME = homeRoot;
+   }
    process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ""}`;
 
    return () => {
       process.chdir(originalCwd);
+
+      if (originalHome === undefined) {
+         delete process.env.HOME;
+      } else {
+         process.env.HOME = originalHome;
+      }
 
       if (originalPath === undefined) {
          delete process.env.PATH;
@@ -131,6 +151,8 @@ echo 'ok'
    );
 
    assert.notEqual(first.runId, second.runId);
+   assert.equal(first.agentScope, "project");
+   assert.match(first.agentPath ?? "", /reviewer\.md$/);
    assert.equal(runIds.length, 2);
 });
 
@@ -168,8 +190,12 @@ echo 'ok'
       const persistedRun = await readFile(runFilePath, "utf8");
 
       assert.equal(result.status, "error");
+      assert.equal(result.agentScope, "project");
+      assert.match(result.agentPath ?? "", /reviewer\.md$/);
       assert.match(result.errorMessage ?? "", /spawn .*ENOENT|ENOENT/);
       assert.match(persistedRun, /status: error/);
+      assert.match(persistedRun, /agentScope: project/);
+      assert.match(persistedRun, /agentPath:[\s\S]*reviewer\.md/);
       assert.match(persistedRun, new RegExp(`runId: ${runId}`));
       assert.match(
          persistedRun,
@@ -221,8 +247,10 @@ done
       const persistedRun = await readFile(resultFilePath, "utf8");
 
       assert.equal(result.status, "error");
+      assert.equal(result.agentScope, "project");
       assert.equal(result.errorMessage, "Execution timed out.");
       assert.match(persistedRun, /status: error/);
+      assert.match(persistedRun, /agentScope: project/);
       assert.match(persistedRun, /errorMessage: Execution timed out\./);
    } finally {
       restoreProject();
@@ -271,6 +299,8 @@ echo 'Primary answer'
       assert.ok(runId);
 
       assert.equal(result.status, "success");
+      assert.equal(result.agentScope, "project");
+      assert.match(result.agentPath ?? "", /reviewer\.md$/);
       assert.equal(result.finalText, "Primary answer");
       const runPath = result.runPath ?? "";
       assert.notEqual(runPath, "");
@@ -283,8 +313,8 @@ echo 'Primary answer'
 
       assert.match(persistedRun, /kind: playwright-exploration/);
       assert.match(persistedRun, /summary: Explored checkout flow/);
-      assert.match(persistedRun, /artifactsDir:/);
-      assert.match(persistedRun, /promptPath:/);
+      assert.match(persistedRun, /agentScope: project/);
+      assert.match(persistedRun, /agentPath:[\s\S]*reviewer\.md/);
       assert.match(persistedRun, /# Checkout Exploration/);
 
       const runFiles = await readdir(
@@ -295,6 +325,49 @@ echo 'Primary answer'
       assert.equal(runFiles.includes("result.json"), false);
       assert.equal(runFiles.includes("run.json"), false);
       assert.equal(runFiles.includes("stderr.log"), false);
+   } finally {
+      restoreProject();
+   }
+});
+
+test("runAgent can resolve a user-scope agent explicitly", async () => {
+   const fixture = await createProjectFixture(
+      `#!/bin/sh
+echo 'ok'
+`
+   );
+   const homeRoot = await createUserHomeFixture();
+
+   await writeFile(
+      path.join(homeRoot, ".aiman", "agents", "reviewer.md"),
+      `---
+name: reviewer
+provider: codex
+description: Reviews code for risks
+---
+
+Review the current change carefully.
+`,
+      "utf8"
+   );
+
+   const restoreProject = useProjectFixture(
+      fixture.projectRoot,
+      fixture.binDir,
+      homeRoot
+   );
+
+   try {
+      const result = await runAgent({
+         agentName: "reviewer",
+         agentScope: "user",
+         mode: "read-only",
+         task: "Review the diff"
+      });
+
+      assert.equal(result.status, "success");
+      assert.equal(result.agentScope, "user");
+      assert.match(result.agentPath ?? "", /\/\.aiman\/agents\/reviewer\.md$/);
    } finally {
       restoreProject();
    }

@@ -6,7 +6,7 @@ import {
    buildPrompt,
    detectExecutable,
    finalizeRecord,
-   validateReasoningEffort
+   rejectUnsupportedReasoningEffort
 } from "./shared.js";
 
 export function createGeminiAdapter(): ProviderAdapter {
@@ -74,7 +74,7 @@ export function createGeminiAdapter(): ProviderAdapter {
          };
       },
       validateAgent(agent) {
-         return validateReasoningEffort(agent);
+         return rejectUnsupportedReasoningEffort(agent);
       }
    };
 }

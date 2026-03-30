@@ -1,5 +1,7 @@
 export type ProviderId = "codex" | "gemini";
 
+export type AgentScope = "project" | "user";
+
 export type RunMode = "read-only" | "workspace-write";
 
 export type RunStatus = "cancelled" | "error" | "success";
@@ -13,9 +15,14 @@ export type AgentDefinition = {
    reasoningEffort?: "high" | "low" | "medium";
 };
 
+export type ScopedAgentDefinition = AgentDefinition & {
+   id: string;
+   path: string;
+   scope: AgentScope;
+};
+
 export type ValidationIssue = {
    code: string;
-   level: "error" | "warning";
    message: string;
 };
 
@@ -29,7 +36,7 @@ export type PreparedInvocation = {
 };
 
 export type RunPaths = {
-   artifactsDir?: string;
+   artifactsDir: string;
    promptFile: string;
    runFile: string;
    runDir: string;
@@ -84,7 +91,7 @@ export type PreparedRunInput = {
 };
 
 export type CompletedRunInput = {
-   agent: AgentDefinition;
+   agent: ScopedAgentDefinition;
    cwd: string;
    endedAt: string;
    exitCode: number | null;
@@ -102,6 +109,8 @@ export type CompletedRunInput = {
 
 export type PersistedRunRecord = {
    agent: string;
+   agentPath: string;
+   agentScope: AgentScope;
    cwd: string;
    durationMs: number;
    endedAt: string;
@@ -120,6 +129,8 @@ export type PersistedRunRecord = {
 
 export type RunResult = {
    agent: string;
+   agentPath?: string;
+   agentScope?: AgentScope;
    errorMessage?: string;
    finalText: string;
    mode?: RunMode;
@@ -131,6 +142,8 @@ export type RunResult = {
 
 export type StoredRunState = {
    agent: string;
+   agentPath: string;
+   agentScope: AgentScope;
    cwd: string;
    endedAt?: string;
    errorMessage?: string;

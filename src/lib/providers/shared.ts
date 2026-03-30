@@ -7,6 +7,7 @@ import type {
    AgentDefinition,
    PersistedRunRecord,
    RunMode,
+   ScopedAgentDefinition,
    UsageStats,
    ValidationIssue
 } from "../types.js";
@@ -68,13 +69,12 @@ export async function detectExecutable(
    return [
       {
          code: "missing-executable",
-         level: "error",
          message: `Executable "${command}" was not found on PATH.`
       }
    ];
 }
 
-export function validateReasoningEffort(
+export function rejectUnsupportedReasoningEffort(
    agent: AgentDefinition
 ): ValidationIssue[] {
    if (agent.reasoningEffort === undefined) {
@@ -84,8 +84,7 @@ export function validateReasoningEffort(
    return [
       {
          code: "unsupported-reasoning-effort",
-         level: "warning",
-         message: `Provider "${agent.provider}" does not map reasoningEffort in v1.`
+         message: `Provider "${agent.provider}" does not support reasoningEffort.`
       }
    ];
 }
@@ -118,7 +117,7 @@ Return a final answer in the CLI output.`;
 }
 
 export function finalizeRecord(input: {
-   agent: AgentDefinition;
+   agent: ScopedAgentDefinition;
    cwd: string;
    endedAt: string;
    errorMessage?: string;
@@ -137,6 +136,8 @@ export function finalizeRecord(input: {
 }): PersistedRunRecord {
    return {
       agent: input.agent.name,
+      agentPath: input.agent.path,
+      agentScope: input.agent.scope,
       cwd: input.cwd,
       durationMs: Date.parse(input.endedAt) - Date.parse(input.startedAt),
       endedAt: input.endedAt,

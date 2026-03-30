@@ -7,8 +7,7 @@ import {
    deriveCodexLastMessagePath,
    detectExecutable,
    finalizeRecord,
-   readOptionalFile,
-   validateReasoningEffort
+   readOptionalFile
 } from "./shared.js";
 
 export function createCodexAdapter(): ProviderAdapter {
@@ -80,6 +79,12 @@ export function createCodexAdapter(): ProviderAdapter {
                input.cwd,
                "--output-last-message",
                lastMessagePath,
+               ...(agent.reasoningEffort
+                  ? [
+                       "--config",
+                       `model_reasoning_effort="${agent.reasoningEffort}"`
+                    ]
+                  : []),
                ...(agent.model ? ["--model", agent.model] : []),
                "-"
             ],
@@ -90,8 +95,8 @@ export function createCodexAdapter(): ProviderAdapter {
             stdin: prompt
          };
       },
-      validateAgent(agent) {
-         return validateReasoningEffort(agent);
+      validateAgent() {
+         return [];
       }
    };
 }

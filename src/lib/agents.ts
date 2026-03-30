@@ -1,19 +1,30 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
 import { UserError, hasErrorCode } from "./errors.js";
-import { parseFrontmatter } from "./frontmatter.js";
+import {
+   ensureAgentScopeDirectory,
+   getAgentsDirectoryForScope
+} from "./paths.js";
 import type { ProjectPaths } from "./paths.js";
+import { parseFrontmatter } from "./frontmatter.js";
 import { getAdapterForProvider } from "./providers/index.js";
-import type { AgentDefinition, ProviderId, ValidationIssue } from "./types.js";
+import type {
+   AgentDefinition,
+   AgentScope,
+   ProviderId,
+   ScopedAgentDefinition,
+   ValidationIssue
+} from "./types.js";
 
 const reasoningEfforts = new Set(["low", "medium", "high"]);
 const providers = new Set<ProviderId>(["codex", "gemini"]);
-
-type AgentFile = {
-   definition: AgentDefinition;
-   id: string;
+const scopePriority: Record<AgentScope, number> = {
+   project: 0,
+   user: 1
 };
+
+export const agentScopeChoices = ["project", "user"] as const;
 
 function validateFrontmatterAttributes(
    filePath: string,
@@ -71,22 +82,35 @@ function validateFrontmatterAttributes(
    };
 }
 
-async function readAgentFile(filePath: string): Promise<AgentDefinition> {
-   const markdown = await readFile(filePath, "utf8");
+async function readAgentFile(input: {
+   filePath: string;
+   id: string;
+   scope: AgentScope;
+}): Promise<ScopedAgentDefinition> {
+   const markdown = await readFile(input.filePath, "utf8");
    const parsed = parseFrontmatter(markdown);
-
-   return validateFrontmatterAttributes(
-      filePath,
+   const definition = validateFrontmatterAttributes(
+      input.filePath,
       parsed.attributes,
       parsed.body
    );
+
+   return {
+      ...definition,
+      id: input.id,
+      path: input.filePath,
+      scope: input.scope
+   };
 }
 
 async function readAgentDirectory(
-   projectPaths: ProjectPaths
-): Promise<AgentFile[]> {
+   projectPaths: ProjectPaths,
+   scope: AgentScope
+): Promise<ScopedAgentDefinition[]> {
+   const agentsDir = getAgentsDirectoryForScope(projectPaths, scope);
+
    try {
-      const entries = await readdir(projectPaths.agentsDir, {
+      const entries = await readdir(agentsDir, {
          withFileTypes: true
       });
       const markdownFiles = entries
@@ -95,14 +119,13 @@ async function readAgentDirectory(
          .sort((left, right) => left.localeCompare(right));
 
       return Promise.all(
-         markdownFiles.map(async (entry) => {
-            const filePath = path.join(projectPaths.agentsDir, entry);
-
-            return {
-               definition: await readAgentFile(filePath),
-               id: path.parse(entry).name
-            };
-         })
+         markdownFiles.map(async (entry) =>
+            readAgentFile({
+               filePath: path.join(agentsDir, entry),
+               id: path.parse(entry).name,
+               scope
+            })
+         )
       );
    } catch (error) {
       if (hasErrorCode(error, "ENOENT")) {
@@ -113,67 +136,285 @@ async function readAgentDirectory(
    }
 }
 
-function findAgentDefinition(
-   agentFiles: AgentFile[],
-   requestedName: string
-): AgentDefinition {
-   const fileMatch = agentFiles.find(
-      (agentFile) => agentFile.id === requestedName
+async function readAgentDirectories(
+   projectPaths: ProjectPaths,
+   scope?: AgentScope
+): Promise<ScopedAgentDefinition[]> {
+   const scopes = scope === undefined ? agentScopeChoices : [scope];
+   const scopedAgents = await Promise.all(
+      scopes.map(async (currentScope) =>
+         readAgentDirectory(projectPaths, currentScope)
+      )
    );
 
-   if (fileMatch) {
-      return fileMatch.definition;
+   return scopedAgents.flat();
+}
+
+function compareAgents(
+   left: ScopedAgentDefinition,
+   right: ScopedAgentDefinition
+): number {
+   const nameComparison = left.name.localeCompare(right.name);
+
+   if (nameComparison !== 0) {
+      return nameComparison;
    }
 
-   const namedMatches = agentFiles.filter(
-      (agentFile) => agentFile.definition.name === requestedName
-   );
+   const scopeComparison =
+      scopePriority[left.scope] - scopePriority[right.scope];
 
-   if (namedMatches.length === 1) {
-      const [match] = namedMatches;
+   if (scopeComparison !== 0) {
+      return scopeComparison;
+   }
 
-      if (match) {
-         return match.definition;
+   return left.path.localeCompare(right.path);
+}
+
+function applyListPrecedence(
+   agentFiles: ScopedAgentDefinition[],
+   scope?: AgentScope
+): ScopedAgentDefinition[] {
+   if (scope !== undefined) {
+      return agentFiles;
+   }
+
+   const keptScopeByName = new Map<string, AgentScope>();
+
+   return agentFiles.filter((agentFile) => {
+      const keptScope = keptScopeByName.get(agentFile.name);
+
+      if (keptScope === undefined) {
+         keptScopeByName.set(agentFile.name, agentFile.scope);
+         return true;
       }
-   }
 
-   if (namedMatches.length > 1) {
-      throw new UserError(
-         `Multiple agent files declare the name "${requestedName}".`
+      return keptScope === agentFile.scope;
+   });
+}
+
+function findAgentDefinition(
+   agentFiles: ScopedAgentDefinition[],
+   requestedName: string,
+   scope?: AgentScope
+): ScopedAgentDefinition {
+   const scopes = scope === undefined ? agentScopeChoices : [scope];
+
+   for (const currentScope of scopes) {
+      const scopedAgents = agentFiles.filter(
+         (agentFile) => agentFile.scope === currentScope
       );
+      const fileMatch = scopedAgents.find(
+         (agentFile) => agentFile.id === requestedName
+      );
+
+      if (fileMatch) {
+         return fileMatch;
+      }
+
+      const namedMatches = scopedAgents.filter(
+         (agentFile) => agentFile.name === requestedName
+      );
+
+      if (namedMatches.length === 1) {
+         const [match] = namedMatches;
+
+         if (match) {
+            return match;
+         }
+      }
+
+      if (namedMatches.length > 1) {
+         throw new UserError(
+            `Multiple ${currentScope}-scope agent files declare the name "${requestedName}".`
+         );
+      }
    }
 
    throw new UserError(`Agent "${requestedName}" was not found.`);
 }
 
+function slugifyAgentName(name: string): string {
+   return name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+}
+
+function ensureTrailingPeriod(value: string): string {
+   const trimmed = value.trim();
+
+   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function humanizeAgentName(name: string): string {
+   return name.trim().replace(/[-_]+/g, " ").replace(/\s+/g, " ");
+}
+
+function renderAgentMarkdown(input: {
+   description: string;
+   instructions: string;
+   model?: string;
+   name: string;
+   provider: ProviderId;
+   reasoningEffort?: AgentDefinition["reasoningEffort"];
+}): string {
+   const lines = [
+      "---",
+      `name: ${input.name}`,
+      `provider: ${input.provider}`,
+      `description: ${input.description}`,
+      ...(typeof input.model === "string" && input.model.length > 0
+         ? [`model: ${input.model}`]
+         : []),
+      ...(typeof input.reasoningEffort === "string"
+         ? [`reasoningEffort: ${input.reasoningEffort}`]
+         : []),
+      "---",
+      "",
+      "## Role",
+      `You are the ${humanizeAgentName(input.name)} specialist. ${ensureTrailingPeriod(input.description)}`,
+      "",
+      "## Primary Task",
+      input.instructions.trim(),
+      "",
+      "## Constraints",
+      "- Stay within the assigned task.",
+      "- State assumptions clearly when information is missing.",
+      "- Do not invent facts, files, or results.",
+      "",
+      "## Expected Output",
+      "- Deliver a concise result focused on the task.",
+      "- Highlight key findings or recommendations clearly.",
+      "- Include clear next steps when relevant.",
+      ""
+   ];
+
+   return lines.join("\n");
+}
+
 export async function loadAgentDefinition(
    projectPaths: ProjectPaths,
-   name: string
-): Promise<AgentDefinition> {
+   name: string,
+   scope?: AgentScope
+): Promise<ScopedAgentDefinition> {
    const trimmedName = name.trim();
 
    if (trimmedName.length === 0) {
       throw new UserError("Agent name is required.");
    }
 
-   const agentFiles = await readAgentDirectory(projectPaths);
+   const agentFiles = await readAgentDirectories(projectPaths, scope);
 
-   return findAgentDefinition(agentFiles, trimmedName);
+   return findAgentDefinition(agentFiles, trimmedName, scope);
 }
 
 export async function listAgents(
-   projectPaths: ProjectPaths
-): Promise<Array<Pick<AgentDefinition, "description" | "name" | "provider">>> {
-   const agentFiles = await readAgentDirectory(projectPaths);
+   projectPaths: ProjectPaths,
+   scope?: AgentScope
+): Promise<
+   Array<
+      Pick<
+         ScopedAgentDefinition,
+         "description" | "name" | "path" | "provider" | "scope"
+      >
+   >
+> {
+   const agentFiles = await readAgentDirectories(projectPaths, scope);
 
-   return agentFiles
-      .map(({ definition }) => definition)
-      .sort((left, right) => left.name.localeCompare(right.name))
-      .map(({ description, name, provider }) => ({
+   return applyListPrecedence(agentFiles.sort(compareAgents), scope).map(
+      ({ description, name, path: filePath, provider, scope: agentScope }) => ({
          description,
          name,
-         provider
-      }));
+         path: filePath,
+         provider,
+         scope: agentScope
+      })
+   );
+}
+
+export async function createAgentFile(
+   projectPaths: ProjectPaths,
+   input: {
+      description: string;
+      force?: boolean;
+      instructions: string;
+      model?: string;
+      name: string;
+      provider: ProviderId;
+      reasoningEffort?: AgentDefinition["reasoningEffort"];
+      scope: AgentScope;
+   }
+): Promise<ScopedAgentDefinition> {
+   const trimmedName = input.name.trim();
+   const trimmedDescription = input.description.trim();
+   const trimmedInstructions = input.instructions.trim();
+
+   if (trimmedName.length === 0) {
+      throw new UserError("Agent name is required.");
+   }
+
+   if (trimmedDescription.length === 0) {
+      throw new UserError("Agent description is required.");
+   }
+
+   if (trimmedInstructions.length === 0) {
+      throw new UserError("Agent instructions are required.");
+   }
+
+   const fileId = slugifyAgentName(trimmedName);
+
+   if (fileId.length === 0) {
+      throw new UserError(
+         `Agent name "${input.name}" does not produce a valid file name.`
+      );
+   }
+
+   await ensureAgentScopeDirectory(projectPaths, input.scope);
+
+   const agentsDir = getAgentsDirectoryForScope(projectPaths, input.scope);
+   const targetPath = path.join(agentsDir, `${fileId}.md`);
+   const existingAgents = await readAgentDirectory(projectPaths, input.scope);
+   const conflictingName = existingAgents.find(
+      (agent) => agent.name === trimmedName && agent.path !== targetPath
+   );
+
+   if (conflictingName) {
+      throw new UserError(
+         `A ${input.scope}-scope agent named "${trimmedName}" already exists at ${conflictingName.path}.`
+      );
+   }
+
+   const conflictingFile = existingAgents.find(
+      (agent) => agent.path === targetPath
+   );
+
+   if (conflictingFile && input.force !== true) {
+      throw new UserError(
+         `Agent file ${targetPath} already exists. Re-run with --force to overwrite it.`
+      );
+   }
+
+   const markdown = renderAgentMarkdown({
+      description: trimmedDescription,
+      instructions: trimmedInstructions,
+      ...(typeof input.model === "string" && input.model.length > 0
+         ? { model: input.model }
+         : {}),
+      name: trimmedName,
+      provider: input.provider,
+      ...(typeof input.reasoningEffort === "string"
+         ? { reasoningEffort: input.reasoningEffort }
+         : {})
+   });
+
+   await writeFile(targetPath, markdown, "utf8");
+
+   return readAgentFile({
+      filePath: targetPath,
+      id: fileId,
+      scope: input.scope
+   });
 }
 
 export async function collectAgentValidationIssues(

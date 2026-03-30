@@ -7,8 +7,11 @@
 - TypeScript edits should follow `docs/typescript-style.md`, which adapts the Google TypeScript Style Guide to this repo.
 - Tests use Node's built-in `node:test` runner with `assert/strict`.
 - The repo keeps durable agent memory in root-level files plus `.agents/memories/`.
+- Authored agents can live in both project scope (`<repo>/.aiman/agents/`) and user scope (`~/.aiman/agents/`); lookup considers both and prefers project scope on name collisions.
 - New runs persist one canonical `run.md` with YAML frontmatter plus a Markdown body; prompt, log, and artifact files are optional run-side details that can be inspected when present.
 - `src/lib/run-doc.ts` uses `gray-matter` for the run document instead of a custom YAML/frontmatter parser.
+- This repo is currently forward-only during active development; do not preserve backward compatibility unless the user explicitly asks for it.
+- Codex-backed agents can map `reasoningEffort` through the Codex CLI config key `model_reasoning_effort`; unsupported providers should reject it instead of silently ignoring it.
 
 ## Agent Operating Model
 

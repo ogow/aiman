@@ -1,14 +1,17 @@
 import type { ArgumentsCamelCase, Argv } from "yargs";
 
+import { agentScopeChoices } from "../lib/agents.js";
 import { runAgent } from "../lib/runs.js";
 import { readTaskInput } from "../lib/task-input.js";
 import { writeJson } from "../lib/output.js";
+import type { AgentScope } from "../lib/types.js";
 
 type RunArguments = {
    agent?: string;
    cwd?: string;
    json?: boolean;
    mode?: "read-only" | "workspace-write";
+   scope?: AgentScope;
    task?: string;
 };
 
@@ -27,6 +30,11 @@ export function builder(yargs: Argv): Argv {
       })
       .option("cwd", {
          describe: "Working directory for the downstream provider",
+         type: "string"
+      })
+      .option("scope", {
+         choices: agentScopeChoices,
+         describe: "Resolve the agent from one scope only",
          type: "string"
       })
       .option("mode", {
@@ -48,6 +56,7 @@ export async function handler(
    const result = await runAgent({
       agentName: args.agent ?? "",
       mode: args.mode ?? "read-only",
+      ...(args.scope !== undefined ? { agentScope: args.scope } : {}),
       task,
       ...(typeof args.cwd === "string" && args.cwd.length > 0
          ? { cwd: args.cwd }
@@ -65,6 +74,12 @@ export async function handler(
    }
 
    process.stdout.write(`runId: ${result.runId}\n`);
+   if (result.agentScope) {
+      process.stdout.write(`agentScope: ${result.agentScope}\n`);
+   }
+   if (result.agentPath) {
+      process.stdout.write(`agentPath: ${result.agentPath}\n`);
+   }
    process.stdout.write(`status: ${result.status}\n`);
    process.stdout.write(`inspect: aiman inspect ${result.runId}\n`);
    process.stdout.write(`run: aiman inspect ${result.runId} --stream run\n`);

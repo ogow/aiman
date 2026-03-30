@@ -48,6 +48,12 @@ async function createProjectFixture(): Promise<string> {
    return projectRoot;
 }
 
+async function createUserHomeFixture(): Promise<string> {
+   const homeRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-home-"));
+   await mkdir(path.join(homeRoot, ".aiman", "agents"), { recursive: true });
+   return homeRoot;
+}
+
 async function createRunnableProjectFixture(
    executableBody: string
 ): Promise<{ binDir: string; projectRoot: string }> {
@@ -82,6 +88,7 @@ test("prints help with no arguments", () => {
    assert.match(result.stdout, /aiman \[command\]/);
    assert.match(result.stdout, /list/);
    assert.match(result.stdout, /show <agent>/);
+   assert.match(result.stdout, /create <name>/);
    assert.match(result.stdout, /run <agent>/);
    assert.match(result.stdout, /inspect <runId>/);
 });
@@ -114,13 +121,23 @@ test("lists authored agents", () => {
    assert.equal(result.status, 0);
 
    const payload = JSON.parse(result.stdout) as {
-      agents: Array<{ name: string; provider: string }>;
+      agents: Array<{
+         name: string;
+         path: string;
+         provider: string;
+         scope: string;
+      }>;
    };
 
    assert.deepEqual(
       payload.agents.map((agent) => agent.name),
       ["code-reviewer", "researcher"]
    );
+   assert.deepEqual(
+      payload.agents.map((agent) => agent.scope),
+      ["project", "project"]
+   );
+   assert.match(payload.agents[0]?.path ?? "", /\.md$/);
 });
 
 test("shows an authored agent", () => {
@@ -129,10 +146,12 @@ test("shows an authored agent", () => {
    assert.equal(result.status, 0);
 
    const payload = JSON.parse(result.stdout) as {
-      agent: { body: string; provider: string };
+      agent: { body: string; path: string; provider: string; scope: string };
    };
 
    assert.equal(payload.agent.provider, "codex");
+   assert.equal(payload.agent.scope, "project");
+   assert.match(payload.agent.path, /code-reviewer\.md$/);
    assert.match(payload.agent.body, /Review the current change carefully/);
 });
 
@@ -162,6 +181,321 @@ Review the current change carefully.
    };
 
    assert.equal(payload.agent.name, "listed-name");
+});
+
+test("creates a project-scope agent with structured instructions", async () => {
+   const projectRoot = await createProjectFixture();
+
+   const result = runCli(
+      [
+         "create",
+         "release-helper",
+         "--scope",
+         "project",
+         "--provider",
+         "codex",
+         "--model",
+         "gpt-5.4",
+         "--description",
+         "Helps with release tasks",
+         "--instructions",
+         "Prepare the release plan."
+      ],
+      {
+         cwd: projectRoot
+      }
+   );
+
+   assert.equal(result.status, 0);
+
+   const agentFile = await readFile(
+      path.join(projectRoot, ".aiman", "agents", "release-helper.md"),
+      "utf8"
+   );
+
+   assert.match(agentFile, /name: release-helper/);
+   assert.match(agentFile, /provider: codex/);
+   assert.match(agentFile, /model: gpt-5.4/);
+   assert.match(agentFile, /## Role/);
+   assert.match(agentFile, /## Primary Task/);
+   assert.match(agentFile, /Prepare the release plan\./);
+   assert.match(agentFile, /## Constraints/);
+   assert.match(agentFile, /## Expected Output/);
+});
+
+test("creates a user-scope agent in the home directory", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createUserHomeFixture();
+
+   const result = runCli(
+      [
+         "create",
+         "release-helper",
+         "--scope",
+         "user",
+         "--provider",
+         "gemini",
+         "--model",
+         "gemini-2.5-pro",
+         "--description",
+         "Helps with release tasks",
+         "--instructions",
+         "Prepare the release plan."
+      ],
+      {
+         cwd: projectRoot,
+         env: {
+            HOME: homeRoot
+         }
+      }
+   );
+
+   assert.equal(result.status, 0);
+
+   const agentFile = await readFile(
+      path.join(homeRoot, ".aiman", "agents", "release-helper.md"),
+      "utf8"
+   );
+
+   assert.match(agentFile, /name: release-helper/);
+   assert.match(agentFile, /provider: gemini/);
+   assert.match(agentFile, /model: gemini-2.5-pro/);
+   assert.match(result.stdout, /scope: user/);
+});
+
+test("creates a codex agent with reasoning-effort", async () => {
+   const projectRoot = await createProjectFixture();
+
+   const result = runCli(
+      [
+         "create",
+         "release-helper",
+         "--scope",
+         "project",
+         "--provider",
+         "codex",
+         "--model",
+         "gpt-5.4",
+         "--description",
+         "Helps with release tasks",
+         "--instructions",
+         "Prepare the release plan.",
+         "--reasoning-effort",
+         "high"
+      ],
+      {
+         cwd: projectRoot
+      }
+   );
+
+   assert.equal(result.status, 0);
+
+   const agentFile = await readFile(
+      path.join(projectRoot, ".aiman", "agents", "release-helper.md"),
+      "utf8"
+   );
+
+   assert.match(agentFile, /reasoningEffort: high/);
+});
+
+test("fails to create an agent without a scope", async () => {
+   const projectRoot = await createProjectFixture();
+
+   const result = runCli(
+      [
+         "create",
+         "release-helper",
+         "--provider",
+         "codex",
+         "--model",
+         "gpt-5.4",
+         "--description",
+         "Helps with release tasks",
+         "--instructions",
+         "Prepare the release plan."
+      ],
+      {
+         cwd: projectRoot
+      }
+   );
+
+   assert.equal(result.status, 1);
+   assert.match(result.stderr, /Agent scope is required/);
+});
+
+test("fails to create an agent without a provider", async () => {
+   const projectRoot = await createProjectFixture();
+
+   const result = runCli(
+      [
+         "create",
+         "release-helper",
+         "--scope",
+         "project",
+         "--model",
+         "gpt-5.4",
+         "--description",
+         "Helps with release tasks",
+         "--instructions",
+         "Prepare the release plan."
+      ],
+      {
+         cwd: projectRoot
+      }
+   );
+
+   assert.equal(result.status, 1);
+   assert.match(result.stderr, /Agent provider is required/);
+});
+
+test("fails to create an agent without a model", async () => {
+   const projectRoot = await createProjectFixture();
+
+   const result = runCli(
+      [
+         "create",
+         "release-helper",
+         "--scope",
+         "project",
+         "--provider",
+         "codex",
+         "--description",
+         "Helps with release tasks",
+         "--instructions",
+         "Prepare the release plan."
+      ],
+      {
+         cwd: projectRoot
+      }
+   );
+
+   assert.equal(result.status, 1);
+   assert.match(result.stderr, /Agent model is required/);
+});
+
+test("lists project and user agents together and filters by scope", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createUserHomeFixture();
+
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "project-reviewer.md"),
+      `---
+name: project-reviewer
+provider: codex
+description: Project reviewer
+---
+
+Review the project changes.
+`,
+      "utf8"
+   );
+   await writeFile(
+      path.join(homeRoot, ".aiman", "agents", "user-reviewer.md"),
+      `---
+name: user-reviewer
+provider: codex
+description: User reviewer
+---
+
+Review the shared changes.
+`,
+      "utf8"
+   );
+
+   const merged = runCli(["list", "--json"], {
+      cwd: projectRoot,
+      env: {
+         HOME: homeRoot
+      }
+   });
+   const filtered = runCli(["list", "--scope", "user", "--json"], {
+      cwd: projectRoot,
+      env: {
+         HOME: homeRoot
+      }
+   });
+
+   assert.equal(merged.status, 0);
+   assert.equal(filtered.status, 0);
+
+   const mergedPayload = JSON.parse(merged.stdout) as {
+      agents: Array<{ name: string; scope: string }>;
+   };
+   const filteredPayload = JSON.parse(filtered.stdout) as {
+      agents: Array<{ name: string; scope: string }>;
+   };
+
+   assert.deepEqual(
+      mergedPayload.agents.map((agent) => [agent.scope, agent.name]),
+      [
+         ["project", "project-reviewer"],
+         ["user", "user-reviewer"]
+      ]
+   );
+   assert.deepEqual(
+      filteredPayload.agents.map((agent) => [agent.scope, agent.name]),
+      [["user", "user-reviewer"]]
+   );
+});
+
+test("prefers the project agent when both scopes define the same name", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createUserHomeFixture();
+
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "reviewer.md"),
+      `---
+name: reviewer
+provider: codex
+description: Project reviewer
+---
+
+Review the project changes.
+`,
+      "utf8"
+   );
+   await writeFile(
+      path.join(homeRoot, ".aiman", "agents", "reviewer.md"),
+      `---
+name: reviewer
+provider: codex
+description: User reviewer
+---
+
+Review the user changes.
+`,
+      "utf8"
+   );
+
+   const result = runCli(["show", "reviewer", "--json"], {
+      cwd: projectRoot,
+      env: {
+         HOME: homeRoot
+      }
+   });
+   const listResult = runCli(["list", "--json"], {
+      cwd: projectRoot,
+      env: {
+         HOME: homeRoot
+      }
+   });
+
+   assert.equal(result.status, 0);
+   assert.equal(listResult.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      agent: { path: string; scope: string };
+   };
+   const listPayload = JSON.parse(listResult.stdout) as {
+      agents: Array<{ name: string; scope: string }>;
+   };
+
+   assert.equal(payload.agent.scope, "project");
+   assert.match(payload.agent.path, /\/\.aiman\/agents\/reviewer\.md$/);
+   assert.deepEqual(
+      listPayload.agents.map((agent) => [agent.scope, agent.name]),
+      [["project", "reviewer"]]
+   );
 });
 
 test("fails when showing an invalid agent file", () => {
@@ -246,6 +580,96 @@ exit 7
    assert.equal(payload.errorMessage, "simulated failure");
 });
 
+test("run resolves both scopes and prefers the project agent by default", async () => {
+   const fixture = await createRunnableProjectFixture(
+      `#!/bin/sh
+echo 'ok'
+`
+   );
+   const homeRoot = await createUserHomeFixture();
+
+   await writeFile(
+      path.join(homeRoot, ".aiman", "agents", "reviewer.md"),
+      `---
+name: reviewer
+provider: codex
+description: User reviewer
+---
+
+Review the current user change carefully.
+`,
+      "utf8"
+   );
+
+   const result = runCli(
+      ["run", "reviewer", "--task", "Review this", "--json"],
+      {
+         cwd: fixture.projectRoot,
+         env: {
+            HOME: homeRoot,
+            PATH: `${fixture.binDir}${path.delimiter}${process.env.PATH ?? ""}`
+         }
+      }
+   );
+
+   assert.equal(result.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      agentPath?: string;
+      agentScope?: string;
+      status: string;
+   };
+
+   assert.equal(payload.status, "success");
+   assert.equal(payload.agentScope, "project");
+   assert.match(payload.agentPath ?? "", /\/\.aiman\/agents\/reviewer\.md$/);
+});
+
+test("run --scope user bypasses project precedence", async () => {
+   const fixture = await createRunnableProjectFixture(
+      `#!/bin/sh
+echo 'ok'
+`
+   );
+   const homeRoot = await createUserHomeFixture();
+
+   await writeFile(
+      path.join(homeRoot, ".aiman", "agents", "reviewer.md"),
+      `---
+name: reviewer
+provider: codex
+description: User reviewer
+---
+
+Review the current user change carefully.
+`,
+      "utf8"
+   );
+
+   const result = runCli(
+      ["run", "reviewer", "--scope", "user", "--task", "Review this", "--json"],
+      {
+         cwd: fixture.projectRoot,
+         env: {
+            HOME: homeRoot,
+            PATH: `${fixture.binDir}${path.delimiter}${process.env.PATH ?? ""}`
+         }
+      }
+   );
+
+   assert.equal(result.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      agentPath?: string;
+      agentScope?: string;
+      status: string;
+   };
+
+   assert.equal(payload.status, "success");
+   assert.equal(payload.agentScope, "user");
+   assert.match(payload.agentPath ?? "", /\/\.aiman\/agents\/reviewer\.md$/);
+});
+
 test("inspects the full persisted run record", () => {
    const result = runCli([
       "inspect",
@@ -256,6 +680,8 @@ test("inspects the full persisted run record", () => {
    assert.equal(result.status, 0);
 
    const payload = JSON.parse(result.stdout) as {
+      agentPath: string;
+      agentScope: string;
       document: {
          artifacts: Array<{ exists: boolean; path: string }>;
          frontmatter?: { kind?: string; summary?: string };
@@ -267,6 +693,8 @@ test("inspects the full persisted run record", () => {
    };
 
    assert.equal(payload.status, "success");
+   assert.equal(payload.agentScope, "project");
+   assert.equal(payload.agentPath, "/repo/.aiman/agents/code-reviewer.md");
    assert.equal(payload.finalText, "Final review summary");
    assert.match(payload.paths.promptFile, /prompt\.md$/);
    assert.match(payload.paths.runFile, /run\.md$/);
@@ -335,6 +763,11 @@ test("renders a human summary for inspect by default", () => {
 
    assert.equal(result.status, 0);
    assert.match(result.stdout, /runId: 20260328T143012Z-code-reviewer/);
+   assert.match(result.stdout, /agentScope: project/);
+   assert.match(
+      result.stdout,
+      /agentPath: \/repo\/\.aiman\/agents\/code-reviewer\.md/
+   );
    assert.match(result.stdout, /finalText:/);
    assert.match(
       result.stdout,

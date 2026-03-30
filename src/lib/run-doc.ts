@@ -58,6 +58,7 @@ function buildArtifacts(
    artifactsDir: string
 ): MarkdownArtifact[] {
    const artifacts = frontmatter.artifacts;
+   const artifactsRoot = path.resolve(artifactsDir);
 
    if (!Array.isArray(artifacts)) {
       return [];
@@ -75,7 +76,15 @@ function buildArtifacts(
          return [];
       }
 
-      const resolvedPath = path.resolve(artifactsDir, relativePath);
+      const resolvedPath = path.resolve(artifactsRoot, relativePath);
+      const relativeResolvedPath = path.relative(artifactsRoot, resolvedPath);
+
+      if (
+         relativeResolvedPath.startsWith("..") ||
+         path.isAbsolute(relativeResolvedPath)
+      ) {
+         return [];
+      }
 
       return [
          {
