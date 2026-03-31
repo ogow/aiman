@@ -2,16 +2,17 @@ import type { ArgumentsCamelCase, Argv } from "yargs";
 
 import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
+import { renderInspectView } from "../lib/run-render.js";
 import { readRunDetails, readRunLog } from "../lib/runs.js";
 
 type InspectArguments = {
    json?: boolean;
    runId?: string;
-   stream?: "stderr" | "stdout";
+   stream?: "prompt" | "run" | "stderr" | "stdout";
 };
 
 export const command = "inspect <runId>";
-export const describe = "Inspect one persisted run";
+export const describe = "Inspect one persisted session record";
 
 export function builder(yargs: Argv): Argv {
    return yargs
@@ -20,14 +21,22 @@ export function builder(yargs: Argv): Argv {
          type: "string"
       })
       .option("stream", {
-         choices: ["stdout", "stderr"] as const,
-         describe: "Show one log stream instead of the run record"
+         choices: ["run", "prompt", "stdout", "stderr"] as const,
+         describe: "Show one persisted file instead of the parsed run details"
       })
       .option("json", {
          default: false,
          describe: "Print JSON output",
          type: "boolean"
-      });
+      })
+      .example(
+         "$0 sesh inspect 20260330T120000Z-reviewer-1234abcd",
+         "Show detailed parsed run information"
+      )
+      .example(
+         "$0 sesh inspect 20260330T120000Z-reviewer-1234abcd --stream prompt",
+         "Read the exact prompt sent to the provider"
+      );
 }
 
 export async function handler(
@@ -60,6 +69,5 @@ export async function handler(
       return;
    }
 
-   process.stdout.write(JSON.stringify(run, null, 2));
-   process.stdout.write("\n");
+   process.stdout.write(renderInspectView(run));
 }

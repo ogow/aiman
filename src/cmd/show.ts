@@ -1,13 +1,20 @@
 import type { ArgumentsCamelCase, Argv } from "yargs";
 
-import { loadAgentDefinition } from "../lib/agents.js";
+import { agentScopeChoices, loadAgentDefinition } from "../lib/agents.js";
 import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
 import { getProjectPaths } from "../lib/paths.js";
+import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
+import {
+   getProviderCapabilities,
+   summarizeProviderModes
+} from "../lib/provider-capabilities.js";
+import type { AgentScope } from "../lib/types.js";
 
 type ShowArguments = {
    agent?: string;
    json?: boolean;
+   scope?: AgentScope;
 };
 
 export const command = "show <agent>";
@@ -23,6 +30,11 @@ export function builder(yargs: Argv): Argv {
          default: false,
          describe: "Print JSON output",
          type: "boolean"
+      })
+      .option("scope", {
+         choices: agentScopeChoices,
+         describe: "Resolve the agent from one scope only",
+         type: "string"
       });
 }
 
@@ -33,25 +45,52 @@ export async function handler(
       throw new UserError("Agent name is required.");
    }
 
-   const agent = await loadAgentDefinition(getProjectPaths(), args.agent);
+   const agent = await loadAgentDefinition(
+      getProjectPaths(),
+      args.agent,
+      args.scope
+   );
+   const capabilities = getProviderCapabilities(agent.provider);
 
    if (args.json) {
-      writeJson({ agent });
+      writeJson({
+         agent,
+         capabilities
+      });
       return;
    }
 
-   process.stdout.write(`name: ${agent.name}\n`);
-   process.stdout.write(`provider: ${agent.provider}\n`);
-   process.stdout.write(`description: ${agent.description}\n`);
+   const summary = renderLabelValueBlock([
+      { label: "Name", value: agent.name },
+      { label: "Scope", value: agent.scope },
+      { label: "Provider", value: agent.provider },
+      { label: "Permissions", value: agent.permissions },
+      { label: "Run modes", value: summarizeProviderModes(agent.provider) },
+      { label: "Model", value: agent.model ?? "" },
+      {
+         label: "Reasoning",
+         value: agent.reasoningEffort ?? ""
+      },
+      {
+         label: "Required MCPs",
+         value: agent.requiredMcps?.join(", ") ?? ""
+      },
+      { label: "Skills", value: agent.skills?.join(", ") ?? "" },
+      { label: "Description", value: agent.description },
+      { label: "Path", value: agent.path }
+   ]);
+   const rights = renderLabelValueBlock([
+      ...capabilities.modes.map((modeCapability) => ({
+         label: modeCapability.mode,
+         value: modeCapability.details
+      })),
+      {
+         label: "Environment",
+         value: capabilities.environmentSummary
+      }
+   ]);
 
-   if (agent.model) {
-      process.stdout.write(`model: ${agent.model}\n`);
-   }
-
-   if (agent.reasoningEffort) {
-      process.stdout.write(`reasoningEffort: ${agent.reasoningEffort}\n`);
-   }
-
-   process.stdout.write("\n");
-   process.stdout.write(`${agent.body}\n`);
+   process.stdout.write(
+      `${renderSection("Agent", summary)}\n\n${renderSection("Rights", rights)}\n\n${renderSection("Instructions", agent.body)}\n`
+   );
 }

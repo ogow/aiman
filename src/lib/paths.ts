@@ -1,29 +1,61 @@
+import * as os from "node:os";
 import { mkdir } from "node:fs/promises";
 import * as path from "node:path";
 
+import type { AgentScope } from "./types.js";
+
 export type ProjectPaths = {
-   agentsDir: string;
    aimanDir: string;
+   projectSkillsDir: string;
    projectRoot: string;
+   projectAgentsDir: string;
    runsDir: string;
+   userAgentsDir: string;
+   userSkillsDir: string;
+   userAimanDir: string;
 };
 
 export function getProjectPaths(projectRoot = process.cwd()): ProjectPaths {
    const aimanDir = path.join(projectRoot, ".aiman");
+   const userAimanDir = path.join(os.homedir(), ".aiman");
+   const userAgentsDir = path.join(userAimanDir, "agents");
+   const agentsHomeDir = path.join(os.homedir(), ".agents");
 
    return {
-      agentsDir: path.join(aimanDir, "agents"),
       aimanDir,
+      projectSkillsDir: path.join(projectRoot, ".agents", "skills"),
       projectRoot,
-      runsDir: path.join(aimanDir, "runs")
+      projectAgentsDir: path.join(aimanDir, "agents"),
+      runsDir: path.join(aimanDir, "runs"),
+      userAgentsDir,
+      userSkillsDir: path.join(agentsHomeDir, "skills"),
+      userAimanDir
    };
 }
 
 export async function ensureProjectDirectories(
    projectPaths: ProjectPaths
 ): Promise<void> {
-   await mkdir(projectPaths.agentsDir, { recursive: true });
+   await mkdir(projectPaths.projectAgentsDir, { recursive: true });
    await mkdir(projectPaths.runsDir, { recursive: true });
+}
+
+export async function ensureAgentScopeDirectory(
+   projectPaths: ProjectPaths,
+   scope: AgentScope
+): Promise<void> {
+   await mkdir(getAgentsDirectoryForScope(projectPaths, scope), {
+      recursive: true
+   });
+}
+
+export function getAgentsDirectoryForScope(
+   projectPaths: ProjectPaths,
+   scope: AgentScope
+): string {
+   return scope === "project"
+      ? projectPaths.projectAgentsDir
+      : projectPaths.userAgentsDir;
 }
 
 export function resolveRunCwd(projectRoot: string, cwd?: string): string {

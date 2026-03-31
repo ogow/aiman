@@ -1,20 +1,9 @@
+import matter from "gray-matter";
+
 import { UserError } from "./errors.js";
 
-function parseScalar(value: string): string {
-   const trimmed = value.trim();
-
-   if (
-      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-      (trimmed.startsWith("'") && trimmed.endsWith("'"))
-   ) {
-      return trimmed.slice(1, -1);
-   }
-
-   return trimmed;
-}
-
 export function parseFrontmatter(markdown: string): {
-   attributes: Record<string, string>;
+   attributes: Record<string, unknown>;
    body: string;
 } {
    const normalizedMarkdown = markdown.replace(/\r\n?/g, "\n");
@@ -29,35 +18,22 @@ export function parseFrontmatter(markdown: string): {
       throw new UserError("Agent frontmatter is not closed.");
    }
 
-   const rawFrontmatter = normalizedMarkdown.slice(4, endIndex);
-   const rawBody = normalizedMarkdown.slice(endIndex + "\n---\n".length);
-   const attributes: Record<string, string> = {};
+   try {
+      const parsed = matter(normalizedMarkdown);
+      const attributes =
+         typeof parsed.data === "object" &&
+         parsed.data !== null &&
+         !Array.isArray(parsed.data)
+            ? (parsed.data as Record<string, unknown>)
+            : {};
 
-   for (const line of rawFrontmatter.split("\n")) {
-      const trimmed = line.trim();
-
-      if (trimmed.length === 0) {
-         continue;
-      }
-
-      const separatorIndex = trimmed.indexOf(":");
-
-      if (separatorIndex === -1) {
-         throw new UserError(`Invalid frontmatter line: ${line}`);
-      }
-
-      const key = trimmed.slice(0, separatorIndex).trim();
-      const value = trimmed.slice(separatorIndex + 1);
-
-      if (key.length === 0) {
-         throw new UserError(`Invalid frontmatter key in line: ${line}`);
-      }
-
-      attributes[key] = parseScalar(value);
+      return {
+         attributes,
+         body: parsed.content.trim()
+      };
+   } catch (error) {
+      throw new UserError(
+         `Agent frontmatter could not be parsed: ${error instanceof Error ? error.message : String(error)}`
+      );
    }
-
-   return {
-      attributes,
-      body: rawBody.trim()
-   };
 }

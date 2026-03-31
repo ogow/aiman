@@ -3,11 +3,31 @@
 ## Project Truths
 
 - `aiman` is currently a CLI-only TypeScript project built with `yargs`.
+- `aiman` is a provider-neutral specialist-run recorder, not an orchestrator or workflow engine.
 - The codebase favors small command modules and a thin CLI bootstrap.
+- The public CLI is grouped by concern: `agent` for authored specialists, `skill` for reusable skills, `run` for execution, and `sesh` for live or completed session inspection.
 - TypeScript edits should follow `docs/typescript-style.md`, which adapts the Google TypeScript Style Guide to this repo.
 - Tests use Node's built-in `node:test` runner with `assert/strict`.
 - The repo keeps durable agent memory in root-level files plus `.agents/memories/`.
-- Specialist runs can optionally persist a file-first `report.md` with YAML frontmatter plus artifacts inside each run directory; orchestration and memory still belong to the external parent agent.
+- Authored agents can live in both project scope (`<repo>/.aiman/agents/`) and user scope (`~/.aiman/agents/`); lookup considers both and prefers project scope on name collisions.
+- Authored agents can optionally declare `skills` in frontmatter; `aiman run` preflights those names against project skills (`<repo>/.agents/skills/`) and user skills (`~/.agents/skills/`), prefers the project skill on collisions, and records the resolved skill files in the launch snapshot.
+- Authored agents can optionally declare `requiredMcps` in frontmatter; `aiman run` preflights those names through the selected provider CLI before launch and fails fast when a required MCP is missing, disabled, or reported disconnected.
+- `aiman skill list` lists available project/user skills using the same project-over-user precedence as run-time skill resolution, so operators can discover the exact skill names to declare in agent frontmatter.
+- New runs persist one canonical `run.md` with YAML frontmatter plus a Markdown body; prompt, log, and artifact files are optional run-side details that can be inspected when present.
+- Each persisted run now includes an immutable `launch` snapshot inside `run.md` so `inspect` and detached workers can trust the frozen launch evidence without re-reading mutable agent files.
+- Authored agent bodies own their full prompt shape; `aiman` no longer appends a hidden runtime footer.
+- Authored agent frontmatter now must declare `permissions: read-only | workspace-write`; `aiman run` uses that declaration as the agent's execution mode and rejects conflicting `--mode` overrides.
+- `aiman run` is foreground-first: it runs a worker inline by default and returns the final result when complete, while `--detach` is the explicit background mode.
+- Each persisted run now records `launchMode: foreground | detached`, and operator-facing views surface that mode instead of assuming every live run came from the same path.
+- Detached runs execute from snapshotted launch metadata persisted in `run.md` plus `prompt.md`; hidden workers should not re-read mutable agent files after `run --detach` returns.
+- Operator-facing run liveness is derived from both the persisted supervising `aiman` process `pid` and a fresh supervisor heartbeat in `run.md`; `sesh list` only treats runs as active when both signals are current, while `sesh show`/`sesh inspect` warn when a run never reached a terminal record.
+- Operator-facing surfaces should make provider rights explicit: `show` describes each provider's read-only vs write-enabled modes, and concrete run views/reporting include the effective rights for that run.
+- Human TTY surfaces may show an indeterminate activity indicator for active runs, but `aiman` does not pretend to know true percent-complete progress.
+- Foreground human `aiman run` output should stay caller-friendly: print the final answer on success when one exists, stay quiet on successful empty output, and leave verbose status/log detail to `sesh show`, `sesh logs`, and `sesh inspect`.
+- Prefer explicit failure over degraded fallback behavior in the current harness: operator surfaces should either work under their stated requirements or fail clearly, and provider success parsing should require the expected persisted artifacts.
+- `src/lib/run-doc.ts` uses `gray-matter` for the run document instead of a custom YAML/frontmatter parser.
+- This repo is currently forward-only during active development; do not preserve backward compatibility unless the user explicitly asks for it.
+- Codex-backed agents can map `reasoningEffort` through the Codex CLI config key `model_reasoning_effort`; unsupported providers should reject it instead of silently ignoring it.
 
 ## Agent Operating Model
 
