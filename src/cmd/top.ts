@@ -34,8 +34,12 @@ type RunAgeSource = {
    startedAt: string;
 };
 
+type RunTimeSource = {
+   startedAt: string;
+};
+
 const refreshIntervalMs = 500;
-const recentLogLines = 20;
+const recentLogLines = 40;
 const recentRunLimit = 20;
 const alternateScreenOn = "\u001b[?1049h\u001b[?25l";
 const alternateScreenOff = "\u001b[?25h\u001b[?1049l";
@@ -246,6 +250,24 @@ export function getTopRunAge(run: RunAgeSource, nowMs = Date.now()): string {
    return formatDuration(durationMs);
 }
 
+export function getTopRunWhen(run: RunTimeSource): string {
+   const timeMatch = run.startedAt.match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/
+   );
+
+   if (timeMatch === null) {
+      return "unknown";
+   }
+
+   return `${timeMatch[1]}${timeMatch[2]}${timeMatch[3]}T${timeMatch[4]}${timeMatch[5]}`;
+}
+
+export function getTopRunLabel(runId: string): string {
+   const suffixMatch = runId.match(/^\d{8}T\d{6}Z-(.+)$/);
+
+   return suffixMatch?.[1] ?? runId;
+}
+
 function formatStatus(run: RunInspection): string {
    return run.active ? `${run.status}*` : run.status;
 }
@@ -285,7 +307,8 @@ function buildRunsPane(
    innerWidth: number,
    innerHeight: number
 ): StyledLine[] {
-   const nameWidth = Math.max(8, innerWidth - 17);
+   const stateWidth = 8;
+   const whenWidth = 13;
    const selectedIndex = getSelectedIndex(state);
    const visibleRows = Math.max(0, innerHeight - 2);
    const startIndex =
@@ -314,14 +337,28 @@ function buildRunsPane(
       ];
    }
 
+   const nameWidth = clamp(
+      Math.max(
+         10,
+         "Run".length,
+         ...visibleRowsData.map((run) => {
+            const marker = run.runId === state.selectedRunId ? "›" : " ";
+            const active = run.active ? "●" : "○";
+            return `${marker} ${active} ${getTopRunLabel(run.runId)}`.length;
+         })
+      ),
+      10,
+      Math.max(10, innerWidth - stateWidth - whenWidth - 4)
+   );
+
    const lines: StyledLine[] = [
       {
          style: "accent",
-         text: `${pad("Agent", nameWidth)}  ${pad("State", 8)}  ${pad("Age", 5)}`
+         text: `${pad("Run", nameWidth)}  ${pad("State", stateWidth)}  ${pad("Started", whenWidth)}`
       },
       {
          style: "dim",
-         text: `${pad("", nameWidth)}  ${pad("", 8)}  ${pad("", 5)}`.replaceAll(
+         text: `${pad("", nameWidth)}  ${pad("", stateWidth)}  ${pad("", whenWidth)}`.replaceAll(
             " ",
             "·"
          )
@@ -331,9 +368,9 @@ function buildRunsPane(
    for (const run of visibleRowsData) {
       const marker = run.runId === state.selectedRunId ? "›" : " ";
       const active = run.active ? "●" : "○";
-      const name = `${marker} ${active} ${truncate(`${run.agent} / ${run.provider}`, Math.max(0, nameWidth - 4))}`;
-      const age = getTopRunAge(run);
-      const text = `${pad(name, nameWidth)}  ${pad(formatStatus(run), 8)}  ${pad(age, 5)}`;
+      const name = `${marker} ${active} ${truncate(getTopRunLabel(run.runId), Math.max(0, nameWidth - 4))}`;
+      const when = getTopRunWhen(run);
+      const text = `${pad(name, nameWidth)}  ${pad(formatStatus(run), stateWidth)}  ${pad(when, whenWidth)}`;
 
       lines.push(
          run.runId === state.selectedRunId
@@ -385,30 +422,94 @@ function pushWrappedSection(
 
    lines.push({
       style: "accent",
-      text: title
+      text: renderPaneHeading(title, width)
    });
    lines.push(...wrapText(value, width));
 }
 
-function buildSummaryLines(run: RunInspection): string[] {
+function renderPaneHeading(title: string, width: number): string {
+   if (width <= 0) {
+      return "";
+   }
+
+   const baseTitle = ` ${title} `;
+
+   if (baseTitle.length >= width) {
+      return truncate(baseTitle.trim(), width);
+   }
+
+   return `${baseTitle}${"─".repeat(width - baseTitle.length)}`;
+}
+
+export function formatTopDetailTimestamp(value: string): string {
+   const match = value.match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/
+   );
+
+   if (match === null) {
+      return value;
+   }
+
+   return `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}:${match[6]}Z`;
+}
+
+function buildSummaryEntries(run: RunInspection): Array<{
+   label: string;
+   value: string;
+}> {
    return [
-      `Run ID: ${run.runId}`,
-      `Agent: ${run.agent} (${run.agentScope})`,
-      `Provider: ${run.provider}`,
-      `Status: ${formatStatus(run)}`,
-      `Launch: ${run.launchMode} / ${run.mode}`,
-      `Cwd: ${run.cwd}`,
-      `Started: ${run.startedAt}`,
+      { label: "Run ID", value: run.runId },
+      { label: "Agent", value: run.agent },
+      { label: "Scope", value: run.agentScope },
+      { label: "Provider", value: run.provider },
+      { label: "Status", value: formatStatus(run) },
+      { label: "Launch", value: `${run.launchMode} / ${run.mode}` },
+      { label: "Cwd", value: run.cwd },
+      {
+         label: "Started",
+         value: formatTopDetailTimestamp(run.startedAt)
+      },
       ...("endedAt" in run && typeof run.endedAt === "string"
-         ? [`Ended: ${run.endedAt}`]
+         ? [
+              {
+                 label: "Ended",
+                 value: formatTopDetailTimestamp(run.endedAt)
+              }
+           ]
          : []),
       ...("durationMs" in run && typeof run.durationMs === "number"
-         ? [`Duration: ${formatDuration(run.durationMs)}`]
+         ? [{ label: "Duration", value: formatDuration(run.durationMs) }]
          : []),
       ...("pid" in run && typeof run.pid === "number"
-         ? [`PID: ${run.pid}`]
+         ? [{ label: "PID", value: String(run.pid) }]
          : [])
    ];
+}
+
+function buildSummaryLines(
+   run: RunInspection,
+   innerWidth: number
+): StyledLine[] {
+   const entries = buildSummaryEntries(run);
+   const labelWidth = Math.max(...entries.map((entry) => entry.label.length));
+   const valueWidth = Math.max(8, innerWidth - labelWidth - 2);
+   const lines: StyledLine[] = [];
+
+   for (const entry of entries) {
+      const wrappedValues = wrapLine(entry.value, valueWidth);
+
+      wrappedValues.forEach((value, index) => {
+         const label =
+            index === 0
+               ? entry.label.padEnd(labelWidth)
+               : " ".repeat(labelWidth);
+         lines.push({
+            text: `${label}  ${pad(value, valueWidth)}`
+         });
+      });
+   }
+
+   return lines;
 }
 
 function buildDetailPane(state: TopState, innerWidth: number): StyledLine[] {
@@ -425,9 +526,12 @@ function buildDetailPane(state: TopState, innerWidth: number): StyledLine[] {
 
    lines.push({
       style: "accent",
-      text: state.showInspect ? "Inspect Summary" : "Run Summary"
+      text: renderPaneHeading(
+         state.showInspect ? "Inspect Summary" : "Run Summary",
+         innerWidth
+      )
    });
-   lines.push(...buildSummaryLines(state.currentRun).map((text) => ({ text })));
+   lines.push(...buildSummaryLines(state.currentRun, innerWidth));
 
    if (typeof state.currentRun.warning === "string") {
       pushWrappedSection(
@@ -526,12 +630,21 @@ function buildDetailPane(state: TopState, innerWidth: number): StyledLine[] {
    });
 }
 
-function buildOutputPane(outputText: string, innerWidth: number): StyledLine[] {
+function buildOutputPane(
+   currentRun: RunInspection | undefined,
+   outputText: string,
+   innerWidth: number
+): StyledLine[] {
    if (outputText.length === 0) {
       return [
          {
             style: "dim",
-            text: "No output yet."
+            text:
+               currentRun === undefined
+                  ? "No run selected."
+                  : currentRun.active
+                    ? "No recent stdout/stderr yet."
+                    : "No stdout/stderr was recorded for this run."
          }
       ];
    }
@@ -548,7 +661,7 @@ function renderDashboard(state: TopState): string {
    const controlsText =
       "j/k or arrows move  enter toggles detail  f cycles filter  r refresh  q quit";
    const bodyHeight = Math.max(10, height - 3);
-   const leftWidth = clamp(Math.floor(width * 0.42), 34, 52);
+   const leftWidth = clamp(Math.floor(width * 0.5), 42, 68);
    const rightWidth = Math.max(30, width - leftWidth - 1);
    const detailHeight = clamp(Math.floor(bodyHeight * 0.58), 8, bodyHeight - 6);
    const outputHeight = bodyHeight - detailHeight;
@@ -565,9 +678,13 @@ function renderDashboard(state: TopState): string {
       width: rightWidth
    });
    const outputPane = renderBox({
-      content: buildOutputPane(state.outputText, rightWidth - 2),
+      content: buildOutputPane(
+         state.currentRun,
+         state.outputText,
+         rightWidth - 2
+      ),
       height: outputHeight,
-      title: "Output",
+      title: `Recent Logs (tail ${recentLogLines})`,
       width: rightWidth
    });
    const rightPane = [...detailPane, ...outputPane];

@@ -67,7 +67,7 @@ aiman agent create reviewer \
   --scope project \
   --provider codex \
   --permissions read-only \
-  --model gpt-5.4 \
+  --model gpt-5.4-mini \
   --description "Reviews diffs" \
   --instructions "Review the current patch and call out concrete bugs."
 ```
@@ -89,6 +89,7 @@ aiman run reviewer --scope project --task "Review my current changes"
 ```bash
 aiman sesh list --all
 aiman sesh show <run-id>
+aiman sesh logs <run-id>
 aiman sesh inspect <run-id>
 ```
 
@@ -122,17 +123,19 @@ Use these to execute a specialist.
 | `aiman run <agent> --task <text>` | Run in the foreground and return the final result |
 | `aiman run <agent> --detach`      | Start a background run and return immediately     |
 
+Foreground runs wait for completion and print the final answer on success. Detached runs persist the same run contract, but execute from the launch snapshot already frozen into `run.md` and `prompt.md`.
+
 ### Session Commands
 
 Use these to inspect what already happened.
 
-| Command                       | Purpose                                   |
-| ----------------------------- | ----------------------------------------- |
-| `aiman sesh list [--all]`     | List active runs or recent history        |
-| `aiman sesh show <run-id>`    | Show compact per-run status               |
-| `aiman sesh logs <run-id>`    | Read persisted stdout and stderr          |
-| `aiman sesh inspect <run-id>` | Read the full persisted evidence          |
-| `aiman sesh top`              | Interactive TTY dashboard for humans only |
+| Command                                 | Purpose                                           |
+| --------------------------------------- | ------------------------------------------------- |
+| `aiman sesh list [--all] [--limit <n>]` | List active runs or recent history                |
+| `aiman sesh show <run-id>`              | Show compact per-run status                       |
+| `aiman sesh logs <run-id>`              | Read persisted stdout and stderr, optionally live |
+| `aiman sesh inspect <run-id>`           | Read the full persisted evidence                  |
+| `aiman sesh top [--filter ...]`         | Interactive TTY dashboard for humans only         |
 
 ## How Agents Work
 
@@ -207,7 +210,7 @@ That means `aiman` validates and records skill usage, but does not become a seco
 
 `aiman skill install` accepts either a local path or a git URL. When you omit `source`, it defaults to `https://github.com/ogow/aiman` and installs from that repo's default branch.
 
-For a project-local install from this repo, run:
+For the default project-scope install, run:
 
 ```bash
 aiman skill install
@@ -225,27 +228,34 @@ You can still install from an explicit repo URL:
 aiman skill install https://github.com/ogow/aiman
 ```
 
+Git and local repo sources can resolve skills in three ways:
+
+- a repo-root `SKILL.md`
+- exactly one bundled `skills/<name>/SKILL.md`
+- an explicit `--path` pointing at the skill directory inside the repo
+
 If a repo contains more than one bundled skill, choose one explicitly:
 
 ```bash
 aiman skill install https://github.com/ogow/aiman --path skills/aiman
 ```
 
-Local paths still work when you already have the repo checked out:
+Local paths work both for a direct skill directory and for a checked-out repo root:
 
 ```bash
 aiman skill install ./skills/aiman
+aiman skill install .
+aiman skill install . --path skills/aiman
 ```
 
-`aiman` copies the full skill directory, including files like `references/` and optional host-specific metadata under `agents/`, into the selected install location. Git installs always read from the repo's `main` branch. Use `--force` when you intentionally want to replace an existing installed copy.
+`aiman` copies the full selected skill directory into the install target. That can include `references/`, optional host-specific metadata under `agents/`, or other bundled files. The installed skill name comes from frontmatter `name` when present; otherwise `aiman` falls back to the source directory or repo name. Git installs always read from the repo's `main` branch. Use `--force` when you intentionally want to replace an existing installed copy.
 
-The installed layout is still:
+Typical installed layout:
 
 ```text
 .agents/skills/<name>/
   SKILL.md
-  references/
-  agents/
+  ...
 ```
 
 For user-wide installs, the same folder goes under:
@@ -261,6 +271,8 @@ aiman skill list
 aiman skill list --scope project
 aiman skill list --scope user
 ```
+
+By default, `aiman skill list` applies the same project-over-user precedence that `aiman run` uses for resolving declared skill names.
 
 Then declare it in agent frontmatter:
 
@@ -297,6 +309,7 @@ For background execution:
 ```bash
 aiman run reviewer --scope project --task "Review the current diff" --detach --json
 aiman sesh show <run-id> --json
+aiman sesh logs <run-id> --follow
 aiman sesh inspect <run-id> --json
 ```
 
@@ -317,6 +330,8 @@ When you run an agent, `aiman`:
 5. Launches the provider CLI.
 6. Captures stdout, stderr, and final result.
 7. Lets you inspect the saved run later with `sesh` commands.
+
+For detached runs, the worker reloads from the saved launch snapshot instead of re-reading the mutable agent file later.
 
 Each run is stored under:
 
@@ -347,6 +362,13 @@ Agents declare their intended execution mode in frontmatter:
 
 If the caller passes `--mode`, it must match the agent file. `aiman` will not silently widen or narrow permissions.
 
+Provider behavior stays explicit:
+
+- Codex `read-only`: `codex exec --sandbox read-only`
+- Codex `workspace-write`: `codex exec --sandbox workspace-write`
+- Gemini `read-only`: `gemini --approval-mode plan`
+- Gemini `workspace-write`: `gemini --approval-mode auto_edit`
+
 ### MCP requirements
 
 Agents may declare `requiredMcps:`. Before launch, `aiman` checks the selected provider CLI and fails fast when a required MCP is missing or not ready.
@@ -367,6 +389,7 @@ Default lookup prefers project scope when both define the same name. Use `--scop
 - Use normal command output when you're working in a terminal.
 - Use `--json` when a wrapper or another tool needs structured data.
 - Use `aiman sesh top` only as a real TTY dashboard for humans.
+- Use `aiman sesh top --filter historic` or `--filter all` when you want completed runs in the dashboard.
 
 For automation and agentic tooling, prefer:
 

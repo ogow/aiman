@@ -14,10 +14,13 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import {
+   formatTopDetailTimestamp,
    getNextRunFilter,
    getTopEmptyStateHint,
    getTopFilterSummary,
    getTopRunAge,
+   getTopRunLabel,
+   getTopRunWhen,
    getTopRunsPaneTitle
 } from "../src/cmd/top.js";
 
@@ -219,7 +222,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Task: {{task}}
@@ -256,7 +259,7 @@ name: researcher
 provider: gemini
 description: Researches code and runtime behavior
 permissions: read-only
-model: gemini-2.5-pro
+model: gemini-2.5-flash-lite
 ---
 
 Task: {{task}}
@@ -1034,7 +1037,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks with an intentionally long description that should be truncated in human tables to keep the output readable.
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Task: {{task}}
@@ -1131,7 +1134,7 @@ name: listed-name
 provider: codex
 description: Listed by frontmatter name
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Task: {{task}}
@@ -1167,7 +1170,7 @@ test("creates a project-scope agent with structured instructions", async () => {
          "--provider",
          "codex",
          "--model",
-         "gpt-5.4",
+         "gpt-5.4-mini",
          "--description",
          "Helps with release tasks",
          "--instructions",
@@ -1188,7 +1191,7 @@ test("creates a project-scope agent with structured instructions", async () => {
    assert.match(agentFile, /name: release-helper/);
    assert.match(agentFile, /provider: codex/);
    assert.match(agentFile, /permissions: read-only/);
-   assert.match(agentFile, /model: gpt-5.4/);
+   assert.match(agentFile, /model: gpt-5.4-mini/);
    assert.match(agentFile, /## Role/);
    assert.match(agentFile, /## Task Input/);
    assert.match(agentFile, /\{\{task\}\}/);
@@ -1214,7 +1217,7 @@ test("creates a user-scope agent in the home directory", async () => {
          "--provider",
          "gemini",
          "--model",
-         "gemini-2.5-pro",
+         "gemini-2.5-flash-lite",
          "--description",
          "Helps with release tasks",
          "--instructions",
@@ -1238,11 +1241,11 @@ test("creates a user-scope agent in the home directory", async () => {
    assert.match(agentFile, /name: release-helper/);
    assert.match(agentFile, /provider: gemini/);
    assert.match(agentFile, /permissions: read-only/);
-   assert.match(agentFile, /model: gemini-2.5-pro/);
+   assert.match(agentFile, /model: gemini-2.5-flash-lite/);
    assert.match(result.stdout, /Scope\s+user/);
 });
 
-test("creates a codex agent with reasoning-effort", async () => {
+test("creates a codex agent with low reasoning-effort", async () => {
    const projectRoot = await createProjectFixture();
 
    const result = runCli(
@@ -1255,13 +1258,13 @@ test("creates a codex agent with reasoning-effort", async () => {
          "--provider",
          "codex",
          "--model",
-         "gpt-5.4",
+         "gpt-5.4-mini",
          "--description",
          "Helps with release tasks",
          "--instructions",
          "Prepare the release plan.",
          "--reasoning-effort",
-         "high"
+         "low"
       ],
       {
          cwd: projectRoot
@@ -1275,7 +1278,7 @@ test("creates a codex agent with reasoning-effort", async () => {
       "utf8"
    );
 
-   assert.match(agentFile, /reasoningEffort: high/);
+   assert.match(agentFile, /reasoningEffort: low/);
 });
 
 test("creates an agent with explicit workspace-write permissions", async () => {
@@ -1293,7 +1296,7 @@ test("creates an agent with explicit workspace-write permissions", async () => {
          "--permissions",
          "workspace-write",
          "--model",
-         "gpt-5.4",
+         "gpt-5.4-mini",
          "--description",
          "Helps with release tasks",
          "--instructions",
@@ -1325,7 +1328,7 @@ test("fails to create an agent without a scope", async () => {
          "--provider",
          "codex",
          "--model",
-         "gpt-5.4",
+         "gpt-5.4-mini",
          "--description",
          "Helps with release tasks",
          "--instructions",
@@ -1351,7 +1354,7 @@ test("fails to create an agent without a provider", async () => {
          "--scope",
          "project",
          "--model",
-         "gpt-5.4",
+         "gpt-5.4-mini",
          "--description",
          "Helps with release tasks",
          "--instructions",
@@ -1405,7 +1408,7 @@ test("creates an agent from stdin instructions without prompting", async () => {
          "--provider",
          "codex",
          "--model",
-         "gpt-5.4",
+         "gpt-5.4-mini",
          "--description",
          "Helps with release tasks"
       ],
@@ -1441,7 +1444,7 @@ test("create prefers --instructions over stdin content", async () => {
          "--provider",
          "codex",
          "--model",
-         "gpt-5.4",
+         "gpt-5.4-mini",
          "--description",
          "Helps with release tasks",
          "--instructions",
@@ -1481,7 +1484,7 @@ test("create with --instructions does not wait for stdin to close", async () => 
          "--provider",
          "codex",
          "--model",
-         "gpt-5.4",
+         "gpt-5.4-mini",
          "--description",
          "Helps with release tasks",
          "--instructions",
@@ -1538,7 +1541,7 @@ name: project-reviewer
 provider: codex
 description: Project reviewer
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Review the project changes.
@@ -1552,7 +1555,7 @@ name: user-reviewer
 provider: codex
 description: User reviewer
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Review the shared changes.
@@ -1607,7 +1610,7 @@ name: reviewer
 provider: codex
 description: Project reviewer
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Task: {{task}}
@@ -1623,7 +1626,7 @@ name: reviewer
 provider: codex
 description: User reviewer
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Task: {{task}}
@@ -1695,7 +1698,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Review the current change carefully.
@@ -1769,7 +1772,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 skills:
   - missing-skill
 ---
@@ -1831,7 +1834,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 skills:
   - repo-search
 ---
@@ -1903,7 +1906,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: workspace-write
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Task: {{task}}
@@ -1948,7 +1951,7 @@ test("accepts CRLF frontmatter in agent files", async () => {
          "provider: codex",
          "description: Reviews code for risks",
          "permissions: read-only",
-         "model: gpt-5.4",
+         "model: gpt-5.4-mini",
          "---",
          "",
          "Task: {{task}}",
@@ -1980,7 +1983,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 skills:
   - repo-search
   - evidence-citation
@@ -2013,7 +2016,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 requiredMcps:
   - github
   - chrome-devtools
@@ -2258,7 +2261,7 @@ name: reviewer
 provider: codex
 description: User reviewer
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Task: {{task}}
@@ -2310,7 +2313,7 @@ name: reviewer
 provider: codex
 description: User reviewer
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Task: {{task}}
@@ -2835,6 +2838,43 @@ test("top age helper freezes completed runs at their recorded duration", () => {
       ),
       "5s"
    );
+});
+
+test("top time helper shows the run start clock time", () => {
+   assert.equal(
+      getTopRunWhen({
+         startedAt: "2026-03-30T19:35:00.000Z"
+      }),
+      "20260330T1935"
+   );
+   assert.equal(
+      getTopRunWhen({
+         startedAt: "2026-03-30T19:35:00.000Z"
+      }),
+      "20260330T1935"
+   );
+   assert.equal(
+      getTopRunWhen({
+         startedAt: "invalid"
+      }),
+      "unknown"
+   );
+});
+
+test("top run label helper trims the timestamp prefix", () => {
+   assert.equal(
+      getTopRunLabel("20260331T205109Z-hello-1bb3744b"),
+      "hello-1bb3744b"
+   );
+   assert.equal(getTopRunLabel("hello-1bb3744b"), "hello-1bb3744b");
+});
+
+test("top detail timestamp helper shortens ISO datetimes", () => {
+   assert.equal(
+      formatTopDetailTimestamp("2026-03-31T20:51:09.000Z"),
+      "2026-03-31 20:51:09Z"
+   );
+   assert.equal(formatTopDetailTimestamp("invalid"), "invalid");
 });
 
 test("reads the persisted prompt through inspect", () => {

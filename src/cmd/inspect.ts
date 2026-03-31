@@ -30,11 +30,11 @@ export function builder(yargs: Argv): Argv {
          type: "boolean"
       })
       .example(
-         "$0 sesh inspect 20260330T120000Z-reviewer-1234abcd",
+         "$0 sesh inspect reviewer-1234abcd",
          "Show detailed parsed run information"
       )
       .example(
-         "$0 sesh inspect 20260330T120000Z-reviewer-1234abcd --stream prompt",
+         "$0 sesh inspect reviewer-1234abcd --stream prompt",
          "Read the exact prompt sent to the provider"
       );
 }

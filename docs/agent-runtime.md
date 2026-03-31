@@ -92,7 +92,7 @@ Current layout:
 ```text
 .aiman/
   runs/
-    20260328T143012Z-code-reviewer-ab12cd34/
+    code-reviewer-ab12cd34/
       run.md
       prompt.md
       stdout.log
