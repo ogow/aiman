@@ -129,11 +129,11 @@ export function builder(yargs: Argv): Argv {
          type: "boolean"
       })
       .example(
-         '$0 agent create reviewer --scope project --provider codex --permissions read-only --model gpt-5.4 --description "Reviews diffs" --instructions "Review the current patch."',
+         '$0 agent create reviewer --scope project --provider codex --permissions read-only --model gpt-5.4-mini --description "Reviews diffs" --instructions "Review the current patch."',
          "Create an agent with inline instructions"
       )
       .example(
-         'cat reviewer.md | $0 agent create reviewer --scope user --provider gemini --permissions workspace-write --model gemini-2.5-pro --description "Reviews diffs"',
+         'cat reviewer.md | $0 agent create reviewer --scope user --provider gemini --permissions workspace-write --model gemini-2.5-flash-lite --description "Reviews diffs"',
          "Create an agent from piped multiline instructions"
       );
 }

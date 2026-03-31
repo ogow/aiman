@@ -59,13 +59,12 @@ const reservedRunFrontmatterKeys = new Set([
 ]);
 
 export function createRunId(agentName: string): string {
-   const iso = new Date()
-      .toISOString()
-      .replace(/[-:]/g, "")
-      .replace(/\.\d{3}Z$/, "Z");
-   const safeAgentName = agentName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+   const safeAgentName = agentName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
 
-   return `${iso}-${safeAgentName}-${randomUUID().slice(0, 8)}`;
+   return `${safeAgentName.length > 0 ? safeAgentName : "run"}-${randomUUID().slice(0, 8)}`;
 }
 
 export function buildRunPaths(runDir: string): StoredRunPaths {

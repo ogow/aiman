@@ -54,7 +54,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Task: {{task}}
@@ -246,6 +246,8 @@ echo 'ok'
    );
 
    assert.notEqual(first.runId, second.runId);
+   assert.match(first.runId, /^reviewer-[a-f0-9]{8}$/);
+   assert.match(second.runId, /^reviewer-[a-f0-9]{8}$/);
    assert.equal(first.agentScope, "project");
    assert.equal(first.launchMode, "foreground");
    assert.match(first.agentPath ?? "", /reviewer\.md$/);
@@ -401,7 +403,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 requiredMcps:
   - github
 ---
@@ -597,7 +599,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 skills:
   - repo-search
 ---
@@ -654,7 +656,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
-model: gpt-5.4
+model: gpt-5.4-mini
 ---
 
 Task: {{task}}
@@ -937,8 +939,8 @@ agentScope: project
 agentPath: ${path.join(fixture.projectRoot, ".aiman", "agents", "reviewer.md")}
 provider: codex
 launchMode: detached
-model: gpt-5.4
-reasoningEffort: medium
+model: gpt-5.4-mini
+reasoningEffort: low
 mode: read-only
 cwd: ${fixture.projectRoot}
 startedAt: 2026-03-30T19:30:00.000Z
@@ -947,8 +949,8 @@ ${renderLaunchFrontmatter({
    cwd: fixture.projectRoot,
    launchMode: "detached",
    mode: "read-only",
-   model: "gpt-5.4",
-   reasoningEffort: "medium",
+   model: "gpt-5.4-mini",
+   reasoningEffort: "low",
    runId
 })}
 ---
@@ -962,7 +964,7 @@ name: reviewer
 provider: gemini
 description: Drifted provider
 permissions: read-only
-model: gemini-2.5-pro
+model: gemini-2.5-flash-lite
 ---
 
 Task: {{task}}
@@ -979,8 +981,8 @@ This file changed after launch.
       assert.equal(result.finalText, "detached ok");
       assert.equal(result.launchMode, "detached");
       assert.match(persistedRun, /provider: codex/);
-      assert.match(persistedRun, /model: gpt-5.4/);
-      assert.match(persistedRun, /reasoningEffort: medium/);
+      assert.match(persistedRun, /model: gpt-5.4-mini/);
+      assert.match(persistedRun, /reasoningEffort: low/);
       assert.match(persistedRun, /status: success/);
    } finally {
       restoreProject();
