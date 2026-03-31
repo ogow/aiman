@@ -18,12 +18,12 @@ const codexAgent: ScopedAgentDefinition = {
    body: "Task: {{task}}\n\nReview the current change carefully.",
    description: "Reviews code for risks and quality",
    id: "code-reviewer",
-   model: "gpt-5.4",
+   model: "gpt-5.4-mini",
    name: "code-reviewer",
    path: "/repo/.aiman/agents/code-reviewer.md",
    permissions: "read-only",
    provider: "codex",
-   reasoningEffort: "medium",
+   reasoningEffort: "low",
    scope: "project"
 };
 
@@ -31,7 +31,7 @@ const geminiAgent: ScopedAgentDefinition = {
    body: "Task: {{task}}\n\nResearch the problem space carefully.",
    description: "Research specialist",
    id: "researcher",
-   model: "gemini-2.5-pro",
+   model: "gemini-2.5-flash-lite",
    name: "researcher",
    path: "/repo/.aiman/agents/researcher.md",
    permissions: "read-only",
@@ -78,12 +78,12 @@ const foregroundLaunch: RunLaunchSnapshot = {
    killGraceMs: 1000,
    launchMode: "foreground",
    mode: "read-only",
-   model: "gpt-5.4",
+   model: "gpt-5.4-mini",
    permissions: "read-only",
    promptDigest: "prompt-digest",
    promptTransport: "stdin",
    provider: "codex",
-   reasoningEffort: "medium",
+   reasoningEffort: "low",
    skills: [],
    timeoutMs: 300000
 };
@@ -112,7 +112,7 @@ test("codex adapter prepares a headless read-only invocation", () => {
    ]);
    assert.match(
       prepared.args.join(" "),
-      /--config model_reasoning_effort="medium"/
+      /--config model_reasoning_effort="low"/
    );
    assert.equal(
       prepared.env.AIMAN_ARTIFACTS_DIR,
