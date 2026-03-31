@@ -49,6 +49,15 @@ export async function ensureAgentScopeDirectory(
    });
 }
 
+export async function ensureSkillScopeDirectory(
+   projectPaths: ProjectPaths,
+   scope: AgentScope
+): Promise<void> {
+   await mkdir(getSkillsDirectoryForScope(projectPaths, scope), {
+      recursive: true
+   });
+}
+
 export function getAgentsDirectoryForScope(
    projectPaths: ProjectPaths,
    scope: AgentScope
@@ -56,6 +65,15 @@ export function getAgentsDirectoryForScope(
    return scope === "project"
       ? projectPaths.projectAgentsDir
       : projectPaths.userAgentsDir;
+}
+
+export function getSkillsDirectoryForScope(
+   projectPaths: ProjectPaths,
+   scope: AgentScope
+): string {
+   return scope === "project"
+      ? projectPaths.projectSkillsDir
+      : projectPaths.userSkillsDir;
 }
 
 export function resolveRunCwd(projectRoot: string, cwd?: string): string {

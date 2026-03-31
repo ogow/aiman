@@ -161,7 +161,7 @@ export async function handler(
             provider: launched.provider,
             runId: launched.runId,
             showCommand: launched.showCommand,
-            scope: launched.agentScope,
+            scope: launched.agentScope
          })}\n\n`
       );
       return;

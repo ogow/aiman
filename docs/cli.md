@@ -6,11 +6,12 @@ Each run persists one canonical `run.md` file with YAML frontmatter plus a Markd
 
 ## Current Commands
 
-- `aiman agent list [--json]`
-- `aiman agent show <agent> [--json]`
+- `aiman agent list [--scope project|user] [--json]`
+- `aiman agent show <agent> [--scope project|user] [--json]`
 - `aiman agent create <name> --scope project|user --provider codex|gemini [--permissions read-only|workspace-write] --model <id> --description <text> [--instructions <text>] [--reasoning-effort low|medium|high] [--force] [--json]`
 - `aiman skill list [--scope project|user] [--json]`
-- `aiman run <agent> [--task <text>] [--cwd <path>] [--mode read-only|workspace-write] [--detach] [--json]`
+- `aiman skill install [source] [--scope project|user] [--path <repo-subdir>] [--force] [--json]`
+- `aiman run <agent> [--task <text>] [--cwd <path>] [--scope project|user] [--mode read-only|workspace-write] [--detach] [--json]`
 - `aiman sesh list [--all] [--limit <n>] [--json]`
 - `aiman sesh show <run-id> [--json]`
 - `aiman sesh logs <run-id> [--stream all|stdout|stderr] [--tail <n>] [-f|--follow] [--json]`
@@ -30,6 +31,8 @@ Skills can also exist in two scopes:
 `aiman agent list`, `aiman agent show`, and `aiman run` consider both scopes by default and prefer the project agent when both scopes define the same name. `aiman agent list` collapses lower-priority duplicates so the default output matches the same precedence rule. `aiman agent create` requires an explicit `--scope`.
 
 `aiman skill list` follows the same project-over-user precedence rule for skills, so the default output shows the exact skill names an agent run would resolve first. Use `--scope` to inspect only project or only user skills.
+
+`aiman skill install [source]` accepts either a local path or a git URL. When `source` is omitted, it defaults to `https://github.com/ogow/aiman`. For git sources, `aiman` clones the repo's `main` branch, auto-detects one bundled skill from either `SKILL.md` at the repo root or exactly one `skills/<name>/SKILL.md`, and then installs that bundle into the selected runtime scope. Use `--path skills/<name>` when the repo contains more than one bundled skill. `--scope` defaults to `project`, and `--force` replaces an existing installed copy with the same skill name.
 
 For `aiman agent create`, `--scope`, `--provider`, `--model`, and `--description` are required. `--permissions` defaults to `read-only` and is written into the agent frontmatter. Instructions can come from `--instructions` or from stdin, which keeps multiline authoring scriptable and avoids hidden interactive prompts that could block parent agents.
 
@@ -61,6 +64,7 @@ Across providers, `aiman` forwards only an allowlisted runtime environment rathe
 - Command modules export `command`, `describe`, `builder`, and `handler` to match the `yargs` command-module pattern.
 - `aiman agent create <name>` is the authoring path for creating structured agent files without hand-writing raw frontmatter.
 - `aiman skill list` is the operator path for discovering available skill names and scopes before declaring them in agent frontmatter.
+- `aiman skill install [source]` is the authoring and packaging path for turning the default `aiman` skill, a local reusable skill bundle, or a repo-hosted bundle on `main` into an installed project-scope or user-scope skill without manual copying.
 - `aiman agent show <agent>` is the quick operator path for checking the agent's declared permissions, required MCPs, provider behavior, supported run modes, and the rights the runtime will grant in each mode.
 - Authored agent bodies are the full prompt contract. `aiman` no longer appends hidden task/cwd/run-path footer text at execution time.
 - `aiman run <agent>` is the default synchronous worker path. It runs in the foreground, persists the run, and returns the final result when complete.
@@ -71,6 +75,7 @@ Across providers, `aiman` forwards only an allowlisted runtime environment rathe
 - `aiman sesh logs <run-id>` is the output view, with `-f`/`--follow` for live streaming.
 - `aiman sesh inspect <run-id>` is the detailed evidence view for persisted sessions, including the frozen launch snapshot and raw file access through `--stream`.
 - `aiman sesh top` is the interactive session dashboard, defaults to `--filter active`, supports `--filter historic` and `--filter all`, and requires a real TTY.
+- `aiman sesh top` is a human-only TTY surface. Agents, wrappers, and automations should use `aiman sesh list`, `aiman sesh show`, `aiman sesh logs`, and `aiman sesh inspect` instead of trying to drive the dashboard.
 - Human-readable command output is intentionally plain text and more polished than the JSON payloads, while `--json` remains the stable machine-facing contract for wrappers and parent tools.
 - `aiman run` shows a small indeterminate activity bar on TTYs while a foreground run is active, then prints only the final answer on success; detailed status stays in `aiman sesh show` and `aiman sesh inspect`.
 - `aiman sesh list` defaults to active runs only so the common "what is alive now?" check does not rely on stale frontmatter.
@@ -78,7 +83,7 @@ Across providers, `aiman` forwards only an allowlisted runtime environment rathe
 - `aiman sesh inspect <run-id> --stream prompt` shows the exact prompt that was sent to the downstream provider.
 - `aiman sesh inspect <run-id> --stream stdout|stderr` reads the default log files from that run directory.
 - `aiman run <agent> --detach` prints a short launch summary to stderr so operators can see the run id, show command, and live logs command immediately.
-- `aiman sesh show <run-id>` and `aiman sesh inspect <run-id>` both derive whether the run is still active from the stored supervising `pid`; when a run never reaches a terminal record they show a concise warning instead of inventing a new persisted state.
+- `aiman sesh show <run-id>` and `aiman sesh inspect <run-id>` both derive whether the run is still active from the stored supervising `pid` plus a fresh persisted heartbeat; when a run never reaches a terminal record they show a concise warning instead of inventing a new persisted state.
 - `aiman agent show`, `aiman run`, `aiman sesh show`, and `aiman sesh inspect` surface run rights explicitly so operators can see whether the provider is in read-only, write-enabled, or plan/no-edit mode.
 
 ## Run Layout
@@ -93,14 +98,14 @@ Default files:
 - `stderr.log`: created only when stderr is produced
 - `artifacts/`: optional directory for agent-authored handoff files
 
-`run.md` stores structured execution fields such as `runId`, `status`, `agent`, `agentScope`, `agentPath`, `provider`, `launchMode`, optional `model`, optional `reasoningEffort`, `mode`, timestamps, exit state, and optional `usage`, plus any authored frontmatter like `kind`, `summary`, `artifacts`, or task-specific metadata.
+`run.md` stores structured execution fields such as `runId`, `status`, `agent`, `agentScope`, `agentPath`, `provider`, `launchMode`, `model`, optional `reasoningEffort`, `mode`, timestamps, exit state, and optional `usage`, plus any authored frontmatter like `kind`, `summary`, `artifacts`, or task-specific metadata.
 
 `run.md` also stores a required immutable `launch` object. That launch snapshot freezes the resolved agent identity, provider invocation (`command`, `args`, `promptTransport`), cwd, timeout settings, allowlisted environment key names, and digests for the authored agent file and rendered prompt.
 When an agent declares skills, the same launch snapshot also records the resolved skill names, paths, scopes, and digests that were present at launch time.
 
-For operator-facing reads, `aiman` also derives whether the run is still active from the stored `pid`:
+For operator-facing reads, `aiman` also derives whether the run is still active from the stored `pid` plus a fresh persisted heartbeat:
 
-- `active: true` means the supervising `aiman` process for that run still exists
+- `active: true` means the supervising `aiman` process for that run still exists and the supervisor heartbeat is still fresh
 - `active: false` means the run is either terminal or the supervising process is gone
 - when `run.md` still records `status: running` but the pid is gone, `status` and `inspect` show a warning instead of adding a separate persisted stale state
 

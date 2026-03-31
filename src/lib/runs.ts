@@ -477,10 +477,18 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
    const runDir = path.join(projectPaths.runsDir, runId);
    const paths = buildRunPaths(runDir);
    const renderedPrompt = await readFile(paths.promptFile, "utf8");
+
+   if (typeof run.launch.model !== "string" || run.launch.model.length === 0) {
+      throw new UserError(
+         `Run "${runId}" is missing its required launch model.`
+      );
+   }
+
    const agent: ScopedAgentDefinition = {
       body: renderedPrompt,
       description: "",
       id: run.launch.agentName,
+      model: run.launch.model,
       name: run.launch.agentName,
       path: run.launch.agentPath,
       permissions: run.launch.permissions,
@@ -488,9 +496,6 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
       scope: run.launch.agentScope,
       ...(run.launch.skills.length > 0
          ? { skills: run.launch.skills.map((skill) => skill.name) }
-         : {}),
-      ...(typeof run.launch.model === "string"
-         ? { model: run.launch.model }
          : {}),
       ...(typeof run.launch.reasoningEffort === "string"
          ? { reasoningEffort: run.launch.reasoningEffort }

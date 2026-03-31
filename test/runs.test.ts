@@ -54,6 +54,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
+model: gpt-5.4
 ---
 
 Task: {{task}}
@@ -400,6 +401,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
+model: gpt-5.4
 requiredMcps:
   - github
 ---
@@ -595,6 +597,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
+model: gpt-5.4
 skills:
   - repo-search
 ---
@@ -651,6 +654,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
+model: gpt-5.4
 ---
 
 Task: {{task}}

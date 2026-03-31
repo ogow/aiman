@@ -14,6 +14,8 @@
    "scripts": {
       "dev": "tsx src/cli.ts",
       "build": "tsc -p tsconfig.build.json",
+      "install:global": "npm run build && npm link",
+      "uninstall:global": "npm unlink -g aiman",
       "typecheck": "tsc -p tsconfig.json --noEmit",
       "lint": "oxlint -c .oxlintrc.json src test --deny warnings",
       "lint:fix": "npm run lint -- --fix",

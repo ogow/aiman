@@ -1,8 +1,9 @@
 import type { Argv, CommandModule } from "yargs";
 
+import * as install from "./install-skill.js";
 import * as list from "./skills.js";
 
-const skillCommands: CommandModule[] = [list];
+const skillCommands: CommandModule[] = [list, install];
 
 export const command = "skill <command>";
 export const describe = "Browse available skills";

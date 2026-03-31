@@ -1,4 +1,11 @@
-import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import {
+   mkdtemp,
+   mkdir,
+   readFile,
+   readdir,
+   realpath,
+   writeFile
+} from "node:fs/promises";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
@@ -50,6 +57,21 @@ function runCli(
    );
 }
 
+function runGit(args: string[], cwd: string): void {
+   const result = spawnSync("git", args, {
+      cwd,
+      encoding: "utf8"
+   });
+
+   if (result.status === 0) {
+      return;
+   }
+
+   throw new Error(
+      `git ${args.join(" ")} failed: ${result.stderr || result.stdout || "unknown error"}`
+   );
+}
+
 async function createProjectFixture(): Promise<string> {
    const projectRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-cli-"));
    await mkdir(path.join(projectRoot, ".aiman", "agents"), { recursive: true });
@@ -61,6 +83,92 @@ async function createUserHomeFixture(): Promise<string> {
    await mkdir(path.join(homeRoot, ".aiman", "agents"), { recursive: true });
    await mkdir(path.join(homeRoot, ".agents", "skills"), { recursive: true });
    return homeRoot;
+}
+
+async function createSkillFixture(input: {
+   description: string;
+   directory: string;
+   name?: string;
+}): Promise<void> {
+   const skillName = input.name ?? path.basename(input.directory);
+
+   await mkdir(path.join(input.directory, "references"), { recursive: true });
+   await writeFile(
+      path.join(input.directory, "SKILL.md"),
+      `---
+${typeof input.name === "string" ? `name: ${input.name}\n` : ""}description: ${input.description}
+---
+
+# ${skillName}
+`,
+      "utf8"
+   );
+   await writeFile(
+      path.join(input.directory, "references", "guide.md"),
+      `# ${skillName} guide
+`,
+      "utf8"
+   );
+}
+
+async function createGitSkillRepoFixture(input: {
+   skills: Array<{
+      description: string;
+      directory?: string;
+      name: string;
+   }>;
+}): Promise<string> {
+   const repoRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-skill-repo-"));
+
+   for (const skill of input.skills) {
+      await createSkillFixture({
+         description: skill.description,
+         directory: path.join(
+            repoRoot,
+            skill.directory ?? "skills",
+            skill.name
+         ),
+         name: skill.name
+      });
+   }
+
+   runGit(["init", "--initial-branch=main"], repoRoot);
+   runGit(["config", "user.email", "aiman-tests@example.com"], repoRoot);
+   runGit(["config", "user.name", "Aiman Tests"], repoRoot);
+   runGit(["add", "."], repoRoot);
+   runGit(["commit", "-m", "Add skill bundle"], repoRoot);
+
+   return repoRoot;
+}
+
+async function createGitRootSkillRepoFixture(input: {
+   description: string;
+   extraFiles?: Record<string, string>;
+   name?: string;
+}): Promise<string> {
+   const repoRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-root-skill-"));
+
+   await createSkillFixture({
+      description: input.description,
+      directory: repoRoot,
+      ...(typeof input.name === "string" ? { name: input.name } : {})
+   });
+
+   for (const [relativePath, contents] of Object.entries(
+      input.extraFiles ?? {}
+   )) {
+      const filePath = path.join(repoRoot, relativePath);
+      await mkdir(path.dirname(filePath), { recursive: true });
+      await writeFile(filePath, contents, "utf8");
+   }
+
+   runGit(["init", "--initial-branch=main"], repoRoot);
+   runGit(["config", "user.email", "aiman-tests@example.com"], repoRoot);
+   runGit(["config", "user.name", "Aiman Tests"], repoRoot);
+   runGit(["add", "."], repoRoot);
+   runGit(["commit", "-m", "Add root skill bundle"], repoRoot);
+
+   return repoRoot;
 }
 
 async function createRunnableProjectFixture(
@@ -103,6 +211,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
+model: gpt-5.4
 ---
 
 Task: {{task}}
@@ -304,6 +413,31 @@ test("lists authored agents", () => {
    assert.match(payload.agents[0]?.path ?? "", /\.md$/);
 });
 
+test("fails when an agent file omits model", async () => {
+   const projectRoot = await createProjectFixture();
+
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "reviewer.md"),
+      `---
+name: reviewer
+provider: codex
+description: Reviews code for risks
+permissions: read-only
+---
+
+Task: {{task}}
+
+Review the current change carefully.
+`,
+      "utf8"
+   );
+
+   const result = runCli(["agent", "list"], { cwd: projectRoot });
+
+   assert.equal(result.status, 1);
+   assert.match(result.stderr, /Agent "reviewer" is missing a model/);
+});
+
 test("lists available skills with project-first precedence", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createUserHomeFixture();
@@ -445,6 +579,351 @@ description: Search the repository efficiently
    assert.match(result.stdout, /Use these names in agent frontmatter/);
 });
 
+test("installs a local skill into project scope by default", async () => {
+   const projectRoot = await createProjectFixture();
+   const sourceDirectory = path.join(projectRoot, "skills", "repo-search");
+
+   await createSkillFixture({
+      description: "Project-specific repo search workflow",
+      directory: sourceDirectory,
+      name: "repo-search"
+   });
+
+   const result = runCli(
+      ["skill", "install", "./skills/repo-search", "--json"],
+      {
+         cwd: projectRoot
+      }
+   );
+
+   assert.equal(result.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      installed: boolean;
+      skill: { name: string; path: string; scope: string };
+   };
+
+   assert.equal(payload.installed, true);
+   assert.equal(payload.skill.name, "repo-search");
+   assert.equal(payload.skill.scope, "project");
+   assert.equal(
+      await realpath(payload.skill.path),
+      await realpath(
+         path.join(projectRoot, ".agents", "skills", "repo-search", "SKILL.md")
+      )
+   );
+   assert.equal(
+      await readFile(payload.skill.path, "utf8"),
+      await readFile(path.join(sourceDirectory, "SKILL.md"), "utf8")
+   );
+   assert.equal(
+      await readFile(
+         path.join(
+            projectRoot,
+            ".agents",
+            "skills",
+            "repo-search",
+            "references",
+            "guide.md"
+         ),
+         "utf8"
+      ),
+      "# repo-search guide\n"
+   );
+});
+
+test("installs a local skill into user scope", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createUserHomeFixture();
+   const sourceDirectory = path.join(projectRoot, "skills", "summarizer");
+
+   await createSkillFixture({
+      description: "Summarize findings clearly",
+      directory: sourceDirectory,
+      name: "summarizer"
+   });
+
+   const result = runCli(
+      ["skill", "install", "./skills/summarizer", "--scope", "user", "--json"],
+      {
+         cwd: projectRoot,
+         env: { HOME: homeRoot }
+      }
+   );
+
+   assert.equal(result.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      skill: { path: string; scope: string };
+   };
+
+   assert.equal(payload.skill.scope, "user");
+   assert.equal(
+      await realpath(payload.skill.path),
+      await realpath(
+         path.join(homeRoot, ".agents", "skills", "summarizer", "SKILL.md")
+      )
+   );
+   assert.equal(
+      await readFile(payload.skill.path, "utf8"),
+      await readFile(path.join(sourceDirectory, "SKILL.md"), "utf8")
+   );
+});
+
+test("installs a skill from a git URL by cloning main and auto-detecting one bundled skill", async () => {
+   const projectRoot = await createProjectFixture();
+   const skillRepo = await createGitSkillRepoFixture({
+      skills: [
+         {
+            description: "Operate aiman safely",
+            name: "aiman"
+         }
+      ]
+   });
+
+   const result = runCli(
+      ["skill", "install", `file://${skillRepo}`, "--json"],
+      { cwd: projectRoot }
+   );
+
+   assert.equal(result.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      installed: boolean;
+      skill: { name: string; path: string; scope: string };
+   };
+
+   assert.equal(payload.installed, true);
+   assert.equal(payload.skill.name, "aiman");
+   assert.equal(payload.skill.scope, "project");
+   assert.equal(
+      await readFile(payload.skill.path, "utf8"),
+      await readFile(
+         path.join(skillRepo, "skills", "aiman", "SKILL.md"),
+         "utf8"
+      )
+   );
+});
+
+test("installs the default aiman skill when no source is provided", async () => {
+   const projectRoot = await createProjectFixture();
+   const skillRepo = await createGitSkillRepoFixture({
+      skills: [
+         {
+            description: "Operate aiman safely",
+            name: "aiman"
+         }
+      ]
+   });
+
+   const result = runCli(["skill", "install", "--json"], {
+      cwd: projectRoot,
+      env: {
+         AIMAN_DEFAULT_SKILL_SOURCE: `file://${skillRepo}`
+      }
+   });
+
+   assert.equal(result.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      installed: boolean;
+      skill: { name: string; scope: string };
+   };
+
+   assert.equal(payload.installed, true);
+   assert.equal(payload.skill.name, "aiman");
+   assert.equal(payload.skill.scope, "project");
+});
+
+test("fails to auto-select a git skill when the repo bundles multiple skills", async () => {
+   const projectRoot = await createProjectFixture();
+   const skillRepo = await createGitSkillRepoFixture({
+      skills: [
+         {
+            description: "Operate aiman safely",
+            name: "aiman"
+         },
+         {
+            description: "Search the repo efficiently",
+            name: "repo-search"
+         }
+      ]
+   });
+
+   const result = runCli(["skill", "install", `file://${skillRepo}`], {
+      cwd: projectRoot
+   });
+
+   assert.equal(result.status, 1);
+   assert.match(result.stderr, /multiple bundled skills/i);
+   assert.match(result.stderr, /--path skills\/<name>/);
+});
+
+test("installs one bundled skill from a git URL when --path is provided", async () => {
+   const projectRoot = await createProjectFixture();
+   const skillRepo = await createGitSkillRepoFixture({
+      skills: [
+         {
+            description: "Operate aiman safely",
+            name: "aiman"
+         },
+         {
+            description: "Search the repo efficiently",
+            name: "repo-search"
+         }
+      ]
+   });
+
+   const result = runCli(
+      [
+         "skill",
+         "install",
+         `file://${skillRepo}`,
+         "--path",
+         "skills/repo-search",
+         "--json"
+      ],
+      { cwd: projectRoot }
+   );
+
+   assert.equal(result.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      skill: { name: string; scope: string };
+   };
+
+   assert.equal(payload.skill.name, "repo-search");
+   assert.equal(payload.skill.scope, "project");
+});
+
+test("fails to install a skill when SKILL.md is missing", async () => {
+   const projectRoot = await createProjectFixture();
+   const sourceDirectory = path.join(projectRoot, "skills", "broken");
+
+   await mkdir(sourceDirectory, { recursive: true });
+
+   const result = runCli(["skill", "install", "./skills/broken"], {
+      cwd: projectRoot
+   });
+
+   assert.equal(result.status, 1);
+   assert.match(result.stderr, /missing SKILL\.md/);
+});
+
+test("fails to install a skill over an existing target without --force", async () => {
+   const projectRoot = await createProjectFixture();
+   const sourceDirectory = path.join(projectRoot, "skills", "repo-search");
+
+   await createSkillFixture({
+      description: "Project-specific repo search workflow",
+      directory: sourceDirectory,
+      name: "repo-search"
+   });
+   await createSkillFixture({
+      description: "Older installed copy",
+      directory: path.join(projectRoot, ".agents", "skills", "repo-search"),
+      name: "repo-search"
+   });
+
+   const result = runCli(["skill", "install", "./skills/repo-search"], {
+      cwd: projectRoot
+   });
+
+   assert.equal(result.status, 1);
+   assert.match(result.stderr, /already exists/);
+   assert.match(result.stderr, /--force/);
+});
+
+test("rejects unsafe install target names from skill frontmatter", async () => {
+   const projectRoot = await createProjectFixture();
+
+   for (const invalidName of [".", ".."]) {
+      const sourceDirectory = path.join(
+         projectRoot,
+         "skills",
+         invalidName === "." ? "dot-skill" : "dotdot-skill"
+      );
+
+      await createSkillFixture({
+         description: "Unsafe test skill",
+         directory: sourceDirectory,
+         name: invalidName
+      });
+
+      const result = runCli(["skill", "install", sourceDirectory], {
+         cwd: projectRoot
+      });
+
+      assert.equal(result.status, 1);
+      assert.match(
+         result.stderr,
+         /invalid\. Use a single skill directory name/i
+      );
+   }
+
+   await assert.rejects(
+      readFile(path.join(projectRoot, ".agents", "SKILL.md"), "utf8")
+   );
+});
+
+test("uses the source repo name for a root git skill when frontmatter omits name", async () => {
+   const projectRoot = await createProjectFixture();
+   const skillRepo = await createGitRootSkillRepoFixture({
+      description: "Install a repo-root skill without an explicit name"
+   });
+
+   const result = runCli(
+      ["skill", "install", `file://${skillRepo}`, "--json"],
+      { cwd: projectRoot }
+   );
+
+   assert.equal(result.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      skill: { name: string; path: string };
+   };
+
+   assert.equal(payload.skill.name, path.basename(skillRepo));
+   assert.equal(
+      await realpath(payload.skill.path),
+      await realpath(
+         path.join(
+            projectRoot,
+            ".agents",
+            "skills",
+            path.basename(skillRepo),
+            "SKILL.md"
+         )
+      )
+   );
+});
+
+test("does not copy .git metadata when installing a repo-root git skill", async () => {
+   const projectRoot = await createProjectFixture();
+   const skillRepo = await createGitRootSkillRepoFixture({
+      description: "Install a repo-root skill cleanly",
+      extraFiles: {
+         "README.md": "# Root skill repo\n"
+      },
+      name: "root-skill"
+   });
+
+   const result = runCli(
+      ["skill", "install", `file://${skillRepo}`, "--json"],
+      { cwd: projectRoot }
+   );
+
+   assert.equal(result.status, 0);
+
+   const installedEntries = await readdir(
+      path.join(projectRoot, ".agents", "skills", "root-skill")
+   );
+
+   assert.doesNotMatch(installedEntries.join("\n"), /\.git/);
+   assert.match(installedEntries.join("\n"), /README\.md/);
+   assert.match(installedEntries.join("\n"), /SKILL\.md/);
+});
+
 test("truncates long descriptions in human-facing list output", async () => {
    const projectRoot = await createProjectFixture();
 
@@ -455,6 +934,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks with an intentionally long description that should be truncated in human tables to keep the output readable.
 permissions: read-only
+model: gpt-5.4
 ---
 
 Task: {{task}}
@@ -551,6 +1031,7 @@ name: listed-name
 provider: codex
 description: Listed by frontmatter name
 permissions: read-only
+model: gpt-5.4
 ---
 
 Task: {{task}}
@@ -957,6 +1438,7 @@ name: project-reviewer
 provider: codex
 description: Project reviewer
 permissions: read-only
+model: gpt-5.4
 ---
 
 Review the project changes.
@@ -970,6 +1452,7 @@ name: user-reviewer
 provider: codex
 description: User reviewer
 permissions: read-only
+model: gpt-5.4
 ---
 
 Review the shared changes.
@@ -1024,6 +1507,7 @@ name: reviewer
 provider: codex
 description: Project reviewer
 permissions: read-only
+model: gpt-5.4
 ---
 
 Task: {{task}}
@@ -1039,6 +1523,7 @@ name: reviewer
 provider: codex
 description: User reviewer
 permissions: read-only
+model: gpt-5.4
 ---
 
 Task: {{task}}
@@ -1110,6 +1595,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
+model: gpt-5.4
 ---
 
 Review the current change carefully.
@@ -1183,6 +1669,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
+model: gpt-5.4
 skills:
   - missing-skill
 ---
@@ -1244,6 +1731,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
+model: gpt-5.4
 skills:
   - repo-search
 ---
@@ -1315,6 +1803,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: workspace-write
+model: gpt-5.4
 ---
 
 Task: {{task}}
@@ -1359,6 +1848,7 @@ test("accepts CRLF frontmatter in agent files", async () => {
          "provider: codex",
          "description: Reviews code for risks",
          "permissions: read-only",
+         "model: gpt-5.4",
          "---",
          "",
          "Task: {{task}}",
@@ -1390,6 +1880,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
+model: gpt-5.4
 skills:
   - repo-search
   - evidence-citation
@@ -1422,6 +1913,7 @@ name: reviewer
 provider: codex
 description: Reviews code for risks
 permissions: read-only
+model: gpt-5.4
 requiredMcps:
   - github
   - chrome-devtools
@@ -1666,6 +2158,7 @@ name: reviewer
 provider: codex
 description: User reviewer
 permissions: read-only
+model: gpt-5.4
 ---
 
 Task: {{task}}
@@ -1717,6 +2210,7 @@ name: reviewer
 provider: codex
 description: User reviewer
 permissions: read-only
+model: gpt-5.4
 ---
 
 Task: {{task}}
