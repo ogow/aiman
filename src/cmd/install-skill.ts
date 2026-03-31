@@ -56,7 +56,7 @@ export function builder(yargs: Argv): Argv {
       })
       .option("path", {
          describe:
-            "Skill directory inside a repo source; defaults to auto-detecting one bundled skill on main",
+            "Skill directory inside a repo source; defaults to auto-detecting one bundled skill on the source repo's default branch",
          type: "string"
       })
       .option("json", {
@@ -66,7 +66,7 @@ export function builder(yargs: Argv): Argv {
       })
       .example(
          "$0 skill install",
-         "Install the default aiman skill from the official repo's main branch"
+         "Install the default aiman skill from the official repo's default branch"
       )
       .example(
          "$0 skill install --scope user",
@@ -78,11 +78,11 @@ export function builder(yargs: Argv): Argv {
       )
       .example(
          "$0 skill install https://github.com/org/repo.git",
-         "Clone the repo's main branch and install the only bundled skill it contains"
+         "Clone the repo's default branch and install the only bundled skill it contains"
       )
       .example(
          "$0 skill install https://github.com/org/repo.git --path skills/aiman",
-         "Clone the repo's main branch and install one specific bundled skill"
+         "Clone the repo's default branch and install one specific bundled skill"
       );
 }
 
