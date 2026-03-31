@@ -31,6 +31,7 @@ const geminiAgent: ScopedAgentDefinition = {
    body: "Task: {{task}}\n\nResearch the problem space carefully.",
    description: "Research specialist",
    id: "researcher",
+   model: "gemini-2.5-pro",
    name: "researcher",
    path: "/repo/.aiman/agents/researcher.md",
    permissions: "read-only",

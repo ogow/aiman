@@ -79,6 +79,10 @@ function validateFrontmatterAttributes(
       );
    }
 
+   if (typeof model !== "string" || model.length === 0) {
+      throw new UserError(`Agent "${name}" is missing a model.`);
+   }
+
    if (body.length === 0) {
       throw new UserError(`Agent "${name}" has an empty body.`);
    }
@@ -101,10 +105,10 @@ function validateFrontmatterAttributes(
    return {
       body,
       description,
+      model,
       name,
       permissions: permissions as RunMode,
       provider: provider as ProviderId,
-      ...(typeof model === "string" && model.length > 0 ? { model } : {}),
       ...(normalizedReasoningEffort !== undefined
          ? { reasoningEffort: normalizedReasoningEffort }
          : {}),
@@ -361,7 +365,7 @@ function humanizeAgentName(name: string): string {
 function renderAgentMarkdown(input: {
    description: string;
    instructions: string;
-   model?: string;
+   model: string;
    name: string;
    permissions: RunMode;
    provider: ProviderId;
@@ -373,9 +377,7 @@ function renderAgentMarkdown(input: {
       `provider: ${input.provider}`,
       `description: ${input.description}`,
       `permissions: ${input.permissions}`,
-      ...(typeof input.model === "string" && input.model.length > 0
-         ? [`model: ${input.model}`]
-         : []),
+      `model: ${input.model}`,
       ...(typeof input.reasoningEffort === "string"
          ? [`reasoningEffort: ${input.reasoningEffort}`]
          : []),
@@ -451,7 +453,7 @@ export async function createAgentFile(
       description: string;
       force?: boolean;
       instructions: string;
-      model?: string;
+      model: string;
       name: string;
       permissions: RunMode;
       provider: ProviderId;
@@ -462,6 +464,7 @@ export async function createAgentFile(
    const trimmedName = input.name.trim();
    const trimmedDescription = input.description.trim();
    const trimmedInstructions = input.instructions.trim();
+   const trimmedModel = input.model.trim();
 
    if (trimmedName.length === 0) {
       throw new UserError("Agent name is required.");
@@ -473,6 +476,10 @@ export async function createAgentFile(
 
    if (trimmedInstructions.length === 0) {
       throw new UserError("Agent instructions are required.");
+   }
+
+   if (trimmedModel.length === 0) {
+      throw new UserError("Agent model is required.");
    }
 
    const fileId = slugifyAgentName(trimmedName);
@@ -511,9 +518,7 @@ export async function createAgentFile(
    const markdown = renderAgentMarkdown({
       description: trimmedDescription,
       instructions: trimmedInstructions,
-      ...(typeof input.model === "string" && input.model.length > 0
-         ? { model: input.model }
-         : {}),
+      model: trimmedModel,
       name: trimmedName,
       permissions: input.permissions,
       provider: input.provider,

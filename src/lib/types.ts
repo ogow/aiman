@@ -28,7 +28,7 @@ export type ProviderCapabilities = {
 export type AgentDefinition = {
    body: string;
    description: string;
-   model?: string;
+   model: string;
    name: string;
    permissions: RunMode;
    provider: ProviderId;

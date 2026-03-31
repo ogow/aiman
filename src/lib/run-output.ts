@@ -97,8 +97,7 @@ function renderInitialFollowOutput(input: {
    tailLines: number;
 }): string {
    if (input.stream === "stdout" || input.stream === "stderr") {
-      const content =
-         input.stream === "stdout" ? input.stdout : input.stderr;
+      const content = input.stream === "stdout" ? input.stdout : input.stderr;
       const tail = tailContent(content, input.tailLines);
 
       return tail.length > 0 ? `${tail}\n` : "";

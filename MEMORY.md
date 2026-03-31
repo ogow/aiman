@@ -11,12 +11,14 @@
 - The repo keeps durable agent memory in root-level files plus `.agents/memories/`.
 - Authored agents can live in both project scope (`<repo>/.aiman/agents/`) and user scope (`~/.aiman/agents/`); lookup considers both and prefers project scope on name collisions.
 - Authored agents can optionally declare `skills` in frontmatter; `aiman run` preflights those names against project skills (`<repo>/.agents/skills/`) and user skills (`~/.agents/skills/`), prefers the project skill on collisions, and records the resolved skill files in the launch snapshot.
+- `aiman skill install [source]` accepts either a local path or a git URL, installs into project scope (`<repo>/.agents/skills/`) or user scope (`~/.agents/skills/`), defaults the omitted source to `https://github.com/ogow/aiman`, clones git sources from `main` only, and keeps skill packaging as plain directories rather than a separate archive/install format.
 - Authored agents can optionally declare `requiredMcps` in frontmatter; `aiman run` preflights those names through the selected provider CLI before launch and fails fast when a required MCP is missing, disabled, or reported disconnected.
 - `aiman skill list` lists available project/user skills using the same project-over-user precedence as run-time skill resolution, so operators can discover the exact skill names to declare in agent frontmatter.
 - New runs persist one canonical `run.md` with YAML frontmatter plus a Markdown body; prompt, log, and artifact files are optional run-side details that can be inspected when present.
 - Each persisted run now includes an immutable `launch` snapshot inside `run.md` so `inspect` and detached workers can trust the frozen launch evidence without re-reading mutable agent files.
 - Authored agent bodies own their full prompt shape; `aiman` no longer appends a hidden runtime footer.
 - Authored agent frontmatter now must declare `permissions: read-only | workspace-write`; `aiman run` uses that declaration as the agent's execution mode and rejects conflicting `--mode` overrides.
+- Authored agent frontmatter now must also declare `model`; both hand-written agent files and `aiman agent create` follow the same required model contract.
 - `aiman run` is foreground-first: it runs a worker inline by default and returns the final result when complete, while `--detach` is the explicit background mode.
 - Each persisted run now records `launchMode: foreground | detached`, and operator-facing views surface that mode instead of assuming every live run came from the same path.
 - Detached runs execute from snapshotted launch metadata persisted in `run.md` plus `prompt.md`; hidden workers should not re-read mutable agent files after `run --detach` returns.

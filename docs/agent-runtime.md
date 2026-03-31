@@ -34,6 +34,8 @@ Current flow:
 6. Operator-facing reads derive whether the run is still active from the stored supervising `pid` plus a fresh heartbeat instead of trusting `status: running` alone.
 7. The caller can list active runs through `aiman sesh list`, inspect compact status through `aiman sesh show`, tail output through `aiman sesh logs`, open the dashboard through `aiman sesh top --filter active|historic|all`, or inspect the full persisted record through `aiman sesh inspect`.
 
+`aiman sesh top` is intentionally a human-only TTY dashboard. Agentic and automated flows should use `list`, `show`, `logs`, and `inspect` instead of trying to drive that screen-oriented surface.
+
 ## Agent Model
 
 Each agent is a Markdown file with frontmatter plus a provider-native body.
@@ -55,7 +57,7 @@ Supported frontmatter today:
 - `provider`
 - `description`
 - required `permissions`
-- optional `model`
+- required `model`
 - optional `reasoningEffort`
 - optional `requiredMcps`
 - optional `skills`
@@ -124,7 +126,7 @@ For operator-facing reads, the runtime also derives whether the run is still act
 - `agentPath`
 - `provider`
 - `launchMode`
-- optional `model`
+- `model`
 - optional `reasoningEffort`
 - `mode`
 - `cwd`
