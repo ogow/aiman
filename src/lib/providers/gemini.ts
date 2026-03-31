@@ -4,15 +4,31 @@ import type { ProviderAdapter } from "../types.js";
 import {
    buildAllowedEnvironment,
    buildPrompt,
+   detectRequiredMcps,
    detectExecutable,
    finalizeRecord,
+   parseGeminiMcpList,
    rejectUnsupportedReasoningEffort
 } from "./shared.js";
 
 export function createGeminiAdapter(): ProviderAdapter {
    return {
-      async detect() {
-         return detectExecutable("gemini");
+      async detect(agent) {
+         const issues = await detectExecutable("gemini");
+
+         if (issues.length > 0) {
+            return issues;
+         }
+
+         return [
+            ...issues,
+            ...(await detectRequiredMcps({
+               agent,
+               args: ["mcp", "list"],
+               command: "gemini",
+               parseList: parseGeminiMcpList
+            }))
+         ];
       },
       id: "gemini",
       async parseCompletedRun(input) {
@@ -34,6 +50,8 @@ export function createGeminiAdapter(): ProviderAdapter {
             endedAt: input.endedAt,
             exitCode: input.exitCode,
             finalText,
+            launchMode: input.launchMode,
+            launch: input.launch,
             mode: input.mode,
             promptFile: input.promptFile,
             runDir: input.runDir,
@@ -51,7 +69,7 @@ export function createGeminiAdapter(): ProviderAdapter {
          });
       },
       prepare(agent, input) {
-         const prompt = buildPrompt(agent, input);
+         const prompt = input.renderedPrompt ?? buildPrompt(agent, input);
          const runDir = path.dirname(input.runFile);
 
          return {
@@ -70,6 +88,7 @@ export function createGeminiAdapter(): ProviderAdapter {
                AIMAN_RUN_DIR: runDir,
                AIMAN_RUN_ID: input.runId
             }),
+            promptTransport: "arg",
             renderedPrompt: prompt
          };
       },

@@ -1,9 +1,15 @@
 import type { CommandModule } from "yargs";
 
-import * as create from "./create.js";
-import * as inspect from "./inspect.js";
-import * as list from "./list.js";
+import * as agent from "./agent.js";
+import * as internalRun from "./internal-run.js";
 import * as run from "./run.js";
-import * as show from "./show.js";
+import * as sesh from "./sesh.js";
+import * as skill from "./skill.js";
 
-export const commands: CommandModule[] = [list, show, create, run, inspect];
+export const commands: CommandModule[] = [
+   agent,
+   skill,
+   run,
+   sesh,
+   internalRun
+];

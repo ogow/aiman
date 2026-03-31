@@ -2,8 +2,8 @@ import type { ArgumentsCamelCase, Argv } from "yargs";
 
 import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
+import { renderInspectView } from "../lib/run-render.js";
 import { readRunDetails, readRunLog } from "../lib/runs.js";
-import type { RunInspection } from "../lib/types.js";
 
 type InspectArguments = {
    json?: boolean;
@@ -12,7 +12,7 @@ type InspectArguments = {
 };
 
 export const command = "inspect <runId>";
-export const describe = "Inspect one persisted run";
+export const describe = "Inspect one persisted session record";
 
 export function builder(yargs: Argv): Argv {
    return yargs
@@ -22,13 +22,21 @@ export function builder(yargs: Argv): Argv {
       })
       .option("stream", {
          choices: ["run", "prompt", "stdout", "stderr"] as const,
-         describe: "Show one log stream instead of the run record"
+         describe: "Show one persisted file instead of the parsed run details"
       })
       .option("json", {
          default: false,
          describe: "Print JSON output",
          type: "boolean"
-      });
+      })
+      .example(
+         "$0 sesh inspect 20260330T120000Z-reviewer-1234abcd",
+         "Show detailed parsed run information"
+      )
+      .example(
+         "$0 sesh inspect 20260330T120000Z-reviewer-1234abcd --stream prompt",
+         "Read the exact prompt sent to the provider"
+      );
 }
 
 export async function handler(
@@ -61,80 +69,5 @@ export async function handler(
       return;
    }
 
-   process.stdout.write(renderRunSummary(run));
-}
-
-function renderRunSummary(run: RunInspection): string {
-   const lines = [
-      `runId: ${run.runId}`,
-      `status: ${run.status}`,
-      `agent: ${run.agent}`,
-      `agentScope: ${run.agentScope}`,
-      `agentPath: ${run.agentPath}`,
-      `provider: ${run.provider}`,
-      `mode: ${run.mode}`,
-      `cwd: ${run.cwd}`,
-      `startedAt: ${run.startedAt}`
-   ];
-
-   if ("endedAt" in run && typeof run.endedAt === "string") {
-      lines.push(`endedAt: ${run.endedAt}`);
-   }
-
-   if ("durationMs" in run && typeof run.durationMs === "number") {
-      lines.push(`durationMs: ${run.durationMs}`);
-   }
-
-   if ("errorMessage" in run && typeof run.errorMessage === "string") {
-      lines.push(`error: ${run.errorMessage}`);
-   }
-
-   if ("finalText" in run && typeof run.finalText === "string") {
-      lines.push(
-         "",
-         "finalText:",
-         run.finalText.length > 0 ? run.finalText : ""
-      );
-   }
-
-   lines.push(
-      "",
-      "files:",
-      `run: ${run.paths.runFile}`,
-      `prompt: ${run.paths.promptFile}`
-   );
-
-   if (run.paths.stdoutLog) {
-      lines.push(`stdout: ${run.paths.stdoutLog}`);
-   }
-
-   if (run.paths.stderrLog) {
-      lines.push(`stderr: ${run.paths.stderrLog}`);
-   }
-
-   if (run.paths.artifactsDir && run.document.artifacts.length > 0) {
-      lines.push(`artifacts: ${run.paths.artifactsDir}`);
-   }
-
-   if (run.document.frontmatter) {
-      const kind = run.document.frontmatter.kind;
-      const summary = run.document.frontmatter.summary;
-
-      if (typeof kind === "string") {
-         lines.push(`kind: ${kind}`);
-      }
-
-      if (typeof summary === "string") {
-         lines.push(`summary: ${summary}`);
-      }
-   }
-
-   lines.push(
-      "",
-      `Use "aiman inspect ${run.runId} --stream run" to read the canonical run file.`,
-      `Use "aiman inspect ${run.runId} --stream prompt" to see the exact prompt.`,
-      `Use "aiman inspect ${run.runId} --stream stdout" or "--stream stderr" for logs.`
-   );
-
-   return `${lines.join("\n")}\n`;
+   process.stdout.write(renderInspectView(run));
 }

@@ -4,33 +4,49 @@ import type { ProviderAdapter } from "../types.js";
 import {
    buildAllowedEnvironment,
    buildPrompt,
+   detectRequiredMcps,
    deriveCodexLastMessagePath,
    detectExecutable,
    finalizeRecord,
+   parseCodexMcpList,
    readOptionalFile
 } from "./shared.js";
 
 export function createCodexAdapter(): ProviderAdapter {
    return {
-      async detect() {
-         return detectExecutable("codex");
+      async detect(agent) {
+         const issues = await detectExecutable("codex");
+
+         if (issues.length > 0) {
+            return issues;
+         }
+
+         return [
+            ...issues,
+            ...(await detectRequiredMcps({
+               agent,
+               args: ["mcp", "list", "--json"],
+               command: "codex",
+               parseList: parseCodexMcpList
+            }))
+         ];
       },
       id: "codex",
       async parseCompletedRun(input) {
          const lastMessagePath = deriveCodexLastMessagePath(input.runDir);
-         const fallbackMessage = (
-            await readOptionalFile(lastMessagePath)
-         ).trim();
-         const finalText = fallbackMessage || input.stdout.trim();
+         const lastMessage = (await readOptionalFile(lastMessagePath)).trim();
+         const wroteExpectedOutput = lastMessage.length > 0;
          const status =
             input.signal === "SIGTERM"
                ? "cancelled"
-               : input.exitCode === 0
+               : input.exitCode === 0 && wroteExpectedOutput
                  ? "success"
                  : "error";
          const errorMessage =
             status === "error"
-               ? input.stderr.trim() || "Codex execution failed."
+               ? input.exitCode === 0 && !wroteExpectedOutput
+                  ? "Codex did not write the expected last-message file."
+                  : input.stderr.trim() || "Codex execution failed."
                : undefined;
 
          return finalizeRecord({
@@ -38,7 +54,9 @@ export function createCodexAdapter(): ProviderAdapter {
             cwd: input.cwd,
             endedAt: input.endedAt,
             exitCode: input.exitCode,
-            finalText,
+            finalText: lastMessage,
+            launchMode: input.launchMode,
+            launch: input.launch,
             mode: input.mode,
             promptFile: input.promptFile,
             runDir: input.runDir,
@@ -58,7 +76,7 @@ export function createCodexAdapter(): ProviderAdapter {
       prepare(agent, input) {
          const runDir = path.dirname(input.runFile);
          const lastMessagePath = deriveCodexLastMessagePath(runDir);
-         const prompt = buildPrompt(agent, input);
+         const prompt = input.renderedPrompt ?? buildPrompt(agent, input);
          const environment = buildAllowedEnvironment({
             AIMAN_ARTIFACTS_DIR: input.artifactsDir,
             AIMAN_RUN_PATH: input.runFile,
@@ -91,6 +109,7 @@ export function createCodexAdapter(): ProviderAdapter {
             command: "codex",
             cwd: input.cwd,
             env: environment,
+            promptTransport: "stdin",
             renderedPrompt: prompt,
             stdin: prompt
          };

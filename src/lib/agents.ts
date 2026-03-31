@@ -13,29 +13,51 @@ import type {
    AgentDefinition,
    AgentScope,
    ProviderId,
+   RunMode,
    ScopedAgentDefinition,
    ValidationIssue
 } from "./types.js";
 
 const reasoningEfforts = new Set(["low", "medium", "high"]);
 const providers = new Set<ProviderId>(["codex", "gemini"]);
+const runModes = new Set<RunMode>(["read-only", "workspace-write"]);
 const scopePriority: Record<AgentScope, number> = {
    project: 0,
    user: 1
 };
+const taskPlaceholder = "{{task}}";
 
 export const agentScopeChoices = ["project", "user"] as const;
 
 function validateFrontmatterAttributes(
    filePath: string,
-   attributes: Record<string, string>,
+   attributes: Record<string, unknown>,
    body: string
 ): AgentDefinition {
-   const name = attributes.name;
-   const provider = attributes.provider;
-   const description = attributes.description;
-   const model = attributes.model;
-   const reasoningEffort = attributes.reasoningEffort;
+   const name =
+      typeof attributes.name === "string" ? attributes.name : undefined;
+   const provider =
+      typeof attributes.provider === "string" ? attributes.provider : undefined;
+   const description =
+      typeof attributes.description === "string"
+         ? attributes.description
+         : undefined;
+   const model =
+      typeof attributes.model === "string" ? attributes.model : undefined;
+   const permissions =
+      typeof attributes.permissions === "string"
+         ? attributes.permissions
+         : undefined;
+   const reasoningEffort =
+      typeof attributes.reasoningEffort === "string"
+         ? attributes.reasoningEffort
+         : undefined;
+   const skills = parseDeclaredSkills(attributes.skills, name, filePath);
+   const requiredMcps = parseDeclaredRequiredMcps(
+      attributes.requiredMcps,
+      name,
+      filePath
+   );
 
    if (typeof name !== "string" || name.length === 0) {
       throw new UserError(`Agent file ${filePath} is missing a name.`);
@@ -49,6 +71,12 @@ function validateFrontmatterAttributes(
 
    if (typeof description !== "string" || description.length === 0) {
       throw new UserError(`Agent "${name}" is missing a description.`);
+   }
+
+   if (!runModes.has(permissions as RunMode)) {
+      throw new UserError(
+         `Agent "${name}" has invalid permissions: ${permissions ?? "missing"}.`
+      );
    }
 
    if (body.length === 0) {
@@ -74,12 +102,91 @@ function validateFrontmatterAttributes(
       body,
       description,
       name,
+      permissions: permissions as RunMode,
       provider: provider as ProviderId,
       ...(typeof model === "string" && model.length > 0 ? { model } : {}),
       ...(normalizedReasoningEffort !== undefined
          ? { reasoningEffort: normalizedReasoningEffort }
-         : {})
+         : {}),
+      ...(requiredMcps.length > 0 ? { requiredMcps } : {}),
+      ...(skills.length > 0 ? { skills } : {})
    };
+}
+
+function parseDeclaredStringList(input: {
+   agentName: string | undefined;
+   duplicateLabel: string;
+   emptyLabel: string;
+   filePath: string;
+   invalidLabel: string;
+   value: unknown;
+}): string[] {
+   if (input.value === undefined) {
+      return [];
+   }
+
+   if (!Array.isArray(input.value)) {
+      throw new UserError(
+         `Agent "${input.agentName ?? input.filePath}" has invalid ${input.invalidLabel}: expected a YAML list of strings.`
+      );
+   }
+
+   const values = input.value.map((entry) => {
+      if (typeof entry !== "string") {
+         throw new UserError(
+            `Agent "${input.agentName ?? input.filePath}" has invalid ${input.invalidLabel}: expected a YAML list of strings.`
+         );
+      }
+
+      const trimmedEntry = entry.trim();
+
+      if (trimmedEntry.length === 0) {
+         throw new UserError(
+            `Agent "${input.agentName ?? input.filePath}" declares an empty ${input.emptyLabel}.`
+         );
+      }
+
+      return trimmedEntry;
+   });
+   const uniqueValues = new Set(values);
+
+   if (uniqueValues.size !== values.length) {
+      throw new UserError(
+         `Agent "${input.agentName ?? input.filePath}" declares duplicate ${input.duplicateLabel}.`
+      );
+   }
+
+   return values;
+}
+
+function parseDeclaredSkills(
+   value: unknown,
+   agentName: string | undefined,
+   filePath: string
+): string[] {
+   return parseDeclaredStringList({
+      agentName,
+      duplicateLabel: "skill names",
+      emptyLabel: "skill name",
+      filePath,
+      invalidLabel: "skills",
+      value
+   });
+}
+
+function parseDeclaredRequiredMcps(
+   value: unknown,
+   agentName: string | undefined,
+   filePath: string
+): string[] {
+   return parseDeclaredStringList({
+      agentName,
+      duplicateLabel: "required MCP names",
+      emptyLabel: "required MCP name",
+      filePath,
+      invalidLabel: "requiredMcps",
+      value
+   });
 }
 
 async function readAgentFile(input: {
@@ -256,6 +363,7 @@ function renderAgentMarkdown(input: {
    instructions: string;
    model?: string;
    name: string;
+   permissions: RunMode;
    provider: ProviderId;
    reasoningEffort?: AgentDefinition["reasoningEffort"];
 }): string {
@@ -264,6 +372,7 @@ function renderAgentMarkdown(input: {
       `name: ${input.name}`,
       `provider: ${input.provider}`,
       `description: ${input.description}`,
+      `permissions: ${input.permissions}`,
       ...(typeof input.model === "string" && input.model.length > 0
          ? [`model: ${input.model}`]
          : []),
@@ -275,7 +384,10 @@ function renderAgentMarkdown(input: {
       "## Role",
       `You are the ${humanizeAgentName(input.name)} specialist. ${ensureTrailingPeriod(input.description)}`,
       "",
-      "## Primary Task",
+      "## Task Input",
+      taskPlaceholder,
+      "",
+      "## Instructions",
       input.instructions.trim(),
       "",
       "## Constraints",
@@ -341,6 +453,7 @@ export async function createAgentFile(
       instructions: string;
       model?: string;
       name: string;
+      permissions: RunMode;
       provider: ProviderId;
       reasoningEffort?: AgentDefinition["reasoningEffort"];
       scope: AgentScope;
@@ -402,6 +515,7 @@ export async function createAgentFile(
          ? { model: input.model }
          : {}),
       name: trimmedName,
+      permissions: input.permissions,
       provider: input.provider,
       ...(typeof input.reasoningEffort === "string"
          ? { reasoningEffort: input.reasoningEffort }
@@ -428,6 +542,18 @@ export async function collectAgentRuntimeIssues(
    agent: AgentDefinition
 ): Promise<ValidationIssue[]> {
    const adapter = getAdapterForProvider(agent.provider);
+   const promptIssues: ValidationIssue[] = agent.body.includes(taskPlaceholder)
+      ? []
+      : [
+           {
+              code: "missing-task-placeholder",
+              message: `Agent "${agent.name}" must include the ${taskPlaceholder} placeholder in its body.`
+           }
+        ];
 
-   return [...(await adapter.detect()), ...adapter.validateAgent(agent)];
+   return [
+      ...(await adapter.detect(agent)),
+      ...promptIssues,
+      ...adapter.validateAgent(agent)
+   ];
 }

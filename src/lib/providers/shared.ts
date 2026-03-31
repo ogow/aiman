@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 
@@ -5,7 +6,9 @@ import { hasErrorCode } from "../errors.js";
 import { resolveExecutable } from "../executables.js";
 import type {
    AgentDefinition,
+   LaunchMode,
    PersistedRunRecord,
+   RunLaunchSnapshot,
    RunMode,
    ScopedAgentDefinition,
    UsageStats,
@@ -46,6 +49,15 @@ const allowedEnvironmentKeys = [
    "XDG_STATE_HOME"
 ];
 
+const mcpDetectionTimeoutMs = 5_000;
+
+type ListedMcp = {
+   connected: boolean;
+   enabled: boolean;
+   name: string;
+   status: string;
+};
+
 export function buildAllowedEnvironment(
    extraValues?: Record<string, string>
 ): Record<string, string> {
@@ -74,6 +86,211 @@ export async function detectExecutable(
    ];
 }
 
+async function runCommandCapture(input: {
+   args: string[];
+   command: string;
+}): Promise<{
+   exitCode: number | null;
+   signal: string | null;
+   stderr: string;
+   stdout: string;
+   timedOut: boolean;
+}> {
+   return new Promise((resolve) => {
+      execFile(
+         input.command,
+         input.args,
+         {
+            encoding: "utf8",
+            env: buildAllowedEnvironment(),
+            maxBuffer: 1024 * 1024,
+            timeout: mcpDetectionTimeoutMs
+         },
+         (error, stdout, stderr) => {
+            if (error === null) {
+               resolve({
+                  exitCode: 0,
+                  signal: null,
+                  stderr,
+                  stdout,
+                  timedOut: false
+               });
+               return;
+            }
+
+            const failedCommand = error as NodeJS.ErrnoException & {
+               code?: number | string;
+               killed?: boolean;
+               signal?: string;
+            };
+
+            resolve({
+               exitCode:
+                  typeof failedCommand.code === "number"
+                     ? failedCommand.code
+                     : null,
+               signal:
+                  typeof failedCommand.signal === "string"
+                     ? failedCommand.signal
+                     : null,
+               stderr,
+               stdout,
+               timedOut: failedCommand.killed === true
+            });
+         }
+      );
+   });
+}
+
+function formatShellCommand(command: string, args: string[]): string {
+   return [command, ...args].join(" ");
+}
+
+export function parseCodexMcpList(stdout: string): ListedMcp[] {
+   try {
+      const parsed = JSON.parse(stdout) as unknown;
+
+      if (!Array.isArray(parsed)) {
+         return [];
+      }
+
+      return parsed.flatMap((entry) => {
+         if (typeof entry !== "object" || entry === null) {
+            return [];
+         }
+
+         const name = entry["name"];
+         const enabled = entry["enabled"];
+
+         if (typeof name !== "string" || typeof enabled !== "boolean") {
+            return [];
+         }
+
+         return [
+            {
+               connected: enabled,
+               enabled,
+               name,
+               status: enabled ? "enabled" : "disabled"
+            }
+         ];
+      });
+   } catch {
+      return [];
+   }
+}
+
+export function parseGeminiMcpList(stdout: string): ListedMcp[] {
+   return stdout.split(/\r?\n/).flatMap((line) => {
+      const trimmedLine = line.trim();
+
+      if (
+         trimmedLine.length === 0 ||
+         trimmedLine === "Configured MCP servers:" ||
+         trimmedLine === "Loaded cached credentials."
+      ) {
+         return [];
+      }
+
+      const match = trimmedLine.match(
+         /^[^A-Za-z0-9._-]*([A-Za-z0-9._-]+)(?:\s+\(from [^)]+\))?:.* - ([A-Za-z]+)\s*$/
+      );
+
+      if (!match) {
+         return [];
+      }
+
+      const name = match[1];
+      const rawStatus = match[2];
+
+      if (name === undefined || rawStatus === undefined) {
+         return [];
+      }
+
+      const status = rawStatus.toLowerCase();
+
+      return [
+         {
+            connected: status === "connected",
+            enabled: status !== "disabled",
+            name,
+            status
+         }
+      ];
+   });
+}
+
+export async function detectRequiredMcps(input: {
+   agent: AgentDefinition;
+   args: string[];
+   command: string;
+   parseList: (stdout: string) => ListedMcp[];
+}): Promise<ValidationIssue[]> {
+   if (
+      input.agent.requiredMcps === undefined ||
+      input.agent.requiredMcps.length === 0
+   ) {
+      return [];
+   }
+
+   const commandLabel = formatShellCommand(input.command, input.args);
+   const result = await runCommandCapture({
+      args: input.args,
+      command: input.command
+   });
+
+   if (result.exitCode !== 0 || result.timedOut) {
+      const reason = result.timedOut
+         ? `timed out while running "${commandLabel}".`
+         : `failed while running "${commandLabel}".`;
+      const stderr = result.stderr.trim();
+
+      return [
+         {
+            code: "mcp-detection-failed",
+            message: `Agent "${input.agent.name}" requires MCP checks, but provider "${input.agent.provider}" ${reason}${stderr.length > 0 ? ` ${stderr}` : ""}`
+         }
+      ];
+   }
+
+   const listedMcps = new Map(
+      input.parseList(result.stdout).map((mcp) => [mcp.name, mcp])
+   );
+
+   return input.agent.requiredMcps.flatMap((requiredMcp) => {
+      const detectedMcp = listedMcps.get(requiredMcp);
+
+      if (!detectedMcp) {
+         return [
+            {
+               code: "missing-required-mcp",
+               message: `Agent "${input.agent.name}" requires MCP "${requiredMcp}", but provider "${input.agent.provider}" did not list it in "${commandLabel}".`
+            }
+         ];
+      }
+
+      if (!detectedMcp.enabled) {
+         return [
+            {
+               code: "disabled-required-mcp",
+               message: `Agent "${input.agent.name}" requires MCP "${requiredMcp}", but provider "${input.agent.provider}" reported it as ${detectedMcp.status}.`
+            }
+         ];
+      }
+
+      if (!detectedMcp.connected) {
+         return [
+            {
+               code: "disconnected-required-mcp",
+               message: `Agent "${input.agent.name}" requires MCP "${requiredMcp}", but provider "${input.agent.provider}" reported it as ${detectedMcp.status}.`
+            }
+         ];
+      }
+
+      return [];
+   });
+}
+
 export function rejectUnsupportedReasoningEffort(
    agent: AgentDefinition
 ): ValidationIssue[] {
@@ -97,23 +314,26 @@ export function buildPrompt(
       mode: RunMode;
       runFile: string;
       runId: string;
-      task: string;
+      task?: string;
    }
 ): string {
-   return `${agent.body}
+   if (typeof input.task !== "string" || input.task.trim().length === 0) {
+      throw new Error("A task is required to render a provider prompt.");
+   }
 
----
-Task: ${input.task}
-Working directory: ${input.cwd}
-Execution mode: ${input.mode}
-Run ID: ${input.runId}
-Optional artifacts directory: ${input.artifactsDir}
-Optional structured run path: ${input.runFile}
+   const replacements: Record<string, string> = {
+      "{{artifactsDir}}": input.artifactsDir,
+      "{{cwd}}": input.cwd,
+      "{{mode}}": input.mode,
+      "{{runFile}}": input.runFile,
+      "{{runId}}": input.runId,
+      "{{task}}": input.task
+   };
 
-Use the optional run/artifact paths only when your authored instructions need persisted handoff files.
-Create those files or directories yourself if you decide to use them.
-Do not assume any task beyond the task above.
-Return a final answer in the CLI output.`;
+   return agent.body.replaceAll(
+      /\{\{artifactsDir\}\}|\{\{cwd\}\}|\{\{mode\}\}|\{\{runFile\}\}|\{\{runId\}\}|\{\{task\}\}/g,
+      (placeholder) => replacements[placeholder] ?? placeholder
+   );
 }
 
 export function finalizeRecord(input: {
@@ -123,6 +343,8 @@ export function finalizeRecord(input: {
    errorMessage?: string;
    exitCode: number | null;
    finalText: string;
+   launchMode: LaunchMode;
+   launch: RunLaunchSnapshot;
    mode: RunMode;
    promptFile: string;
    runDir: string;
@@ -143,6 +365,11 @@ export function finalizeRecord(input: {
       endedAt: input.endedAt,
       exitCode: input.exitCode,
       finalText: input.finalText,
+      launch: input.launch,
+      launchMode: input.launchMode,
+      ...(typeof input.agent.model === "string"
+         ? { model: input.agent.model }
+         : {}),
       mode: input.mode,
       paths: {
          artifactsDir: path.join(input.runDir, "artifacts"),
@@ -157,6 +384,9 @@ export function finalizeRecord(input: {
             : {})
       },
       provider: input.agent.provider,
+      ...(typeof input.agent.reasoningEffort === "string"
+         ? { reasoningEffort: input.agent.reasoningEffort }
+         : {}),
       runId: input.runId,
       signal: input.signal,
       startedAt: input.startedAt,

@@ -6,24 +6,30 @@ import type { AgentScope } from "./types.js";
 
 export type ProjectPaths = {
    aimanDir: string;
+   projectSkillsDir: string;
    projectRoot: string;
    projectAgentsDir: string;
    runsDir: string;
-   userAimanDir: string;
    userAgentsDir: string;
+   userSkillsDir: string;
+   userAimanDir: string;
 };
 
 export function getProjectPaths(projectRoot = process.cwd()): ProjectPaths {
    const aimanDir = path.join(projectRoot, ".aiman");
    const userAimanDir = path.join(os.homedir(), ".aiman");
+   const userAgentsDir = path.join(userAimanDir, "agents");
+   const agentsHomeDir = path.join(os.homedir(), ".agents");
 
    return {
       aimanDir,
+      projectSkillsDir: path.join(projectRoot, ".agents", "skills"),
       projectRoot,
       projectAgentsDir: path.join(aimanDir, "agents"),
       runsDir: path.join(aimanDir, "runs"),
-      userAimanDir,
-      userAgentsDir: path.join(userAimanDir, "agents")
+      userAgentsDir,
+      userSkillsDir: path.join(agentsHomeDir, "skills"),
+      userAimanDir
    };
 }
 
