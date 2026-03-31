@@ -152,6 +152,22 @@ async function readSkillDefinition(input: {
    };
 }
 
+async function readOptionalSkillDefinition(input: {
+   filePath: string;
+   name: string;
+   scope: AgentScope;
+}): Promise<SkillDefinition | undefined> {
+   try {
+      return await readSkillDefinition(input);
+   } catch (error) {
+      if (hasErrorCode(error, "ENOENT")) {
+         return undefined;
+      }
+
+      throw error;
+   }
+}
+
 async function readSkillsForScope(
    projectPaths: ProjectPaths,
    scope: AgentScope
@@ -167,15 +183,17 @@ async function readSkillsForScope(
          .map((entry) => entry.name)
          .sort((left, right) => left.localeCompare(right));
 
-      return Promise.all(
-         skillNames.flatMap((name) => [
-            readSkillDefinition({
+      const skills = await Promise.all(
+         skillNames.map((name) =>
+            readOptionalSkillDefinition({
                filePath: path.join(skillsDir, name, "SKILL.md"),
                name,
                scope
             })
-         ])
+         )
       );
+
+      return skills.filter((skill) => skill !== undefined);
    } catch (error) {
       if (hasErrorCode(error, "ENOENT")) {
          return [];
@@ -360,12 +378,12 @@ async function resolveSkillDirectoryFromRoot(
 
    if (bundledSkillDirectories.length === 0) {
       throw new UserError(
-         'Git source did not contain an installable skill. Expected "SKILL.md" at the repo root or exactly one "skills/<name>/SKILL.md" on the "main" branch.'
+         'Git source did not contain an installable skill. Expected "SKILL.md" at the repo root or exactly one "skills/<name>/SKILL.md" in the cloned default branch.'
       );
    }
 
    throw new UserError(
-      'Git source contains multiple bundled skills. Re-run with "--path skills/<name>" to choose one from the "main" branch.'
+      'Git source contains multiple bundled skills. Re-run with "--path skills/<name>" to choose one from the cloned default branch.'
    );
 }
 
@@ -464,7 +482,7 @@ async function runGitCommand(input: {
    const detail = stderr.length > 0 ? stderr : stdout;
 
    throw new UserError(
-      `Git clone failed while reading the "main" branch: ${detail.length > 0 ? detail : (result.signal ?? "unknown git error")}`
+      `Git clone failed while reading the default branch: ${detail.length > 0 ? detail : (result.signal ?? "unknown git error")}`
    );
 }
 
@@ -501,8 +519,6 @@ async function resolveSourceDirectory(
       await runGitCommand({
          args: [
             "clone",
-            "--branch",
-            "main",
             "--depth",
             "1",
             "--single-branch",

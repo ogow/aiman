@@ -112,6 +112,7 @@ ${typeof input.name === "string" ? `name: ${input.name}\n` : ""}description: ${i
 }
 
 async function createGitSkillRepoFixture(input: {
+   initialBranch?: string;
    skills: Array<{
       description: string;
       directory?: string;
@@ -132,7 +133,10 @@ async function createGitSkillRepoFixture(input: {
       });
    }
 
-   runGit(["init", "--initial-branch=main"], repoRoot);
+   runGit(
+      ["init", `--initial-branch=${input.initialBranch ?? "main"}`],
+      repoRoot
+   );
    runGit(["config", "user.email", "aiman-tests@example.com"], repoRoot);
    runGit(["config", "user.name", "Aiman Tests"], repoRoot);
    runGit(["add", "."], repoRoot);
@@ -144,6 +148,7 @@ async function createGitSkillRepoFixture(input: {
 async function createGitRootSkillRepoFixture(input: {
    description: string;
    extraFiles?: Record<string, string>;
+   initialBranch?: string;
    name?: string;
 }): Promise<string> {
    const repoRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-root-skill-"));
@@ -162,7 +167,10 @@ async function createGitRootSkillRepoFixture(input: {
       await writeFile(filePath, contents, "utf8");
    }
 
-   runGit(["init", "--initial-branch=main"], repoRoot);
+   runGit(
+      ["init", `--initial-branch=${input.initialBranch ?? "main"}`],
+      repoRoot
+   );
    runGit(["config", "user.email", "aiman-tests@example.com"], repoRoot);
    runGit(["config", "user.name", "Aiman Tests"], repoRoot);
    runGit(["add", "."], repoRoot);
@@ -541,6 +549,62 @@ description: Research the web carefully
    );
 });
 
+test("ignores incomplete skill directories when listing skills", async () => {
+   const projectRoot = await createProjectFixture();
+
+   await mkdir(path.join(projectRoot, ".agents", "skills", "aiman", "agents"), {
+      recursive: true
+   });
+   await mkdir(
+      path.join(projectRoot, ".agents", "skills", "aiman", "references"),
+      { recursive: true }
+   );
+   await mkdir(path.join(projectRoot, ".agents", "skills", "repo-search"), {
+      recursive: true
+   });
+   await writeFile(
+      path.join(projectRoot, ".agents", "skills", "repo-search", "SKILL.md"),
+      `---
+name: repo-search
+description: Search the repository efficiently
+---
+
+# Repo Search
+`,
+      "utf8"
+   );
+
+   const result = runCli(["skill", "list", "--scope", "project", "--json"], {
+      cwd: projectRoot
+   });
+
+   assert.equal(result.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      skills: Array<{
+         description: string;
+         name: string;
+         path: string;
+         scope: string;
+      }>;
+   };
+
+   assert.deepEqual(
+      payload.skills.map((skill) => ({
+         description: skill.description,
+         name: skill.name,
+         scope: skill.scope
+      })),
+      [
+         {
+            description: "Search the repository efficiently",
+            name: "repo-search",
+            scope: "project"
+         }
+      ]
+   );
+});
+
 test("renders a human-friendly agent list", () => {
    const result = runCli(["agent", "list"]);
 
@@ -670,9 +734,45 @@ test("installs a local skill into user scope", async () => {
    );
 });
 
-test("installs a skill from a git URL by cloning main and auto-detecting one bundled skill", async () => {
+test("installs a skill from a git URL by cloning the default branch and auto-detecting one bundled skill", async () => {
    const projectRoot = await createProjectFixture();
    const skillRepo = await createGitSkillRepoFixture({
+      skills: [
+         {
+            description: "Operate aiman safely",
+            name: "aiman"
+         }
+      ]
+   });
+
+   const result = runCli(
+      ["skill", "install", `file://${skillRepo}`, "--json"],
+      { cwd: projectRoot }
+   );
+
+   assert.equal(result.status, 0);
+
+   const payload = JSON.parse(result.stdout) as {
+      installed: boolean;
+      skill: { name: string; path: string; scope: string };
+   };
+
+   assert.equal(payload.installed, true);
+   assert.equal(payload.skill.name, "aiman");
+   assert.equal(payload.skill.scope, "project");
+   assert.equal(
+      await readFile(payload.skill.path, "utf8"),
+      await readFile(
+         path.join(skillRepo, "skills", "aiman", "SKILL.md"),
+         "utf8"
+      )
+   );
+});
+
+test("installs a skill from a git URL whose default branch is master", async () => {
+   const projectRoot = await createProjectFixture();
+   const skillRepo = await createGitSkillRepoFixture({
+      initialBranch: "master",
       skills: [
          {
             description: "Operate aiman safely",

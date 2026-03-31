@@ -32,7 +32,7 @@ Skills can also exist in two scopes:
 
 `aiman skill list` follows the same project-over-user precedence rule for skills, so the default output shows the exact skill names an agent run would resolve first. Use `--scope` to inspect only project or only user skills.
 
-`aiman skill install [source]` accepts either a local path or a git URL. When `source` is omitted, it defaults to `https://github.com/ogow/aiman`. For git sources, `aiman` clones the repo's `main` branch, auto-detects one bundled skill from either `SKILL.md` at the repo root or exactly one `skills/<name>/SKILL.md`, and then installs that bundle into the selected runtime scope. Use `--path skills/<name>` when the repo contains more than one bundled skill. `--scope` defaults to `project`, and `--force` replaces an existing installed copy with the same skill name.
+`aiman skill install [source]` accepts either a local path or a git URL. When `source` is omitted, it defaults to `https://github.com/ogow/aiman`. For git sources, `aiman` clones the repo's default branch, auto-detects one bundled skill from either `SKILL.md` at the repo root or exactly one `skills/<name>/SKILL.md`, and then installs that bundle into the selected runtime scope. Use `--path skills/<name>` when the repo contains more than one bundled skill. `--scope` defaults to `project`, and `--force` replaces an existing installed copy with the same skill name.
 
 For `aiman agent create`, `--scope`, `--provider`, `--model`, and `--description` are required. `--permissions` defaults to `read-only` and is written into the agent frontmatter. Instructions can come from `--instructions` or from stdin, which keeps multiline authoring scriptable and avoids hidden interactive prompts that could block parent agents.
 
@@ -64,7 +64,7 @@ Across providers, `aiman` forwards only an allowlisted runtime environment rathe
 - Command modules export `command`, `describe`, `builder`, and `handler` to match the `yargs` command-module pattern.
 - `aiman agent create <name>` is the authoring path for creating structured agent files without hand-writing raw frontmatter.
 - `aiman skill list` is the operator path for discovering available skill names and scopes before declaring them in agent frontmatter.
-- `aiman skill install [source]` is the authoring and packaging path for turning the default `aiman` skill, a local reusable skill bundle, or a repo-hosted bundle on `main` into an installed project-scope or user-scope skill without manual copying.
+- `aiman skill install [source]` is the authoring and packaging path for turning the default `aiman` skill, a local reusable skill bundle, or a repo-hosted bundle on its default branch into an installed project-scope or user-scope skill without manual copying.
 - `aiman agent show <agent>` is the quick operator path for checking the agent's declared permissions, required MCPs, provider behavior, supported run modes, and the rights the runtime will grant in each mode.
 - Authored agent bodies are the full prompt contract. `aiman` no longer appends hidden task/cwd/run-path footer text at execution time.
 - `aiman run <agent>` is the default synchronous worker path. It runs in the foreground, persists the run, and returns the final result when complete.

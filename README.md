@@ -205,7 +205,7 @@ That means `aiman` validates and records skill usage, but does not become a seco
 - project scope: `.agents/skills/<name>/SKILL.md`
 - user scope: `~/.agents/skills/<name>/SKILL.md`
 
-The easiest install path is just `aiman skill install`. By default, `aiman` clones `https://github.com/ogow/aiman` from the repo's `main` branch and installs the bundled skill.
+`aiman skill install` accepts either a local path or a git URL. When you omit `source`, it defaults to `https://github.com/ogow/aiman` and installs from that repo's default branch.
 
 For a project-local install from this repo, run:
 
