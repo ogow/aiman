@@ -1,75 +1,160 @@
+import { existsSync, realpathSync } from "node:fs";
 import * as os from "node:os";
 import { mkdir } from "node:fs/promises";
 import * as path from "node:path";
 
-import type { AgentScope } from "./types.js";
+import type { ProfileScope } from "./types.js";
 
 export type ProjectPaths = {
    aimanDir: string;
-   projectSkillsDir: string;
-   projectRoot: string;
    projectAgentsDir: string;
+   projectProfilesDir: string;
+   projectRoot: string;
+   projectSkillsDir: string;
+   runDbPath: string;
    runsDir: string;
-   userAgentsDir: string;
-   userSkillsDir: string;
    userAimanDir: string;
+   userAgentsDir: string;
+   userProfilesDir: string;
+   userSkillsDir: string;
 };
 
+function getUserHomeDirectory(): string {
+   const home =
+      process.env.HOME ??
+      process.env.USERPROFILE ??
+      (process.env.HOMEDRIVE !== undefined && process.env.HOMEPATH !== undefined
+         ? path.join(process.env.HOMEDRIVE, process.env.HOMEPATH)
+         : undefined);
+
+   return typeof home === "string" && home.length > 0 ? home : os.homedir();
+}
+
+function normalizePathForComparison(directoryPath: string): string {
+   let resolvedPath = path.resolve(directoryPath);
+
+   try {
+      resolvedPath = realpathSync.native(resolvedPath);
+   } catch {}
+
+   return process.platform === "win32"
+      ? resolvedPath.toLowerCase()
+      : resolvedPath;
+}
+
+function getUserHomeDirectories(): Set<string> {
+   const candidates = [
+      process.env.HOME,
+      process.env.USERPROFILE,
+      process.env.HOMEDRIVE !== undefined &&
+      process.env.HOMEPATH !== undefined
+         ? path.join(process.env.HOMEDRIVE, process.env.HOMEPATH)
+         : undefined,
+      os.homedir()
+   ];
+
+   return new Set(
+      candidates.flatMap((candidate) =>
+         typeof candidate === "string" && candidate.length > 0
+            ? [normalizePathForComparison(candidate)]
+            : []
+      )
+   );
+}
+
+function hasProjectMarker(
+   directoryPath: string,
+   userHomeDirectories: Set<string>
+): boolean {
+   const isUserHomeDirectory = userHomeDirectories.has(
+      normalizePathForComparison(directoryPath)
+   );
+
+   return (
+      (!isUserHomeDirectory && existsSync(path.join(directoryPath, ".aiman"))) ||
+      (!isUserHomeDirectory && existsSync(path.join(directoryPath, ".agents"))) ||
+      (!isUserHomeDirectory && existsSync(path.join(directoryPath, ".git")))
+   );
+}
+
+function resolveProjectRoot(startDirectory: string): string {
+   let currentDirectory = path.resolve(startDirectory);
+   const userHomeDirectories = getUserHomeDirectories();
+
+   while (true) {
+      if (hasProjectMarker(currentDirectory, userHomeDirectories)) {
+         return currentDirectory;
+      }
+
+      const parentDirectory = path.dirname(currentDirectory);
+
+      if (parentDirectory === currentDirectory) {
+         return path.resolve(startDirectory);
+      }
+
+      currentDirectory = parentDirectory;
+   }
+}
+
 export function getProjectPaths(projectRoot = process.cwd()): ProjectPaths {
-   const aimanDir = path.join(projectRoot, ".aiman");
-   const userAimanDir = path.join(os.homedir(), ".aiman");
-   const userAgentsDir = path.join(userAimanDir, "agents");
-   const agentsHomeDir = path.join(os.homedir(), ".agents");
+   const resolvedProjectRoot = resolveProjectRoot(projectRoot);
+   const aimanDir = path.join(resolvedProjectRoot, ".aiman");
+   const userHomeDir = getUserHomeDirectory();
+   const userAimanDir = path.join(userHomeDir, ".aiman");
 
    return {
       aimanDir,
-      projectSkillsDir: path.join(projectRoot, ".agents", "skills"),
-      projectRoot,
-      projectAgentsDir: path.join(aimanDir, "agents"),
-      runsDir: path.join(aimanDir, "runs"),
-      userAgentsDir,
-      userSkillsDir: path.join(agentsHomeDir, "skills"),
-      userAimanDir
+      projectAgentsDir: path.join(aimanDir, "profiles"),
+      projectProfilesDir: path.join(aimanDir, "profiles"),
+      projectRoot: resolvedProjectRoot,
+      projectSkillsDir: path.join(aimanDir, "skills"),
+      runDbPath: path.join(userAimanDir, "aiman.db"),
+      runsDir: path.join(userAimanDir, "runs"),
+      userAimanDir,
+      userAgentsDir: path.join(userAimanDir, "profiles"),
+      userProfilesDir: path.join(userAimanDir, "profiles"),
+      userSkillsDir: path.join(userAimanDir, "skills")
    };
 }
 
 export async function ensureProjectDirectories(
    projectPaths: ProjectPaths
 ): Promise<void> {
-   await mkdir(projectPaths.projectAgentsDir, { recursive: true });
+   await mkdir(projectPaths.projectProfilesDir, { recursive: true });
+   await mkdir(projectPaths.projectSkillsDir, { recursive: true });
    await mkdir(projectPaths.runsDir, { recursive: true });
 }
 
-export async function ensureAgentScopeDirectory(
+export async function ensureProfileScopeDirectory(
    projectPaths: ProjectPaths,
-   scope: AgentScope
+   scope: ProfileScope
 ): Promise<void> {
-   await mkdir(getAgentsDirectoryForScope(projectPaths, scope), {
+   await mkdir(getProfilesDirectoryForScope(projectPaths, scope), {
       recursive: true
    });
 }
 
 export async function ensureSkillScopeDirectory(
    projectPaths: ProjectPaths,
-   scope: AgentScope
+   scope: ProfileScope
 ): Promise<void> {
    await mkdir(getSkillsDirectoryForScope(projectPaths, scope), {
       recursive: true
    });
 }
 
-export function getAgentsDirectoryForScope(
+export function getProfilesDirectoryForScope(
    projectPaths: ProjectPaths,
-   scope: AgentScope
+   scope: ProfileScope
 ): string {
    return scope === "project"
-      ? projectPaths.projectAgentsDir
-      : projectPaths.userAgentsDir;
+      ? projectPaths.projectProfilesDir
+      : projectPaths.userProfilesDir;
 }
 
 export function getSkillsDirectoryForScope(
    projectPaths: ProjectPaths,
-   scope: AgentScope
+   scope: ProfileScope
 ): string {
    return scope === "project"
       ? projectPaths.projectSkillsDir

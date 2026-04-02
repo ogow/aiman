@@ -12,6 +12,34 @@ import {
    readOptionalFile
 } from "./shared.js";
 
+function getCodexInstructionIsolationConfigArgs(): string[] {
+   return [
+      "--config",
+      "project_doc_max_bytes=0",
+      "--config",
+      "project_doc_fallback_filenames=[]",
+      "--config",
+      'developer_instructions=""',
+      "--config",
+      'instructions=""',
+      "--config",
+      "agents={}"
+   ];
+}
+
+function getWindowsAutomationConfigArgs(): string[] {
+   if (process.platform !== "win32") {
+      return [];
+   }
+
+   return [
+      "--config",
+      "allow_login_shell=false",
+      "--config",
+      "shell_environment_policy.experimental_use_profile=false"
+   ];
+}
+
 export function createCodexAdapter(): ProviderAdapter {
    return {
       async detect(agent) {
@@ -33,6 +61,12 @@ export function createCodexAdapter(): ProviderAdapter {
       },
       id: "codex",
       async parseCompletedRun(input) {
+         const profile = input.profile ?? input.agent;
+
+         if (profile === undefined) {
+            throw new Error("Completed Codex run is missing its profile.");
+         }
+
          const lastMessagePath = deriveCodexLastMessagePath(input.runDir);
          const lastMessage = (await readOptionalFile(lastMessagePath)).trim();
          const wroteExpectedOutput = lastMessage.length > 0;
@@ -50,7 +84,6 @@ export function createCodexAdapter(): ProviderAdapter {
                : undefined;
 
          return finalizeRecord({
-            agent: input.agent,
             cwd: input.cwd,
             endedAt: input.endedAt,
             exitCode: input.exitCode,
@@ -58,7 +91,9 @@ export function createCodexAdapter(): ProviderAdapter {
             launchMode: input.launchMode,
             launch: input.launch,
             mode: input.mode,
+            profile,
             promptFile: input.promptFile,
+            projectRoot: input.projectRoot,
             runDir: input.runDir,
             runId: input.runId,
             signal: input.signal,
@@ -73,7 +108,7 @@ export function createCodexAdapter(): ProviderAdapter {
                : {})
          });
       },
-      prepare(agent, input) {
+      async prepare(agent, input) {
          const runDir = path.dirname(input.runFile);
          const lastMessagePath = deriveCodexLastMessagePath(runDir);
          const prompt = input.renderedPrompt ?? buildPrompt(agent, input);
@@ -88,21 +123,13 @@ export function createCodexAdapter(): ProviderAdapter {
             args: [
                "exec",
                "--sandbox",
-               input.mode === "workspace-write"
-                  ? "workspace-write"
-                  : "read-only",
-               "-a",
-               "never",
+               input.mode === "yolo" ? "workspace-write" : "read-only",
                "--cd",
                input.cwd,
                "--output-last-message",
                lastMessagePath,
-               ...(agent.reasoningEffort
-                  ? [
-                       "--config",
-                       `model_reasoning_effort="${agent.reasoningEffort}"`
-                    ]
-                  : []),
+               ...getCodexInstructionIsolationConfigArgs(),
+               ...getWindowsAutomationConfigArgs(),
                ...(agent.model ? ["--model", agent.model] : []),
                "-"
             ],

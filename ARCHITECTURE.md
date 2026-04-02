@@ -1,39 +1,53 @@
 # Architecture
 
-`aiman` is a small CLI-only specialist-run recorder. It launches one authored specialist at a time, persists one canonical run record, and makes that run easy to inspect later.
+`aiman` is a small human-first terminal workbench. It launches one profile at a time, persists one canonical run record, and makes that run easy to inspect later through either the default TUI or the non-TTY `run` commands.
 
 ## Current Shape
 
 - [src/cli.ts](/Users/ogow/Code/aiman/src/cli.ts) is the executable entrypoint.
-- [src/lib/cli.ts](/Users/ogow/Code/aiman/src/lib/cli.ts) builds the shared `yargs` instance.
-- [src/cmd/index.ts](/Users/ogow/Code/aiman/src/cmd/index.ts) registers the public `agent`, `skill`, `run`, and `sesh` command groups plus the hidden detached-worker command.
-- [src/cmd/agent.ts](/Users/ogow/Code/aiman/src/cmd/agent.ts) groups the authored-agent catalog and authoring subcommands.
-- [src/cmd/list.ts](/Users/ogow/Code/aiman/src/cmd/list.ts) implements `aiman agent list`.
-- [src/cmd/create.ts](/Users/ogow/Code/aiman/src/cmd/create.ts) implements `aiman agent create` for structured project-scope or user-scope agent files.
-- [src/cmd/show.ts](/Users/ogow/Code/aiman/src/cmd/show.ts) implements `aiman agent show`.
-- [src/cmd/skill.ts](/Users/ogow/Code/aiman/src/cmd/skill.ts) groups skill-related subcommands.
-- [src/cmd/skills.ts](/Users/ogow/Code/aiman/src/cmd/skills.ts) implements `aiman skill list`, using the same precedence rules that run-time skill resolution uses.
-- [src/cmd/run.ts](/Users/ogow/Code/aiman/src/cmd/run.ts) runs one specialist in the foreground by default, can launch detached runs explicitly, owns the small human activity indicator for foreground TTY use, and keeps successful foreground output down to the final answer instead of a full status dump.
-- [src/cmd/sesh.ts](/Users/ogow/Code/aiman/src/cmd/sesh.ts) groups session inspection subcommands.
-- [src/cmd/ps.ts](/Users/ogow/Code/aiman/src/cmd/ps.ts) implements `aiman sesh list`, listing active recorded runs using the stored PID plus the persisted supervisor heartbeat as the live-process check.
-- [src/cmd/status.ts](/Users/ogow/Code/aiman/src/cmd/status.ts) implements `aiman sesh show`, rendering the compact human-friendly per-run view.
-- [src/cmd/logs.ts](/Users/ogow/Code/aiman/src/cmd/logs.ts) implements `aiman sesh logs`, reading or following persisted run output from `stdout.log` and `stderr.log`.
-- [src/cmd/inspect.ts](/Users/ogow/Code/aiman/src/cmd/inspect.ts) implements `aiman sesh inspect`, exposing the detailed parsed run record plus raw persisted files.
-- [src/cmd/top.ts](/Users/ogow/Code/aiman/src/cmd/top.ts) implements `aiman sesh top`, providing the interactive terminal dashboard and requiring a real TTY instead of silently degrading to another mode.
+- [src/lib/cli.ts](/Users/ogow/Code/aiman/src/lib/cli.ts) builds the shared `yargs` instance and sends `aiman` with no args into the interactive app.
+- [src/cmd/index.ts](/Users/ogow/Code/aiman/src/cmd/index.ts) registers the public `profile`, `skill`, `run`, and `sesh` surfaces plus the hidden detached-worker command.
+- [src/cmd/app.ts](/Users/ogow/Code/aiman/src/cmd/app.ts) is the thin entrypoint for the default Ink app in [src/ui/aiman-app.tsx](/Users/ogow/Code/aiman/src/ui/aiman-app.tsx).
+- [src/cmd/profile.ts](/Users/ogow/Code/aiman/src/cmd/profile.ts) groups profile catalog and authoring subcommands.
+- [src/cmd/profile-list.ts](/Users/ogow/Code/aiman/src/cmd/profile-list.ts) implements `aiman profile list`.
+- [src/cmd/profile-show.ts](/Users/ogow/Code/aiman/src/cmd/profile-show.ts) implements `aiman profile show`.
+- [src/cmd/profile-check.ts](/Users/ogow/Code/aiman/src/cmd/profile-check.ts) implements `aiman profile check`.
+- [src/cmd/profile-create.ts](/Users/ogow/Code/aiman/src/cmd/profile-create.ts) implements `aiman profile create`.
+- [src/cmd/profile-migrate.ts](/Users/ogow/Code/aiman/src/cmd/profile-migrate.ts) converts legacy `.aiman/agents/*.md` files into vNext profiles.
+- [src/cmd/skill.ts](/Users/ogow/Code/aiman/src/cmd/skill.ts) groups local `aiman` skill discovery commands.
+- [src/cmd/skills.ts](/Users/ogow/Code/aiman/src/cmd/skills.ts) implements `aiman skill list` for project/user local skills.
+- [src/cmd/skill-show.ts](/Users/ogow/Code/aiman/src/cmd/skill-show.ts) and [src/cmd/skill-check.ts](/Users/ogow/Code/aiman/src/cmd/skill-check.ts) expose one skill at a time for inspection and validation.
+- [src/cmd/run.ts](/Users/ogow/Code/aiman/src/cmd/run.ts) is the public run dispatcher: it runs one profile in the foreground or detached mode and also routes `run list`, `run show`, `run logs`, `run inspect`, and `run stop`.
+- [src/cmd/ps.ts](/Users/ogow/Code/aiman/src/cmd/ps.ts) implements `aiman run list`.
+- [src/cmd/status.ts](/Users/ogow/Code/aiman/src/cmd/status.ts) implements `aiman run show`.
+- [src/cmd/logs.ts](/Users/ogow/Code/aiman/src/cmd/logs.ts) implements `aiman run logs`.
+- [src/cmd/inspect.ts](/Users/ogow/Code/aiman/src/cmd/inspect.ts) implements `aiman run inspect`.
+- [src/cmd/stop-agent.ts](/Users/ogow/Code/aiman/src/cmd/stop-agent.ts) now implements `aiman run stop <id>`.
+- [src/cmd/sesh.ts](/Users/ogow/Code/aiman/src/cmd/sesh.ts) groups the session-inspection commands, including the interactive top dashboard.
+- [src/cmd/top.ts](/Users/ogow/Code/aiman/src/cmd/top.ts) is the thin command wrapper for the Ink session dashboard in [src/ui/top-screen.tsx](/Users/ogow/Code/aiman/src/ui/top-screen.tsx).
 - [src/cmd/internal-run.ts](/Users/ogow/Code/aiman/src/cmd/internal-run.ts) is a hidden worker command that owns provider execution for detached runs.
-- [src/lib/agents.ts](/Users/ogow/Code/aiman/src/lib/agents.ts) loads the small agent catalog from both project and user scope, validates frontmatter including declared skills and required MCP names, resolves agents with project precedence, and scaffolds new agent files.
-- [src/lib/skills.ts](/Users/ogow/Code/aiman/src/lib/skills.ts) resolves declared agent skills from project and user skill roots, keeps project-over-user precedence, and freezes the resolved skill metadata into launch-time evidence.
-- [src/lib/skills.ts](/Users/ogow/Code/aiman/src/lib/skills.ts) also reads the skill catalog for `aiman skill list`, exposing the same project/user precedence operators will see at run time.
+- [src/lib/profiles.ts](/Users/ogow/Code/aiman/src/lib/profiles.ts) is the vNext catalog for built-in, project, and user profiles, including validation and migration from legacy `.aiman/agents/*.md` files.
+- [src/lib/agents.ts](/Users/ogow/Code/aiman/src/lib/agents.ts) is now only a thin compatibility wrapper over the profile layer.
+- [src/lib/skills.ts](/Users/ogow/Code/aiman/src/lib/skills.ts) manages local `aiman` skills, project/user precedence, skill validation, and the explicit active/suggested skill selection used for runs.
+- [src/lib/project-context.ts](/Users/ogow/Code/aiman/src/lib/project-context.ts) extracts only the `## Aiman Runtime Context` section from repo-root `AGENTS.md`.
 - [src/lib/run-doc.ts](/Users/ogow/Code/aiman/src/lib/run-doc.ts) reads and writes the canonical `run.md` file with `gray-matter`, while resolving any referenced artifacts inside each run directory.
-- [src/lib/runs.ts](/Users/ogow/Code/aiman/src/lib/runs.ts) splits run preparation, detached launch, hidden-worker execution, and the direct synchronous execution path used by tests, while freezing launch evidence up front and rebuilding detached workers from the persisted launch snapshot instead of live agent files.
-- [src/lib/run-store.ts](/Users/ogow/Code/aiman/src/lib/run-store.ts) owns persisted run files under `.aiman/runs/`, with `run.md` as the canonical record plus run-directory-derived prompt/log/artifact paths and derived active/warning read state for operator-facing views.
+- [src/lib/runs.ts](/Users/ogow/Code/aiman/src/lib/runs.ts) splits run preparation, detached launch, hidden-worker execution, and the direct synchronous execution path used by tests, while freezing launch evidence up front, rebuilding detached workers from the persisted launch snapshot instead of live profile files, assembling prompts from the selected profile plus AGENTS runtime context plus local skills, honoring persisted stop requests for active runs, and killing Windows command-processor launch trees when a `.cmd` / `.bat` provider must be stopped.
+- [src/lib/run-store.ts](/Users/ogow/Code/aiman/src/lib/run-store.ts) owns persisted run files under the global `~/.aiman/runs/` store, with `run.md` as the canonical record plus run-directory-derived prompt/log/artifact/stop-request paths and derived active/warning read state for operator-facing views.
+- [src/lib/run-index.ts](/Users/ogow/Code/aiman/src/lib/run-index.ts) wraps the built-in `node:sqlite` runtime and keeps the global `~/.aiman/aiman.db` run index in sync with `run.md`, so `sesh list` and other run lookups work from any working directory.
 - [src/lib/run-output.ts](/Users/ogow/Code/aiman/src/lib/run-output.ts) tails and follows persisted logs without introducing a daemon or side-channel IPC layer.
 - [src/lib/activity.ts](/Users/ogow/Code/aiman/src/lib/activity.ts) renders the small indeterminate activity bar used by foreground `run` and active views inside `top`.
 - [src/lib/run-render.ts](/Users/ogow/Code/aiman/src/lib/run-render.ts) centralizes the human-facing plain-text views used by `ps`, `status`, `inspect`, and `top`, including the frozen launch evidence surfaced by `inspect`.
+- [src/ui/aiman-app.tsx](/Users/ogow/Code/aiman/src/ui/aiman-app.tsx) implements the default interactive app on top of the existing profile, skill, project-context, and run modules, using view-model helpers instead of moving execution logic into React components, with a branded ASCII start screen and mnemonic letter-first navigation.
+- [src/ui/top-screen.tsx](/Users/ogow/Code/aiman/src/ui/top-screen.tsx) implements the human-only `aiman sesh top` dashboard with shared list/detail panes, filter cycling, stop actions, and detail scrolling.
+- [src/ui/theme.tsx](/Users/ogow/Code/aiman/src/ui/theme.tsx), [src/ui/components.tsx](/Users/ogow/Code/aiman/src/ui/components.tsx), [src/ui/text.ts](/Users/ogow/Code/aiman/src/ui/text.ts), [src/ui/hooks.ts](/Users/ogow/Code/aiman/src/ui/hooks.ts), and [src/ui/render-screen.tsx](/Users/ogow/Code/aiman/src/ui/render-screen.tsx) hold the shared Ink theme, pane helpers, markdown/text shaping, terminal-size hooks, and alternate-screen wrapper used by both interactive TTY surfaces.
 - [src/lib/providers/index.ts](/Users/ogow/Code/aiman/src/lib/providers/index.ts) selects the strict provider adapters for `codex` and `gemini`.
 - [src/lib/provider-capabilities.ts](/Users/ogow/Code/aiman/src/lib/provider-capabilities.ts) centralizes the human/machine-readable rights model for each provider and run mode so operator surfaces can explain read-only vs write-enabled behavior consistently.
-- [src/lib/providers/shared.ts](/Users/ogow/Code/aiman/src/lib/providers/shared.ts) keeps the explicit placeholder-based prompt rendering, environment allowlist, MCP-list parsing, and result-normalization helpers small and boring.
-- [src/lib/paths.ts](/Users/ogow/Code/aiman/src/lib/paths.ts) centralizes project/user agent roots, project/user skill roots, and run-directory layout.
+- [src/lib/providers/shared.ts](/Users/ogow/Code/aiman/src/lib/providers/shared.ts) keeps the explicit placeholder-based prompt rendering, AGENTS runtime-context and active-skill prompt assembly, cross-platform provider environment allowlist, timeout-safe helper execution, and result-normalization helpers small and boring.
+- [src/lib/providers/codex.ts](/Users/ogow/Code/aiman/src/lib/providers/codex.ts) also pins Windows Codex launches away from login-shell and user-profile shell behavior, and blanks Codex project-doc, developer-instruction, and agent-role inputs on launch so authored `aiman` prompts do not inherit repo `AGENTS.md`, prompt-shaping `.codex` instruction keys, or malformed repo role definitions while still keeping project MCP registration available.
+- [src/lib/providers/gemini.ts](/Users/ogow/Code/aiman/src/lib/providers/gemini.ts) injects a child-local Gemini settings overlay so Gemini context-file discovery uses an impossible filename instead of project `AGENTS.md` / `GEMINI.md`, keeps project `.gemini/settings.json` available for MCP registration, and sends the authored prompt on stdin while keeping Gemini in headless mode with `--prompt ""` so multiline prompts survive Windows command-wrapper launches.
+- [src/lib/executables.ts](/Users/ogow/Code/aiman/src/lib/executables.ts) resolves provider commands from `PATH` for both Unix binaries and Windows `PATHEXT` shims, and rewrites Windows `.cmd`/`.bat` launches into an escaped `cmd.exe /d /s /c` invocation while preserving whether the launch went through the Windows command processor.
+- [src/lib/paths.ts](/Users/ogow/Code/aiman/src/lib/paths.ts) resolves the effective project root by walking up from the caller's current directory to the nearest ancestor with project markers such as `.aiman`, `.agents`, or `.git`, while explicitly refusing to treat `$HOME` itself as that root so user scope and project scope do not collapse together under home-level marker folders or a home-level Git checkout.
+- [src/lib/paths.ts](/Users/ogow/Code/aiman/src/lib/paths.ts) centralizes project/user profile roots, project/user skill roots, the global run-directory layout, and the SQLite run-index location.
 - [src/lib/task-input.ts](/Users/ogow/Code/aiman/src/lib/task-input.ts) enforces the CLI task-input contract for `--task` vs stdin.
 
 ## Conventions
@@ -41,24 +55,30 @@
 - Keep the CLI bootstrap thin.
 - Prefer one command module per command or subcommand.
 - Keep user-facing behavior simple and explicit.
-- Keep the public command tree grouped by concern: `agent` for authored specialists, `skill` for reusable skills, `run` for execution, and `sesh` for live/completed session inspection.
+- Keep the public command tree grouped by concern: `profile` for authored prompt contracts, `skill` for reusable local skills, `run` for execution, and `sesh` for live/completed session inspection.
 - Add focused utility modules in `src/lib/` when behavior is shared or worth testing independently.
-- Keep agent loading catalog-based and simple; the repo is small enough that clarity matters more than micro-optimizing file lookups.
-- Keep skill execution provider-native: `aiman` should validate and record declared skills, not reimplement Codex/Gemini skill loading.
+- Keep profile loading catalog-based and simple; the repo is small enough that clarity matters more than micro-optimizing file lookups.
+- Keep skill execution provider-native: `aiman` should record declared skills as agent metadata, while actual skill discovery and use stay with the downstream CLI.
 - Keep required MCP checks provider-native too: use the selected provider CLI as the source of truth for whether a declared MCP is available before launch.
-- Keep agent scope explicit on creation, but let lookup consider both project and user scope by default and prefer project scope on name collisions.
-- Keep skill roots explicit and parallel to agent precedence: use `<repo>/.agents/skills/` first, then `~/.agents/skills/`, and freeze the resolved file paths/digests in the launch snapshot for auditability.
-- Keep agent permissions explicit in frontmatter; the agent file should declare whether it is a `read-only` or `workspace-write` specialist, and runtime overrides must not bypass that declaration.
+- Keep profile scope explicit on creation, but let lookup consider both project and user scope by default and prefer project scope on name collisions.
+- Keep skill roots explicit and parallel to agent precedence for `aiman`'s own skill-management commands: use `<repo>/.agents/skills/` first, then `~/.agents/skills/`, but do not make run-time prompt behavior depend on resolving those folders.
+- Keep project instruction inheritance opt-in and explicit: authored profile files are the primary instruction contract, and only declared `contextFiles` should be appended as extra repo context during a run.
+- Keep the shared repo baseline separate from router files: `AGENTS.md` stays lightweight, while `docs/agent-baseline.md` is the neutral explicit baseline agents can opt into through `contextFiles`.
+- Keep profile mode explicit in frontmatter; the profile file should declare whether it is `safe` or `yolo`, and runtime overrides must not bypass that declaration.
 - Keep run persistence boring and explicit; store files on disk instead of hiding state behind extra abstractions.
 - Keep the canonical run record file-first: `run.md` carries deterministic frontmatter plus the final Markdown body, and `artifacts/` remains optional.
 - Keep prompt/log/artifact files optional and inspectable rather than mandatory outputs, but derive their default locations from the run directory instead of duplicating path metadata in `run.md`.
+- Keep run lookup global and deterministic; store run directories in `~/.aiman/runs/`, index them in `~/.aiman/aiman.db`, and record `projectRoot` in the persisted run metadata instead of relying on the caller's current directory.
 - Keep one immutable `launch` snapshot inside `run.md`; it should freeze the resolved agent, provider invocation, digests, timeout settings, and allowlisted environment key names before execution starts.
 - Distinguish recorded run state from live process state; use the stored supervising `aiman` `pid` plus a fresh persisted heartbeat to answer "is this still running now?" instead of trusting stale `status: running` frontmatter, but do not introduce a new persisted stale lifecycle state.
 - Keep the launch/worker split boring: foreground `run` executes inline, detached `run --detach` starts a managed background worker, and the worker itself is just another CLI command running against the same run directory and persisted launch snapshot.
 - Keep provider-specific options honest: Codex supports `reasoningEffort` through CLI config, while unsupported providers should fail clearly instead of silently ignoring it.
+- Keep provider-isolation promises verified against the real CLIs through `npm run test:provider-contract`, not only through adapter argv/env unit tests.
 - Keep provider rights explicit: the effective access level depends on both provider and run mode, and operator-facing surfaces should spell that out instead of assuming callers know adapter flags.
 - Prefer forward-only cleanup over backward-compatibility shims while the project is still changing quickly.
 - Keep `aiman` focused on recording one specialist run. Choosing what to run next, retry, or compose belongs outside this tool.
 - Return slim machine-readable output from `aiman run ... --json`; keep full execution metadata on disk and expose it through `status`, `logs`, and `inspect`.
 - Keep human progress honest: use indeterminate activity indicators where helpful, but do not invent percent-complete semantics the harness cannot actually measure.
+- Keep React and TSX scoped to the human TTY layer under `src/ui/`; the rest of the CLI and domain modules should stay plain TypeScript where possible.
+- Keep the shared TTY chrome compact and intentional: use the shared header/home primitives for aligned hotkey legends, branded ASCII identity, and mnemonic letter shortcuts instead of numeric navigation.
 - Avoid adding runtime APIs before the CLI or tests actually need them.

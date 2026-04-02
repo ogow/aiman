@@ -12,7 +12,7 @@ type PsArguments = {
 };
 
 export const command = "list";
-export const describe = "List sessions";
+export const describe = "List runs";
 
 export function builder(yargs: Argv): Argv {
    return yargs
@@ -51,13 +51,13 @@ export async function handler(
    if (runs.length === 0) {
       process.stdout.write(
          args.all === true
-            ? "No agent runs found.\n"
-            : "No running agents found.\n"
+            ? "No runs found.\n"
+            : "No active runs found.\n"
       );
       return;
    }
 
    process.stdout.write(
-      `${renderSection("Runs", renderRunTable(runs))}\n\nUse "aiman sesh show <run-id>" for details.\n`
+      `${renderSection("Runs", renderRunTable(runs))}\n\nUse "aiman run show <run-id>" for details.\n`
    );
 }

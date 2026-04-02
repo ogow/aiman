@@ -64,17 +64,15 @@ export async function handler(
       { label: "Name", value: agent.name },
       { label: "Scope", value: agent.scope },
       { label: "Provider", value: agent.provider },
-      { label: "Permissions", value: agent.permissions },
+      {
+         label: "Permissions",
+         value: agent.permissions ?? agent.mode ?? ""
+      },
       { label: "Run modes", value: summarizeProviderModes(agent.provider) },
       { label: "Model", value: agent.model ?? "" },
-      {
-         label: "Reasoning",
-         value: agent.reasoningEffort ?? ""
-      },
-      {
-         label: "Required MCPs",
-         value: agent.requiredMcps?.join(", ") ?? ""
-      },
+      { label: "Reasoning", value: agent.reasoningEffort ?? "" },
+      { label: "Required MCPs", value: agent.requiredMcps?.join(", ") ?? "" },
+      { label: "Context files", value: agent.contextFiles?.join(", ") ?? "" },
       { label: "Skills", value: agent.skills?.join(", ") ?? "" },
       { label: "Description", value: agent.description },
       { label: "Path", value: agent.path }

@@ -12,7 +12,7 @@ type InspectArguments = {
 };
 
 export const command = "inspect <runId>";
-export const describe = "Inspect one persisted session record";
+export const describe = "Inspect one persisted run record";
 
 export function builder(yargs: Argv): Argv {
    return yargs
@@ -30,11 +30,11 @@ export function builder(yargs: Argv): Argv {
          type: "boolean"
       })
       .example(
-         "$0 sesh inspect reviewer-1234abcd",
+         "$0 run inspect reviewer-1234abcd",
          "Show detailed parsed run information"
       )
       .example(
-         "$0 sesh inspect reviewer-1234abcd --stream prompt",
+         "$0 run inspect reviewer-1234abcd --stream prompt",
          "Read the exact prompt sent to the provider"
       );
 }

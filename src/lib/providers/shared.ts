@@ -1,16 +1,19 @@
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 
 import { hasErrorCode } from "../errors.js";
-import { resolveExecutable } from "../executables.js";
+import { resolveCommandLaunch, resolveExecutable } from "../executables.js";
 import type {
-   AgentDefinition,
    LaunchMode,
    PersistedRunRecord,
+   ProfileDefinition,
+   ProjectContext,
+   PromptContextFile,
+   PromptSkill,
    RunLaunchSnapshot,
    RunMode,
-   ScopedAgentDefinition,
+   ScopedProfileDefinition,
    UsageStats,
    ValidationIssue
 } from "../types.js";
@@ -21,28 +24,39 @@ const allowedEnvironmentKeys = [
    "AIMAN_RUN_DIR",
    "AIMAN_RUN_ID",
    "AIMAN_TASK_ID",
+   "APPDATA",
    "CI",
    "COLORTERM",
+   "COMSPEC",
    "GEMINI_API_KEY",
+   "GEMINI_CLI_SYSTEM_SETTINGS_PATH",
    "GOOGLE_API_KEY",
    "GOOGLE_APPLICATION_CREDENTIALS",
    "GOOGLE_CLOUD_PROJECT",
    "HOME",
+   "HOMEDRIVE",
+   "HOMEPATH",
    "LANG",
    "LC_ALL",
    "LC_CTYPE",
+   "LOCALAPPDATA",
    "LOGNAME",
    "NO_COLOR",
    "OPENAI_API_BASE",
    "OPENAI_API_KEY",
    "OPENAI_BASE_URL",
    "PATH",
+   "PATHEXT",
+   "PROGRAMDATA",
    "SHELL",
+   "SYSTEMROOT",
    "TEMP",
    "TERM",
    "TMP",
    "TMPDIR",
    "USER",
+   "USERPROFILE",
+   "WINDIR",
    "XDG_CACHE_HOME",
    "XDG_CONFIG_HOME",
    "XDG_DATA_HOME",
@@ -86,9 +100,12 @@ export async function detectExecutable(
    ];
 }
 
-async function runCommandCapture(input: {
+export async function runCommandCapture(input: {
    args: string[];
    command: string;
+   cwd?: string;
+   env?: Record<string, string>;
+   timeoutMs?: number;
 }): Promise<{
    exitCode: number | null;
    signal: string | null;
@@ -96,49 +113,90 @@ async function runCommandCapture(input: {
    stdout: string;
    timedOut: boolean;
 }> {
+   const launch = await resolveCommandLaunch(input.command, input.args);
+   const timeoutMs = input.timeoutMs ?? mcpDetectionTimeoutMs;
+
    return new Promise((resolve) => {
-      execFile(
-         input.command,
-         input.args,
-         {
-            encoding: "utf8",
-            env: buildAllowedEnvironment(),
-            maxBuffer: 1024 * 1024,
-            timeout: mcpDetectionTimeoutMs
-         },
-         (error, stdout, stderr) => {
-            if (error === null) {
-               resolve({
-                  exitCode: 0,
-                  signal: null,
-                  stderr,
-                  stdout,
-                  timedOut: false
-               });
-               return;
+      const child = spawn(launch.command, launch.args, {
+         cwd: input.cwd,
+         env: input.env ?? buildAllowedEnvironment(),
+         shell: launch.needsShell,
+         windowsVerbatimArguments: launch.windowsVerbatimArguments,
+         stdio: ["ignore", "pipe", "pipe"]
+      });
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      let timedOut = false;
+      const resolveOnce = (value: {
+         exitCode: number | null;
+         signal: string | null;
+         stderr: string;
+         stdout: string;
+         timedOut: boolean;
+      }) => {
+         if (!settled) {
+            settled = true;
+            resolve(value);
+         }
+      };
+      const timer = setTimeout(() => {
+         timedOut = true;
+         if (launch.usesCommandProcessor && process.platform === "win32") {
+            if (typeof child.pid === "number") {
+               void killWindowsProcessTree(child.pid);
             }
+         } else {
+            child.kill();
+         }
+      }, timeoutMs);
 
-            const failedCommand = error as NodeJS.ErrnoException & {
-               code?: number | string;
-               killed?: boolean;
-               signal?: string;
-            };
+      child.stdout?.on("data", (chunk: Buffer | string) => {
+         stdout += chunk.toString();
+      });
+      child.stderr?.on("data", (chunk: Buffer | string) => {
+         stderr += chunk.toString();
+      });
+      child.once("error", (error: NodeJS.ErrnoException) => {
+         clearTimeout(timer);
+         resolveOnce({
+            exitCode: typeof error.errno === "number" ? error.errno : null,
+            signal: null,
+            stderr: stderr.length > 0 ? stderr : error.message,
+            stdout,
+            timedOut
+         });
+      });
+      child.once("close", (exitCode, signal) => {
+         clearTimeout(timer);
+         resolveOnce({
+            exitCode,
+            signal,
+            stderr,
+            stdout,
+            timedOut
+         });
+      });
+   });
+}
 
-            resolve({
-               exitCode:
-                  typeof failedCommand.code === "number"
-                     ? failedCommand.code
-                     : null,
-               signal:
-                  typeof failedCommand.signal === "string"
-                     ? failedCommand.signal
-                     : null,
-               stderr,
-               stdout,
-               timedOut: failedCommand.killed === true
-            });
+async function killWindowsProcessTree(pid: number): Promise<void> {
+   await new Promise<void>((resolve) => {
+      const child = spawn(
+         "taskkill",
+         ["/PID", String(pid), "/T", "/F"],
+         {
+            stdio: "ignore",
+            windowsHide: true
          }
       );
+
+      child.once("error", () => {
+         resolve();
+      });
+      child.once("close", () => {
+         resolve();
+      });
    });
 }
 
@@ -221,99 +279,31 @@ export function parseGeminiMcpList(stdout: string): ListedMcp[] {
 }
 
 export async function detectRequiredMcps(input: {
-   agent: AgentDefinition;
+   agent: ProfileDefinition;
    args: string[];
    command: string;
    parseList: (stdout: string) => ListedMcp[];
 }): Promise<ValidationIssue[]> {
-   if (
-      input.agent.requiredMcps === undefined ||
-      input.agent.requiredMcps.length === 0
-   ) {
-      return [];
-   }
-
-   const commandLabel = formatShellCommand(input.command, input.args);
-   const result = await runCommandCapture({
-      args: input.args,
-      command: input.command
-   });
-
-   if (result.exitCode !== 0 || result.timedOut) {
-      const reason = result.timedOut
-         ? `timed out while running "${commandLabel}".`
-         : `failed while running "${commandLabel}".`;
-      const stderr = result.stderr.trim();
-
-      return [
-         {
-            code: "mcp-detection-failed",
-            message: `Agent "${input.agent.name}" requires MCP checks, but provider "${input.agent.provider}" ${reason}${stderr.length > 0 ? ` ${stderr}` : ""}`
-         }
-      ];
-   }
-
-   const listedMcps = new Map(
-      input.parseList(result.stdout).map((mcp) => [mcp.name, mcp])
-   );
-
-   return input.agent.requiredMcps.flatMap((requiredMcp) => {
-      const detectedMcp = listedMcps.get(requiredMcp);
-
-      if (!detectedMcp) {
-         return [
-            {
-               code: "missing-required-mcp",
-               message: `Agent "${input.agent.name}" requires MCP "${requiredMcp}", but provider "${input.agent.provider}" did not list it in "${commandLabel}".`
-            }
-         ];
-      }
-
-      if (!detectedMcp.enabled) {
-         return [
-            {
-               code: "disabled-required-mcp",
-               message: `Agent "${input.agent.name}" requires MCP "${requiredMcp}", but provider "${input.agent.provider}" reported it as ${detectedMcp.status}.`
-            }
-         ];
-      }
-
-      if (!detectedMcp.connected) {
-         return [
-            {
-               code: "disconnected-required-mcp",
-               message: `Agent "${input.agent.name}" requires MCP "${requiredMcp}", but provider "${input.agent.provider}" reported it as ${detectedMcp.status}.`
-            }
-         ];
-      }
-
-      return [];
-   });
+   return [];
 }
 
 export function rejectUnsupportedReasoningEffort(
-   agent: AgentDefinition
+   agent: ProfileDefinition
 ): ValidationIssue[] {
-   if (agent.reasoningEffort === undefined) {
-      return [];
-   }
-
-   return [
-      {
-         code: "unsupported-reasoning-effort",
-         message: `Provider "${agent.provider}" does not support reasoningEffort.`
-      }
-   ];
+   return [];
 }
 
 export function buildPrompt(
-   agent: AgentDefinition,
+   profile: ProfileDefinition,
    input: {
       artifactsDir: string;
+      contextFiles?: PromptContextFile[];
       cwd: string;
       mode: RunMode;
+      projectContext?: ProjectContext;
       runFile: string;
       runId: string;
+      skills?: PromptSkill[];
       task?: string;
    }
 ): string {
@@ -330,14 +320,66 @@ export function buildPrompt(
       "{{task}}": input.task
    };
 
-   return agent.body.replaceAll(
+   const renderedBody = profile.body.replaceAll(
       /\{\{artifactsDir\}\}|\{\{cwd\}\}|\{\{mode\}\}|\{\{runFile\}\}|\{\{runId\}\}|\{\{task\}\}/g,
       (placeholder) => replacements[placeholder] ?? placeholder
    );
+   const sections = [renderedBody];
+
+   if (input.projectContext !== undefined) {
+      sections.push(
+         [
+            "## Project Context",
+            "Only the following AGENTS.md runtime context is attached for this run. Do not assume any other repo instruction files are in scope.",
+            `### ${input.projectContext.path}`,
+            "<project_context>",
+            input.projectContext.content.trimEnd(),
+            "</project_context>"
+         ].join("\n")
+      );
+   } else if (input.contextFiles !== undefined && input.contextFiles.length > 0) {
+      sections.push(
+         [
+            "## Project Context",
+            "Only the following legacy attached project files are in scope for this run.",
+            input.contextFiles
+               .map((contextFile) =>
+                  [
+                     `### ${contextFile.path}`,
+                     "<project_context>",
+                     contextFile.content.trimEnd(),
+                     "</project_context>"
+                  ].join("\n")
+               )
+               .join("\n\n")
+         ].join("\n\n")
+      );
+   }
+
+   if (input.skills !== undefined && input.skills.length > 0) {
+      sections.push(
+         [
+            "## Active Skills",
+            "These local aiman skills were selected explicitly for this run.",
+            input.skills
+               .map((skill) =>
+                  [
+                     `### ${skill.name}`,
+                     `<skill path="${skill.path}">`,
+                     skill.body.trimEnd(),
+                     "</skill>"
+                  ].join("\n")
+               )
+               .join("\n\n")
+         ].join("\n\n")
+      );
+   }
+
+   return sections.join("\n\n");
 }
 
 export function finalizeRecord(input: {
-   agent: ScopedAgentDefinition;
+   profile: ScopedProfileDefinition;
    cwd: string;
    endedAt: string;
    errorMessage?: string;
@@ -347,6 +389,7 @@ export function finalizeRecord(input: {
    launch: RunLaunchSnapshot;
    mode: RunMode;
    promptFile: string;
+   projectRoot: string;
    runDir: string;
    runId: string;
    signal: string | null;
@@ -357,9 +400,6 @@ export function finalizeRecord(input: {
    usage?: UsageStats;
 }): PersistedRunRecord {
    return {
-      agent: input.agent.name,
-      agentPath: input.agent.path,
-      agentScope: input.agent.scope,
       cwd: input.cwd,
       durationMs: Date.parse(input.endedAt) - Date.parse(input.startedAt),
       endedAt: input.endedAt,
@@ -367,8 +407,8 @@ export function finalizeRecord(input: {
       finalText: input.finalText,
       launch: input.launch,
       launchMode: input.launchMode,
-      ...(typeof input.agent.model === "string"
-         ? { model: input.agent.model }
+      ...(typeof input.profile.model === "string"
+         ? { model: input.profile.model }
          : {}),
       mode: input.mode,
       paths: {
@@ -376,6 +416,7 @@ export function finalizeRecord(input: {
          promptFile: input.promptFile,
          runFile: path.join(input.runDir, "run.md"),
          runDir: input.runDir,
+         stopRequestedFile: path.join(input.runDir, ".stop-requested"),
          ...(typeof input.stderrLog === "string"
             ? { stderrLog: input.stderrLog }
             : {}),
@@ -383,10 +424,11 @@ export function finalizeRecord(input: {
             ? { stdoutLog: input.stdoutLog }
             : {})
       },
-      provider: input.agent.provider,
-      ...(typeof input.agent.reasoningEffort === "string"
-         ? { reasoningEffort: input.agent.reasoningEffort }
-         : {}),
+      profile: input.profile.name,
+      profilePath: input.profile.path,
+      profileScope: input.profile.scope,
+      projectRoot: input.projectRoot,
+      provider: input.profile.provider,
       runId: input.runId,
       signal: input.signal,
       startedAt: input.startedAt,

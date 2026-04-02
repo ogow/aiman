@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 
 import { UserError, hasErrorCode } from "./errors.js";
 import { getProjectPaths } from "./paths.js";
 import { formatRunRights } from "./provider-capabilities.js";
+import {
+   listRunIndexEntries,
+   readRunIndexEntry,
+   upsertRunIndexEntry
+} from "./run-index.js";
 import { readMarkdownDocument, writeMarkdownDocument } from "./run-doc.js";
 import type {
    LaunchMode,
@@ -14,8 +19,6 @@ import type {
    PersistedRunRecord,
    ProviderId,
    PromptTransport,
-   ResolvedSkill,
-   ReasoningEffort,
    RunLaunchSnapshot,
    RunInspection,
    RunListOptions,
@@ -35,12 +38,9 @@ type StoredRunPaths = RunPaths & {
 };
 
 const reservedRunFrontmatterKeys = new Set([
-   "agent",
-   "agentPath",
-   "agentScope",
    "cwd",
-   "durationMs",
-   "endedAt",
+    "durationMs",
+    "endedAt",
    "errorMessage",
    "exitCode",
    "heartbeatAt",
@@ -49,8 +49,11 @@ const reservedRunFrontmatterKeys = new Set([
    "model",
    "mode",
    "pid",
+   "profile",
+   "profilePath",
+   "profileScope",
    "provider",
-   "reasoningEffort",
+   "projectRoot",
    "runId",
    "signal",
    "startedAt",
@@ -73,6 +76,7 @@ export function buildRunPaths(runDir: string): StoredRunPaths {
       promptFile: path.join(runDir, "prompt.md"),
       runFile: path.join(runDir, "run.md"),
       runDir,
+      stopRequestedFile: path.join(runDir, ".stop-requested"),
       stderrLog: path.join(runDir, "stderr.log"),
       stdoutLog: path.join(runDir, "stdout.log")
    };
@@ -83,15 +87,11 @@ function isProviderId(value: unknown): value is ProviderId {
 }
 
 function isRunMode(value: unknown): value is RunMode {
-   return value === "read-only" || value === "workspace-write";
+   return value === "safe" || value === "yolo";
 }
 
 function isLaunchMode(value: unknown): value is LaunchMode {
    return value === "foreground" || value === "detached";
-}
-
-function isReasoningEffort(value: unknown): value is ReasoningEffort {
-   return value === "high" || value === "low" || value === "medium";
 }
 
 function isRunStatus(value: unknown): value is RunStatus {
@@ -189,42 +189,38 @@ function isPromptTransport(value: unknown): value is PromptTransport {
    return value === "arg" || value === "none" || value === "stdin";
 }
 
-function getResolvedSkills(value: unknown): ResolvedSkill[] | undefined {
+function getStringList(value: unknown): string[] | undefined {
    if (!Array.isArray(value)) {
       return undefined;
    }
 
-   const skills = value.flatMap((entry) => {
+   return value.every((entry) => typeof entry === "string")
+      ? (value as string[])
+      : undefined;
+}
+
+function getLaunchSkillNames(value: unknown): string[] | undefined {
+   const stringList = getStringList(value);
+
+   if (stringList !== undefined) {
+      return stringList;
+   }
+
+   if (!Array.isArray(value)) {
+      return undefined;
+   }
+
+   const skillNames = value.flatMap((entry) => {
       if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
          return [];
       }
 
-      const record = entry as Record<string, unknown>;
-      const digest = record.digest;
-      const name = record.name;
-      const filePath = record.path;
-      const scope = record.scope;
+      const name = (entry as Record<string, unknown>).name;
 
-      if (
-         typeof digest !== "string" ||
-         typeof name !== "string" ||
-         typeof filePath !== "string" ||
-         (scope !== "project" && scope !== "user")
-      ) {
-         return [];
-      }
-
-      return [
-         {
-            digest,
-            name,
-            path: filePath,
-            scope: scope as ResolvedSkill["scope"]
-         }
-      ];
+      return typeof name === "string" ? [name] : [];
    });
 
-   return skills.length === value.length ? skills : undefined;
+   return skillNames.length === value.length ? skillNames : undefined;
 }
 
 function getLaunchSnapshot(
@@ -236,10 +232,6 @@ function getLaunchSnapshot(
       return undefined;
    }
 
-   const agentDigest = launch.agentDigest;
-   const agentName = launch.agentName;
-   const agentPath = launch.agentPath;
-   const agentScope = launch.agentScope;
    const args = launch.args;
    const command = launch.command;
    const cwd = launch.cwd;
@@ -248,19 +240,19 @@ function getLaunchSnapshot(
    const launchMode = launch.launchMode;
    const model = launch.model;
    const mode = launch.mode;
-   const permissions = launch.permissions;
+   const profileDigest = launch.profileDigest;
+   const profileName = launch.profileName;
+   const profilePath = launch.profilePath;
+   const profileScope = launch.profileScope;
+   const projectContextPath = launch.projectContextPath;
    const promptDigest = launch.promptDigest;
    const promptTransport = launch.promptTransport;
    const provider = launch.provider;
-   const reasoningEffort = launch.reasoningEffort;
-   const skills = getResolvedSkills(launch.skills) ?? [];
+   const skills = getLaunchSkillNames(launch.skills) ?? [];
+   const task = launch.task;
    const timeoutMs = launch.timeoutMs;
 
    if (
-      typeof agentDigest !== "string" ||
-      typeof agentName !== "string" ||
-      typeof agentPath !== "string" ||
-      (agentScope !== "project" && agentScope !== "user") ||
       !Array.isArray(args) ||
       args.some((value) => typeof value !== "string") ||
       typeof command !== "string" ||
@@ -270,7 +262,10 @@ function getLaunchSnapshot(
       typeof killGraceMs !== "number" ||
       !isLaunchMode(launchMode) ||
       !isRunMode(mode) ||
-      !isRunMode(permissions) ||
+      typeof profileDigest !== "string" ||
+      typeof profileName !== "string" ||
+      typeof profilePath !== "string" ||
+      (profileScope !== "project" && profileScope !== "user") ||
       typeof promptDigest !== "string" ||
       !isPromptTransport(promptTransport) ||
       !isProviderId(provider) ||
@@ -284,18 +279,27 @@ function getLaunchSnapshot(
    }
 
    if (
-      reasoningEffort !== undefined &&
-      reasoningEffort !== null &&
-      !isReasoningEffort(reasoningEffort)
+      projectContextPath !== undefined &&
+      projectContextPath !== null &&
+      typeof projectContextPath !== "string"
    ) {
       return undefined;
    }
 
    return {
-      agentDigest,
-      agentName,
-      agentPath,
-      agentScope,
+      agentDigest: typeof launch.agentDigest === "string"
+         ? launch.agentDigest
+         : profileDigest,
+      agentName: typeof launch.agentName === "string"
+         ? launch.agentName
+         : profileName,
+      agentPath: typeof launch.agentPath === "string"
+         ? launch.agentPath
+         : profilePath,
+      agentScope:
+         launch.agentScope === "project" || launch.agentScope === "user"
+            ? launch.agentScope
+            : profileScope,
       args: args as string[],
       command,
       cwd,
@@ -304,12 +308,18 @@ function getLaunchSnapshot(
       launchMode,
       ...(typeof model === "string" ? { model } : {}),
       mode,
-      permissions,
+      profileDigest,
+      profileName,
+      profilePath,
+      profileScope,
+      ...(typeof projectContextPath === "string"
+         ? { projectContextPath }
+         : {}),
       promptDigest,
       promptTransport,
       provider,
-      ...(typeof reasoningEffort === "string" ? { reasoningEffort } : {}),
       skills,
+      ...(typeof task === "string" ? { task } : {}),
       timeoutMs
    };
 }
@@ -341,14 +351,27 @@ function buildRunFrontmatter(
    return {
       runId: value.runId,
       status: value.status,
-      agent: value.agent,
-      agentScope: value.agentScope,
-      agentPath: value.agentPath,
+      ...(typeof value.profile === "string" ? { agent: value.profile } : {}),
+      ...(typeof value.profileScope === "string"
+         ? { agentScope: value.profileScope }
+         : {}),
+      ...(typeof value.profilePath === "string"
+         ? { agentPath: value.profilePath }
+         : {}),
       provider: value.provider,
       launchMode: value.launchMode,
       ...(typeof value.model === "string" ? { model: value.model } : {}),
       mode: value.mode,
+      permissions: value.mode,
+      ...(typeof value.profile === "string" ? { profile: value.profile } : {}),
+      ...(typeof value.profilePath === "string"
+         ? { profilePath: value.profilePath }
+         : {}),
+      ...(typeof value.profileScope === "string"
+         ? { profileScope: value.profileScope }
+         : {}),
       cwd: value.cwd,
+      projectRoot: value.projectRoot,
       startedAt: value.startedAt,
       ...("heartbeatAt" in value && typeof value.heartbeatAt === "string"
          ? { heartbeatAt: value.heartbeatAt }
@@ -359,9 +382,6 @@ function buildRunFrontmatter(
       ...("signal" in value ? { signal: value.signal } : {}),
       ...(typeof value.errorMessage === "string"
          ? { errorMessage: value.errorMessage }
-         : {}),
-      ...(typeof value.reasoningEffort === "string"
-         ? { reasoningEffort: value.reasoningEffort }
          : {}),
       launch: value.launch,
       ...(pid !== undefined ? { pid } : {}),
@@ -479,9 +499,9 @@ function parseStoredStateFromDocument(
    }
 
    const runId = getStringValue(frontmatter, "runId");
-   const agent = getStringValue(frontmatter, "agent");
-   const agentPath = getStringValue(frontmatter, "agentPath");
-   const agentScope = getStringValue(frontmatter, "agentScope");
+   const profile = getStringValue(frontmatter, "profile");
+   const profilePath = getStringValue(frontmatter, "profilePath");
+   const profileScope = getStringValue(frontmatter, "profileScope");
    const provider = frontmatter.provider;
    const launchMode = frontmatter.launchMode;
    const model = getStringValue(frontmatter, "model");
@@ -489,22 +509,20 @@ function parseStoredStateFromDocument(
    const cwd = getStringValue(frontmatter, "cwd");
    const launch = getLaunchSnapshot(frontmatter);
    const heartbeatAt = getStringValue(frontmatter, "heartbeatAt");
-   const reasoningEffortValue = frontmatter.reasoningEffort;
-   const reasoningEffort = isReasoningEffort(reasoningEffortValue)
-      ? reasoningEffortValue
-      : undefined;
+   const projectRoot = getStringValue(frontmatter, "projectRoot");
    const startedAt = getStringValue(frontmatter, "startedAt");
    const status = frontmatter.status;
 
    if (
       typeof runId !== "string" ||
-      typeof agent !== "string" ||
-      (agentScope !== "project" && agentScope !== "user") ||
-      typeof agentPath !== "string" ||
+      typeof profile !== "string" ||
+      (profileScope !== "project" && profileScope !== "user") ||
+      typeof profilePath !== "string" ||
       !isProviderId(provider) ||
       !isLaunchMode(launchMode) ||
       !isRunMode(mode) ||
       typeof cwd !== "string" ||
+      typeof projectRoot !== "string" ||
       launch === undefined ||
       typeof startedAt !== "string" ||
       typeof status !== "string"
@@ -518,9 +536,6 @@ function parseStoredStateFromDocument(
       const pid = getNumberValue(frontmatter, "pid");
 
       return {
-         agent,
-         agentPath,
-         agentScope,
          cwd,
          ...(typeof endedAt === "string" ? { endedAt } : {}),
          ...(typeof errorMessage === "string" ? { errorMessage } : {}),
@@ -529,10 +544,13 @@ function parseStoredStateFromDocument(
          launchMode,
          ...(typeof model === "string" ? { model } : {}),
          mode,
-         ...(typeof pid === "number" ? { pid } : {}),
-         paths,
+          ...(typeof pid === "number" ? { pid } : {}),
+          paths,
+         profile,
+         profilePath,
+         profileScope,
+         projectRoot,
          provider,
-         ...(typeof reasoningEffort === "string" ? { reasoningEffort } : {}),
          runId,
          startedAt,
          status
@@ -560,9 +578,6 @@ function parseStoredStateFromDocument(
    }
 
    return {
-      agent,
-      agentPath,
-      agentScope,
       cwd,
       durationMs,
       endedAt,
@@ -574,8 +589,11 @@ function parseStoredStateFromDocument(
       ...(typeof model === "string" ? { model } : {}),
       mode,
       paths,
+      profile,
+      profilePath,
+      profileScope,
+      projectRoot,
       provider,
-      ...(typeof reasoningEffort === "string" ? { reasoningEffort } : {}),
       runId,
       signal,
       startedAt,
@@ -585,9 +603,6 @@ function parseStoredStateFromDocument(
 }
 
 export function createFailedRunRecord(input: {
-   agent: string;
-   agentPath: string;
-   agentScope: "project" | "user";
    cwd: string;
    endedAt: string;
    errorMessage: string;
@@ -595,9 +610,12 @@ export function createFailedRunRecord(input: {
    launchMode: LaunchMode;
    model?: string;
    mode: RunMode;
+   profile: string;
+   profilePath: string;
+   profileScope: "project" | "user";
    promptFile: string;
+   projectRoot: string;
    provider: PersistedRunRecord["provider"];
-   reasoningEffort?: ReasoningEffort;
    runDir: string;
    runId: string;
    startedAt: string;
@@ -605,9 +623,9 @@ export function createFailedRunRecord(input: {
    stdoutLog?: string;
 }): PersistedRunRecord {
    return {
-      agent: input.agent,
-      agentPath: input.agentPath,
-      agentScope: input.agentScope,
+      agent: input.profile,
+      agentPath: input.profilePath,
+      agentScope: input.profileScope,
       cwd: input.cwd,
       durationMs: Date.parse(input.endedAt) - Date.parse(input.startedAt),
       endedAt: input.endedAt,
@@ -623,6 +641,7 @@ export function createFailedRunRecord(input: {
          promptFile: input.promptFile,
          runFile: path.join(input.runDir, "run.md"),
          runDir: input.runDir,
+         stopRequestedFile: path.join(input.runDir, ".stop-requested"),
          ...(typeof input.stderrLog === "string"
             ? { stderrLog: input.stderrLog }
             : {}),
@@ -630,10 +649,11 @@ export function createFailedRunRecord(input: {
             ? { stdoutLog: input.stdoutLog }
             : {})
       },
+      profile: input.profile,
+      profilePath: input.profilePath,
+      profileScope: input.profileScope,
+      projectRoot: input.projectRoot,
       provider: input.provider,
-      ...(typeof input.reasoningEffort === "string"
-         ? { reasoningEffort: input.reasoningEffort }
-         : {}),
       runId: input.runId,
       signal: null,
       startedAt: input.startedAt,
@@ -643,12 +663,24 @@ export function createFailedRunRecord(input: {
 
 export function toRunResult(record: PersistedRunRecord): RunResult {
    return {
-      agent: record.agent,
-      agentPath: record.agentPath,
-      agentScope: record.agentScope,
+      ...(typeof record.profile === "string" ? { agent: record.profile } : {}),
+      ...(typeof record.profilePath === "string"
+         ? { agentPath: record.profilePath }
+         : {}),
+      ...(typeof record.profileScope === "string"
+         ? { agentScope: record.profileScope }
+         : {}),
       finalText: record.finalText,
       launchMode: record.launchMode,
       mode: record.mode,
+      ...(typeof record.profile === "string" ? { profile: record.profile } : {}),
+      ...(typeof record.profilePath === "string"
+         ? { profilePath: record.profilePath }
+         : {}),
+      ...(typeof record.profileScope === "string"
+         ? { profileScope: record.profileScope }
+         : {}),
+      projectRoot: record.projectRoot,
       provider: record.provider,
       rights: formatRunRights(record.provider, record.mode),
       runId: record.runId,
@@ -677,6 +709,7 @@ export async function writeRunState(
          ...pickAuthoredFrontmatter(existing?.frontmatter)
       }
    });
+   await upsertRunIndexEntry(value);
 }
 
 export async function writeRunStateIfRunning(
@@ -701,6 +734,7 @@ export async function writeRunStateIfRunning(
          ...pickAuthoredFrontmatter(existing?.frontmatter)
       }
    });
+   await upsertRunIndexEntry(value);
 
    return true;
 }
@@ -722,12 +756,24 @@ export async function persistResult(
          ...pickAuthoredFrontmatter(existing?.frontmatter)
       }
    });
+   await upsertRunIndexEntry(record);
 }
 
-export async function readRunDetails(runId: string): Promise<RunInspection> {
+async function resolveRunPaths(runId: string): Promise<StoredRunPaths> {
+   const entry = await readRunIndexEntry(runId);
+
+   if (entry !== undefined) {
+      return buildRunPaths(entry.runDir);
+   }
+
    const projectPaths = getProjectPaths();
-   const runDir = path.join(projectPaths.runsDir, runId);
-   const paths = buildRunPaths(runDir);
+   return buildRunPaths(path.join(projectPaths.runsDir, runId));
+}
+
+async function readRunDetailsFromPaths(
+   runId: string,
+   paths: StoredRunPaths
+): Promise<RunInspection> {
    const document = await readMarkdownDocument(
       paths.runFile,
       paths.artifactsDir
@@ -754,28 +800,23 @@ export async function readRunDetails(runId: string): Promise<RunInspection> {
    return toRunInspection(parsed, document);
 }
 
+export async function readRunDetails(runId: string): Promise<RunInspection> {
+   return readRunDetailsFromPaths(runId, await resolveRunPaths(runId));
+}
+
 export async function listRunDetails(
    options?: RunListOptions
 ): Promise<RunInspection[]> {
-   const projectPaths = getProjectPaths();
-
-   let entries;
-   try {
-      entries = await readdir(projectPaths.runsDir, { withFileTypes: true });
-   } catch (error) {
-      if (hasErrorCode(error, "ENOENT")) {
-         return [];
-      }
-
-      throw error;
-   }
+   const entries = await listRunIndexEntries();
 
    const runs = await Promise.all(
       entries
-         .filter((entry) => entry.isDirectory())
          .map(async (entry) => {
             try {
-               return await readRunDetails(entry.name);
+               return await readRunDetailsFromPaths(
+                  entry.runId,
+                  buildRunPaths(entry.runDir)
+               );
             } catch (error) {
                if (error instanceof UserError) {
                   return undefined;
@@ -802,9 +843,7 @@ export async function readRunLog(
    runId: string,
    stream: "prompt" | "run" | "stderr" | "stdout"
 ): Promise<string> {
-   const projectPaths = getProjectPaths();
-   const runDir = path.join(projectPaths.runsDir, runId);
-   const paths = buildRunPaths(runDir);
+   const paths = await resolveRunPaths(runId);
    const filePath =
       stream === "run"
          ? paths.runFile

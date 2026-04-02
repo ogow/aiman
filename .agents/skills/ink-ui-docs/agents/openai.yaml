@@ -1,0 +1,4 @@
+interface:
+   display_name: "Ink UI Docs"
+   short_description: "Use Ink UI component docs and examples for @inkjs/ui work."
+   default_prompt: "Help with @inkjs/ui components using the local Ink UI docs skill."

@@ -12,7 +12,7 @@ type StatusArguments = {
 };
 
 export const command = "show <runId>";
-export const describe = "Show the human-friendly status for one session";
+export const describe = "Show the human-friendly status for one run";
 
 export function builder(yargs: Argv): Argv {
    return yargs

@@ -1,5 +1,10 @@
 import type { ArgumentsCamelCase, Argv } from "yargs";
 
+import * as inspectCommand from "./inspect.js";
+import * as logsCommand from "./logs.js";
+import * as listCommand from "./ps.js";
+import * as showCommand from "./status.js";
+import * as stopCommand from "./stop-agent.js";
 import { agentScopeChoices } from "../lib/agents.js";
 import { createActivityRenderer } from "../lib/activity.js";
 import { writeJson } from "../lib/output.js";
@@ -15,22 +20,32 @@ import type {
 } from "../lib/types.js";
 
 type RunArguments = {
-   agent?: string;
+   all?: boolean;
    cwd?: string;
    detach?: boolean;
+   extra?: string;
+   follow?: boolean;
    json?: boolean;
-   mode?: "read-only" | "workspace-write";
+   limit?: number;
+   profile?: string;
+   skill?: string[];
    scope?: AgentScope;
+    stream?: "all" | "prompt" | "run" | "stderr" | "stdout";
    task?: string;
+   tail?: number;
 };
 
-export const command = "run <agent>";
-export const describe = "Run one specialist agent";
+export const command = "run <profile> [extra]";
+export const describe = "Run one profile";
 
 export function builder(yargs: Argv): Argv {
    return yargs
-      .positional("agent", {
-         describe: "Agent name",
+      .positional("profile", {
+         describe: "Profile name",
+         type: "string"
+      })
+      .positional("extra", {
+         describe: "Run id for run subcommands",
          type: "string"
       })
       .option("task", {
@@ -43,13 +58,13 @@ export function builder(yargs: Argv): Argv {
       })
       .option("scope", {
          choices: agentScopeChoices,
-         describe: "Resolve the agent from one scope only",
+         describe: "Resolve the profile from one scope only",
          type: "string"
       })
-      .option("mode", {
-         choices: ["read-only", "workspace-write"] as const,
-         describe:
-            "Override the execution mode; must match the agent file's declared permissions"
+      .option("skill", {
+         array: true,
+         describe: "Activate one or more local aiman skills for this run",
+         type: "string"
       })
       .option("detach", {
          default: false,
@@ -61,18 +76,43 @@ export function builder(yargs: Argv): Argv {
          describe: "Print JSON output",
          type: "boolean"
       })
+      .option("all", {
+         default: false,
+         describe: "Include recent finished runs",
+         type: "boolean"
+      })
+      .option("limit", {
+         default: 20,
+         describe: "Maximum number of runs to show",
+         type: "number"
+      })
+      .option("follow", {
+         alias: "f",
+         default: false,
+         describe: "Follow new output until the run finishes",
+         type: "boolean"
+      })
+      .option("tail", {
+         default: 40,
+         describe: "How many lines to show from the end",
+         type: "number"
+      })
+      .option("stream", {
+         choices: ["all", "prompt", "run", "stderr", "stdout"] as const,
+         describe: "Which persisted stream or file to show"
+      })
       .example(
-         '$0 run reviewer --task "Review this patch"',
+         '$0 run build --task "Fix the failing tests"',
          "Run in the foreground and return the final result"
       )
       .example(
-         '$0 run reviewer --task "Review this patch" --detach',
+         '$0 run plan --task "Review this patch" --detach',
          "Launch a detached run"
       );
 }
 
 function renderLaunchSummary(input: {
-   agent: string;
+   profile: string;
    inspectCommand: string;
    logsCommand: string;
    mode: RunMode;
@@ -85,7 +125,7 @@ function renderLaunchSummary(input: {
    return renderSection(
       "Run started",
       renderLabelValueBlock([
-         { label: "Agent", value: input.agent },
+         { label: "Profile", value: input.profile },
          { label: "Scope", value: input.scope },
          { label: "Launch", value: "detached" },
          { label: "Provider", value: input.provider },
@@ -112,7 +152,7 @@ function renderForegroundFailure(result: RunResult): string {
       renderLabelValueBlock([
          { label: "Run ID", value: result.runId },
          { label: "Status", value: result.status },
-         { label: "Agent", value: result.agent },
+         { label: "Profile", value: result.profile ?? result.agent ?? "" },
          { label: "Provider", value: result.provider },
          { label: "Launch", value: result.launchMode ?? "foreground" },
          {
@@ -123,8 +163,8 @@ function renderForegroundFailure(result: RunResult): string {
                   : ""
          },
          { label: "Error", value: result.errorMessage ?? "Unknown failure" },
-         { label: "Logs", value: `aiman sesh logs ${result.runId} -f` },
-         { label: "Inspect", value: `aiman sesh inspect ${result.runId}` }
+         { label: "Logs", value: `aiman run logs ${result.runId} -f` },
+         { label: "Inspect", value: `aiman run inspect ${result.runId}` }
       ])
    );
 }
@@ -132,14 +172,76 @@ function renderForegroundFailure(result: RunResult): string {
 export async function handler(
    args: ArgumentsCamelCase<RunArguments>
 ): Promise<void> {
+   switch (args.profile) {
+      case "list":
+         await listCommand.handler(args as ArgumentsCamelCase<{
+            all?: boolean;
+            json?: boolean;
+            limit?: number;
+         }>);
+         return;
+      case "show":
+         await showCommand.handler(
+            {
+               ...args,
+               runId: args.extra
+            } as ArgumentsCamelCase<{
+               json?: boolean;
+               runId?: string;
+            }>
+         );
+         return;
+      case "logs":
+         await logsCommand.handler(
+            {
+               ...args,
+               runId: args.extra
+            } as ArgumentsCamelCase<{
+               follow?: boolean;
+               json?: boolean;
+               runId?: string;
+               stream?: "all" | "stderr" | "stdout";
+               tail?: number;
+            }>
+         );
+         return;
+      case "inspect":
+         await inspectCommand.handler(
+            {
+               ...args,
+               runId: args.extra
+            } as ArgumentsCamelCase<{
+               json?: boolean;
+               runId?: string;
+               stream?: "prompt" | "run" | "stderr" | "stdout";
+            }>
+         );
+         return;
+      case "stop":
+         await stopCommand.handler(
+            {
+               ...args,
+               id: args.extra
+            } as ArgumentsCamelCase<{
+               id?: string;
+               json?: boolean;
+            }>
+         );
+         return;
+      default:
+         break;
+   }
+
    const task = await readTaskInput(args.task);
    const runInput = {
-      agentName: args.agent ?? "",
-      ...(args.scope !== undefined ? { agentScope: args.scope } : {}),
+      profileName: args.profile ?? "",
       ...(typeof args.cwd === "string" && args.cwd.length > 0
          ? { cwd: args.cwd }
          : {}),
-      ...(args.mode !== undefined ? { mode: args.mode } : {}),
+      ...(args.scope !== undefined ? { profileScope: args.scope } : {}),
+      ...(Array.isArray(args.skill) && args.skill.length > 0
+         ? { selectedSkillNames: args.skill }
+         : {}),
       task
    };
 
@@ -153,7 +255,7 @@ export async function handler(
 
       process.stderr.write(
          `${renderLaunchSummary({
-            agent: launched.agent,
+            profile: launched.profile ?? launched.agent ?? "",
             inspectCommand: launched.inspectCommand,
             logsCommand: launched.logsCommand,
             mode: launched.mode,
@@ -161,7 +263,7 @@ export async function handler(
             provider: launched.provider,
             runId: launched.runId,
             showCommand: launched.showCommand,
-            scope: launched.agentScope
+            scope: launched.profileScope ?? launched.agentScope ?? ""
          })}\n\n`
       );
       return;
@@ -173,7 +275,7 @@ export async function handler(
       onRunStarted: (started) => {
          if (!args.json && process.stderr.isTTY) {
             const activity = createActivityRenderer({
-               agent: started.agent,
+               agent: started.profile,
                runId: started.runId,
                startedAt: started.startedAt
             });
