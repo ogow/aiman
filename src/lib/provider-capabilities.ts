@@ -14,17 +14,17 @@ const providerCapabilities: Record<ProviderId, ProviderCapabilities> = {
       modes: [
          {
             details:
-               "Can read files in the selected working directory; aiman launches Codex with `--sandbox read-only`.",
-            mode: "read-only",
+               "Safe mode reads the workspace without writing; aiman launches Codex with `--sandbox read-only`.",
+            mode: "safe",
             providerControl: "--sandbox read-only",
-            summary: "read-only workspace access"
+            summary: "safe read-only workspace access"
          },
          {
             details:
-               "Can read and modify files in the selected working directory; aiman launches Codex with `--sandbox workspace-write`.",
-            mode: "workspace-write",
+               "Yolo mode can read and modify files in the selected working directory; aiman launches Codex with `--sandbox workspace-write`.",
+            mode: "yolo",
             providerControl: "--sandbox workspace-write",
-            summary: "read/write workspace access"
+            summary: "yolo read/write workspace access"
          }
       ],
       provider: "codex"
@@ -34,15 +34,15 @@ const providerCapabilities: Record<ProviderId, ProviderCapabilities> = {
       modes: [
          {
             details:
-               "No-edit path; aiman launches Gemini with `--approval-mode plan` for planning/read-only behavior.",
-            mode: "read-only",
+               "Safe mode keeps Gemini in planning/no-edit behavior via `--approval-mode plan`.",
+            mode: "safe",
             providerControl: "--approval-mode plan",
             summary: "plan/no-edit mode"
          },
          {
             details:
-               "Edit path; aiman launches Gemini with `--approval-mode auto_edit`, so it may modify files in the selected working directory.",
-            mode: "workspace-write",
+               "Yolo mode launches Gemini with `--approval-mode auto_edit`, so it may modify files in the selected working directory.",
+            mode: "yolo",
             providerControl: "--approval-mode auto_edit",
             summary: "auto-edit workspace access"
          }
@@ -50,6 +50,10 @@ const providerCapabilities: Record<ProviderId, ProviderCapabilities> = {
       provider: "gemini"
    }
 };
+
+function normalizeMode(mode: RunMode): "safe" | "yolo" {
+   return mode === "workspace-write" || mode === "yolo" ? "yolo" : "safe";
+}
 
 export function getProviderCapabilities(
    provider: ProviderId
@@ -62,7 +66,7 @@ export function getRunModeCapability(
    mode: RunMode
 ): RunModeCapability {
    const capability = getProviderCapabilities(provider).modes.find(
-      (currentCapability) => currentCapability.mode === mode
+      (currentCapability) => currentCapability.mode === normalizeMode(mode)
    );
 
    if (capability === undefined) {

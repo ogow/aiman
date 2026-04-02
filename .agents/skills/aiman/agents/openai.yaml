@@ -1,0 +1,4 @@
+interface:
+   display_name: "Aiman"
+   short_description: "Create reliable aiman agents and debug runs"
+   default_prompt: "Use $aiman to gather missing requirements, create or refine reliable aiman agents, run them, inspect sessions, or debug aiman behavior safely."

@@ -17,7 +17,7 @@ type LogsArguments = {
 };
 
 export const command = "logs <runId>";
-export const describe = "Show persisted session output";
+export const describe = "Show persisted run output";
 
 export function builder(yargs: Argv): Argv {
    return yargs
@@ -46,10 +46,10 @@ export function builder(yargs: Argv): Argv {
          describe: "Print JSON output",
          type: "boolean"
       })
-      .example("$0 sesh logs run-id", "Read the recent output for a session")
+      .example("$0 run logs run-id", "Read the recent output for a run")
       .example(
-         "$0 sesh logs run-id -f",
-         "Follow live output until the session finishes"
+         "$0 run logs run-id -f",
+         "Follow live output until the run finishes"
       );
 }
 

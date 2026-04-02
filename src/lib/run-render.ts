@@ -6,11 +6,7 @@ import {
    renderSection,
    renderTable
 } from "./pretty.js";
-import type {
-   MarkdownFrontmatter,
-   ResolvedSkill,
-   RunInspection
-} from "./types.js";
+import type { MarkdownFrontmatter, RunInspection } from "./types.js";
 
 function formatAge(startedAt: string): string {
    const durationMs = Date.now() - Date.parse(startedAt);
@@ -44,8 +40,16 @@ function formatArgsSummary(args: string[]): string {
    return args.map((arg) => formatArg(arg)).join(" ");
 }
 
-function formatSkillNames(skills: ResolvedSkill[]): string {
-   return skills.map((skill) => skill.name).join(", ");
+function formatStringList(values: string[]): string {
+   return values.join(", ");
+}
+
+function getRunProfileLabel(run: RunInspection): string {
+   return run.profile ?? run.agent ?? "";
+}
+
+function getRunScopeLabel(run: RunInspection): string {
+   return run.profileScope ?? run.agentScope ?? "";
 }
 
 export function renderRunTable(runs: RunInspection[]): string {
@@ -53,7 +57,7 @@ export function renderRunTable(runs: RunInspection[]): string {
       ["Run ID", "Agent", "Provider", "Launch", "Mode", "Age", "PID"],
       runs.map((run) => [
          run.runId,
-         run.agent,
+         getRunProfileLabel(run),
          run.provider,
          run.launchMode,
          run.mode,
@@ -72,11 +76,12 @@ export function renderStatusView(input: {
       { label: "Active", value: input.run.active ? "yes" : "no" },
       { label: "Recorded status", value: input.run.status },
       { label: "Run ID", value: input.run.runId },
-      { label: "Agent", value: input.run.agent },
-      { label: "Scope", value: input.run.agentScope },
+      { label: "Profile", value: getRunProfileLabel(input.run) },
+      { label: "Scope", value: getRunScopeLabel(input.run) },
       { label: "Provider", value: input.run.provider },
       { label: "Launch", value: input.run.launchMode },
       { label: "Mode", value: input.run.mode },
+      { label: "Project", value: input.run.projectRoot },
       {
          label: "Rights",
          value: formatRunRights(input.run.provider, input.run.mode)
@@ -138,8 +143,8 @@ export function renderStatusView(input: {
       renderSection(
          "Next steps",
          renderLabelValueBlock([
-            { label: "Logs", value: `aiman sesh logs ${input.run.runId} -f` },
-            { label: "Inspect", value: `aiman sesh inspect ${input.run.runId}` }
+            { label: "Logs", value: `aiman run logs ${input.run.runId} -f` },
+            { label: "Inspect", value: `aiman run inspect ${input.run.runId}` }
          ])
       )
    );
@@ -155,11 +160,12 @@ export function renderInspectView(
       { label: "Active", value: run.active ? "yes" : "no" },
       { label: "Recorded status", value: run.status },
       { label: "Run ID", value: run.runId },
-      { label: "Agent", value: run.agent },
-      { label: "Scope", value: run.agentScope },
+      { label: "Profile", value: getRunProfileLabel(run) },
+      { label: "Scope", value: getRunScopeLabel(run) },
       { label: "Provider", value: run.provider },
       { label: "Launch", value: run.launchMode },
       { label: "Mode", value: run.mode },
+      { label: "Project", value: run.projectRoot },
       {
          label: "Rights",
          value: formatRunRights(run.provider, run.mode)
@@ -221,9 +227,16 @@ export function renderInspectView(
       renderSection(
          "Launch",
          renderLabelValueBlock([
-            { label: "Agent path", value: run.launch.agentPath },
-            { label: "Agent digest", value: run.launch.agentDigest },
+            {
+               label: "Profile path",
+               value: run.launch.profilePath ?? run.launch.agentPath ?? ""
+            },
+            {
+               label: "Profile digest",
+               value: run.launch.profileDigest ?? run.launch.agentDigest ?? ""
+            },
             { label: "Prompt digest", value: run.launch.promptDigest },
+            { label: "Task", value: run.launch.task ?? "" },
             { label: "Command", value: run.launch.command },
             { label: "Args", value: formatArgsSummary(run.launch.args) },
             { label: "Prompt", value: run.launch.promptTransport },
@@ -243,7 +256,11 @@ export function renderInspectView(
             },
             {
                label: `Skills (${run.launch.skills.length})`,
-               value: formatSkillNames(run.launch.skills)
+               value: formatStringList(run.launch.skills)
+            },
+            {
+               label: "Project context",
+               value: run.launch.projectContextPath ?? ""
             }
          ])
       )
@@ -253,14 +270,16 @@ export function renderInspectView(
       sections.push(
          renderSection(
             "Skills",
-            renderTable(
-               ["Name", "Scope", "Path"],
-               run.launch.skills.map((skill) => [
-                  skill.name,
-                  skill.scope,
-                  skill.path
-               ])
-            )
+            renderTable(["Name"], run.launch.skills.map((skill) => [skill]))
+         )
+      );
+   }
+
+   if (typeof run.launch.projectContextPath === "string") {
+      sections.push(
+         renderSection(
+            "Project context",
+            renderTable(["Path"], [[run.launch.projectContextPath]])
          )
       );
    }
@@ -304,15 +323,15 @@ export function renderInspectView(
       renderSection(
          "Next steps",
          renderLabelValueBlock([
-            { label: "Show", value: `aiman sesh show ${run.runId}` },
-            { label: "Logs", value: `aiman sesh logs ${run.runId} -f` },
+            { label: "Show", value: `aiman run show ${run.runId}` },
+            { label: "Logs", value: `aiman run logs ${run.runId} -f` },
             {
                label: "Run file",
-               value: `aiman sesh inspect ${run.runId} --stream run`
+               value: `aiman run inspect ${run.runId} --stream run`
             },
             {
                label: "Prompt",
-               value: `aiman sesh inspect ${run.runId} --stream prompt`
+               value: `aiman run inspect ${run.runId} --stream prompt`
             }
          ])
       )

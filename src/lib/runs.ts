@@ -3,17 +3,20 @@ import type { ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import type { WriteStream } from "node:fs";
 import { createWriteStream } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
-import { collectAgentRuntimeIssues, loadAgentDefinition } from "./agents.js";
 import { UserError } from "./errors.js";
+import { resolveCommandLaunch } from "./executables.js";
 import {
    ensureProjectDirectories,
    getProjectPaths,
    resolveRunCwd
 } from "./paths.js";
+import { loadProfileDefinition } from "./profiles.js";
+import { loadProjectContext } from "./project-context.js";
 import { formatRunRights } from "./provider-capabilities.js";
+import { buildPrompt } from "./providers/shared.js";
 import {
    buildRunPaths,
    createFailedRunRecord,
@@ -27,56 +30,62 @@ import {
    writeRunStateIfRunning
 } from "./run-store.js";
 import { getAdapterForProvider } from "./providers/index.js";
-import { resolveDeclaredSkills } from "./skills.js";
+import { resolveSkillsForRun } from "./skills.js";
 import type {
-   AgentScope,
    LaunchMode,
    LaunchedRun,
    PreparedInvocation,
    PromptTransport,
+   ProfileScope,
    ProviderId,
-   ResolvedSkill,
    RunLaunchSnapshot,
    RunInspection,
    RunListOptions,
    RunMode,
    RunResult,
-   ScopedAgentDefinition
+   ScopedProfileDefinition
 } from "./types.js";
 
 const defaultTimeoutMs = 5 * 60 * 1000;
 const defaultKillGraceMs = 1 * 1000;
 const promptArgumentPlaceholder = "@prompt.md";
 const runHeartbeatIntervalMs = 1000;
+const stopPollIntervalMs = 100;
+const stopWaitSlackMs = 2 * 1000;
 
 type RunAgentInput = {
-   agentName: string;
-   agentScope?: AgentScope;
+   agentName?: string;
+   agentScope?: ProfileScope;
+   mode?: RunMode;
+   profileName?: string;
+   profileScope?: ProfileScope;
    cwd?: string;
    killGraceMs?: number;
-   mode?: RunMode;
+   selectedSkillNames?: string[];
    onRunStarted?: (input: {
-      agent: string;
-      agentPath: string;
-      agentScope: AgentScope;
+      profile: string;
+      profilePath: string;
+      profileScope: ProfileScope;
       provider: ProviderId;
       runId: string;
       startedAt: string;
    }) => void;
+   onRunOutput?: (input: { stream: "stderr" | "stdout"; text: string }) => void;
    task: string;
    timeoutMs?: number;
 };
 
 type PreparedRun = {
-   agent: ScopedAgentDefinition;
+   profile: ScopedProfileDefinition;
    launch: RunLaunchSnapshot;
    launchMode: LaunchMode;
    mode: RunMode;
    prepared: PreparedInvocation;
-   resolvedSkills: ResolvedSkill[];
+   projectRoot: string;
    runCwd: string;
    runDir: string;
    runId: string;
+   selectedSkillNames: string[];
    startedAt: string;
    timeoutMs: number;
    killGraceMs: number;
@@ -115,7 +124,7 @@ function waitForChildCompletion(
 }
 
 async function writeRunningState(input: {
-   agent: ScopedAgentDefinition;
+   profile: ScopedProfileDefinition;
    cwd: string;
    heartbeatAt?: string;
    launch: RunLaunchSnapshot;
@@ -123,30 +132,32 @@ async function writeRunningState(input: {
    mode: RunMode;
    onlyIfRunning?: boolean;
    pid?: number;
+   projectRoot: string;
    runDir: string;
    runId: string;
    startedAt: string;
 }): Promise<void> {
    const paths = buildRunPaths(input.runDir);
    const nextState = {
-      agent: input.agent.name,
-      agentPath: input.agent.path,
-      agentScope: input.agent.scope,
+      agent: input.profile.name,
+      agentPath: input.profile.path,
+      agentScope: input.profile.scope,
       cwd: input.cwd,
       ...(typeof input.heartbeatAt === "string"
          ? { heartbeatAt: input.heartbeatAt }
          : { heartbeatAt: new Date().toISOString() }),
       launch: input.launch,
       launchMode: input.launchMode,
-      ...(typeof input.agent.model === "string"
-         ? { model: input.agent.model }
+      ...(typeof input.profile.model === "string"
+         ? { model: input.profile.model }
          : {}),
       mode: input.mode,
       paths,
-      provider: input.agent.provider,
-      ...(typeof input.agent.reasoningEffort === "string"
-         ? { reasoningEffort: input.agent.reasoningEffort }
-         : {}),
+      profile: input.profile.name,
+      profilePath: input.profile.path,
+      profileScope: input.profile.scope,
+      projectRoot: input.projectRoot,
+      provider: input.profile.provider,
       runId: input.runId,
       startedAt: input.startedAt,
       status: "running",
@@ -205,6 +216,40 @@ function waitForDetachedLaunch(
    });
 }
 
+function delay(durationMs: number): Promise<void> {
+   return new Promise((resolve) => {
+      setTimeout(resolve, durationMs);
+   });
+}
+
+async function killWindowsProcessTree(
+   pid: number,
+   force: boolean
+): Promise<void> {
+   await new Promise<void>((resolve) => {
+      const child = spawn(
+         "taskkill",
+         [
+            "/PID",
+            String(pid),
+            "/T",
+            ...(force ? ["/F"] : [])
+         ],
+         {
+            stdio: "ignore",
+            windowsHide: true
+         }
+      );
+
+      child.once("error", () => {
+         resolve();
+      });
+      child.once("close", () => {
+         resolve();
+      });
+   });
+}
+
 function startRunHeartbeat(input: {
    preparedRun: PreparedRun;
    pid?: number;
@@ -221,13 +266,14 @@ function startRunHeartbeat(input: {
             }
 
             await writeRunningState({
-               agent: input.preparedRun.agent,
+               profile: input.preparedRun.profile,
                cwd: input.preparedRun.runCwd,
                heartbeatAt: new Date().toISOString(),
                launch: input.preparedRun.launch,
                launchMode: input.preparedRun.launchMode,
                mode: input.preparedRun.mode,
                ...(typeof input.pid === "number" ? { pid: input.pid } : {}),
+               projectRoot: input.preparedRun.projectRoot,
                runDir: input.preparedRun.runDir,
                runId: input.preparedRun.runId,
                startedAt: input.preparedRun.startedAt
@@ -252,23 +298,21 @@ async function persistDetachedLaunchFailure(
 ): Promise<void> {
    const paths = buildRunPaths(preparedRun.runDir);
    const record = createFailedRunRecord({
-      agent: preparedRun.agent.name,
-      agentPath: preparedRun.agent.path,
-      agentScope: preparedRun.agent.scope,
       cwd: preparedRun.runCwd,
       endedAt: new Date().toISOString(),
       errorMessage,
       launch: preparedRun.launch,
       launchMode: preparedRun.launchMode,
-      ...(typeof preparedRun.agent.model === "string"
-         ? { model: preparedRun.agent.model }
+      ...(typeof preparedRun.profile.model === "string"
+         ? { model: preparedRun.profile.model }
          : {}),
       mode: preparedRun.mode,
+      profile: preparedRun.profile.name,
+      profilePath: preparedRun.profile.path,
+      profileScope: preparedRun.profile.scope,
       promptFile: paths.promptFile,
-      provider: preparedRun.agent.provider,
-      ...(typeof preparedRun.agent.reasoningEffort === "string"
-         ? { reasoningEffort: preparedRun.agent.reasoningEffort }
-         : {}),
+      projectRoot: preparedRun.projectRoot,
+      provider: preparedRun.profile.provider,
       runDir: preparedRun.runDir,
       runId: preparedRun.runId,
       startedAt: preparedRun.startedAt
@@ -329,60 +373,65 @@ function buildLaunchEnvironment(input: {
 }
 
 async function buildLaunchSnapshot(input: {
-   agent: ScopedAgentDefinition;
+   profile: ScopedProfileDefinition;
    killGraceMs: number;
    launchMode: LaunchMode;
    mode: RunMode;
    prepared: PreparedInvocation;
-   resolvedSkills: ResolvedSkill[];
+   projectContextPath?: string;
+   skills: string[];
+   task: string;
    timeoutMs: number;
 }): Promise<RunLaunchSnapshot> {
-   const agentSource = await readFile(input.agent.path, "utf8");
+   const profileSource =
+      input.profile.isBuiltIn === true
+         ? input.profile.body
+         : await readFile(input.profile.path, "utf8");
 
    return {
-      agentDigest: hashText(agentSource),
-      agentName: input.agent.name,
-      agentPath: input.agent.path,
-      agentScope: input.agent.scope,
+      agentDigest: hashText(profileSource),
+      agentName: input.profile.name,
+      agentPath: input.profile.path,
+      agentScope: input.profile.scope,
       args: snapshotInvocationArgs(input.prepared),
       command: input.prepared.command,
+      ...(typeof input.projectContextPath === "string"
+         ? { contextFiles: [input.projectContextPath] }
+         : {}),
       cwd: input.prepared.cwd,
       envKeys: Object.keys(input.prepared.env).sort(),
       killGraceMs: input.killGraceMs,
       launchMode: input.launchMode,
-      ...(typeof input.agent.model === "string"
-         ? { model: input.agent.model }
+      ...(typeof input.profile.model === "string"
+         ? { model: input.profile.model }
          : {}),
       mode: input.mode,
-      permissions: input.agent.permissions,
+      permissions: input.mode,
+      profileDigest: hashText(profileSource),
+      profileName: input.profile.name,
+      profilePath: input.profile.path,
+      profileScope: input.profile.scope,
+      ...(typeof input.projectContextPath === "string"
+         ? { projectContextPath: input.projectContextPath }
+         : {}),
       promptDigest: hashText(input.prepared.renderedPrompt),
       promptTransport: input.prepared.promptTransport,
-      provider: input.agent.provider,
-      ...(typeof input.agent.reasoningEffort === "string"
-         ? { reasoningEffort: input.agent.reasoningEffort }
-         : {}),
-      skills: input.resolvedSkills,
+      provider: input.profile.provider,
+      skills: input.skills,
+      task: input.task,
       timeoutMs: input.timeoutMs
    };
 }
 
-async function resolveAgentForRun(input: {
-   agentName: string;
-   agentScope?: AgentScope;
-}): Promise<ScopedAgentDefinition> {
-   const projectPaths = getProjectPaths();
-   const agent = await loadAgentDefinition(
-      projectPaths,
-      input.agentName,
-      input.agentScope
+async function resolveProfileForRun(input: {
+   profileName: string;
+   profileScope?: ProfileScope;
+}): Promise<ScopedProfileDefinition> {
+   return loadProfileDefinition(
+      getProjectPaths(),
+      input.profileName,
+      input.profileScope
    );
-   const issues = await collectAgentRuntimeIssues(agent);
-
-   if (issues.length > 0) {
-      throw new UserError(issues.map((issue) => issue.message).join("\n"));
-   }
-
-   return agent;
 }
 
 async function prepareRun(
@@ -391,76 +440,106 @@ async function prepareRun(
 ): Promise<PreparedRun> {
    const projectPaths = getProjectPaths();
    await ensureProjectDirectories(projectPaths);
+   const profileName = input.profileName ?? input.agentName;
 
-   const agent = await resolveAgentForRun({
-      agentName: input.agentName,
-      ...(input.agentScope !== undefined
-         ? { agentScope: input.agentScope }
+   if (typeof profileName !== "string" || profileName.trim().length === 0) {
+      throw new UserError("Profile name is required.");
+   }
+
+   const profile = await resolveProfileForRun({
+      profileName,
+      ...(input.profileScope !== undefined
+         ? { profileScope: input.profileScope }
+         : input.agentScope !== undefined
+           ? { profileScope: input.agentScope }
          : {})
    });
-   const runId = createRunId(agent.name);
+   const runId = createRunId(profile.name);
    const runDir = path.join(projectPaths.runsDir, runId);
    const runCwd = resolveRunCwd(projectPaths.projectRoot, input.cwd);
    const startedAt = new Date().toISOString();
    const timeoutMs = input.timeoutMs ?? defaultTimeoutMs;
    const killGraceMs = input.killGraceMs ?? defaultKillGraceMs;
-   const mode = input.mode ?? agent.permissions;
-
-   if (input.mode !== undefined && input.mode !== agent.permissions) {
-      throw new UserError(
-         `Agent "${agent.name}" only allows ${agent.permissions} execution, but received --mode ${input.mode}.`
-      );
-   }
+   const mode = input.mode ?? profile.mode ?? profile.permissions ?? "safe";
 
    await mkdir(runDir, { recursive: true });
    const paths = buildRunPaths(runDir);
-   const resolvedSkills = await resolveDeclaredSkills(
-      projectPaths,
-      agent.skills
-   );
-   const adapter = getAdapterForProvider(agent.provider);
-   const prepared = adapter.prepare(agent, {
+   const projectContext = await loadProjectContext(projectPaths.projectRoot);
+   const skillSelection = await resolveSkillsForRun(projectPaths, {
+      profile,
+      ...(input.selectedSkillNames !== undefined
+         ? { selectedSkillNames: input.selectedSkillNames }
+         : {}),
+      task: input.task
+   });
+   const renderedPrompt = buildPrompt(profile, {
+      artifactsDir: paths.artifactsDir,
+      cwd: runCwd,
+      mode,
+      ...(projectContext !== undefined ? { projectContext } : {}),
+      runFile: paths.runFile,
+      runId,
+      skills: skillSelection.active,
+      task: input.task
+   });
+   const adapter = getAdapterForProvider(profile.provider);
+   const prepared = await adapter.prepare(profile, {
       artifactsDir: paths.artifactsDir,
       cwd: runCwd,
       mode,
       promptFile: paths.promptFile,
+      ...(projectContext !== undefined ? { projectContext } : {}),
+      renderedPrompt,
       runFile: paths.runFile,
       runId,
+      skills: skillSelection.active,
       task: input.task
    });
    const launch = await buildLaunchSnapshot({
-      agent,
       killGraceMs,
       launchMode,
       mode,
       prepared,
-      resolvedSkills,
+      profile,
+      ...(projectContext !== undefined
+         ? { projectContextPath: projectContext.path }
+         : {}),
+      skills: skillSelection.active.map((skill) => skill.name),
+      task: input.task,
       timeoutMs
    });
 
+   if (prepared.supportFiles !== undefined) {
+      for (const supportFile of prepared.supportFiles) {
+         await writeFile(supportFile.path, supportFile.content, "utf8");
+      }
+   }
+
    await writeFile(paths.promptFile, prepared.renderedPrompt, "utf8");
    await writeRunningState({
-      agent,
+      profile,
       launchMode,
       cwd: runCwd,
       launch,
       mode,
+      projectRoot: projectPaths.projectRoot,
       runDir,
       runId,
       startedAt
    });
 
    return {
-      agent,
       killGraceMs,
       launch,
       launchMode,
       mode,
       prepared,
-      resolvedSkills,
+      profile,
+      projectRoot: projectPaths.projectRoot,
       runCwd,
       runDir,
       runId,
+      selectedSkillNames: skillSelection.active.map((skill) => skill.name),
       startedAt,
       timeoutMs
    };
@@ -473,10 +552,7 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
       throw new UserError(`Run "${runId}" is already complete.`);
    }
 
-   const projectPaths = getProjectPaths();
-   const runDir = path.join(projectPaths.runsDir, runId);
-   const paths = buildRunPaths(runDir);
-   const renderedPrompt = await readFile(paths.promptFile, "utf8");
+   const renderedPrompt = await readFile(run.paths.promptFile, "utf8");
 
    if (typeof run.launch.model !== "string" || run.launch.model.length === 0) {
       throw new UserError(
@@ -484,26 +560,38 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
       );
    }
 
-   const agent: ScopedAgentDefinition = {
+   const profileName = run.launch.profileName ?? run.launch.agentName;
+   const profilePath = run.launch.profilePath ?? run.launch.agentPath;
+   const profileScope = run.launch.profileScope ?? run.launch.agentScope;
+
+   if (
+      typeof profileName !== "string" ||
+      typeof profilePath !== "string" ||
+      (profileScope !== "project" && profileScope !== "user")
+   ) {
+      throw new UserError(
+         `Run "${runId}" is missing its required launch profile identity.`
+      );
+   }
+
+   const profile: ScopedProfileDefinition = {
       body: renderedPrompt,
       description: "",
-      id: run.launch.agentName,
-      model: run.launch.model,
-      name: run.launch.agentName,
-      path: run.launch.agentPath,
-      permissions: run.launch.permissions,
-      provider: run.launch.provider,
-      scope: run.launch.agentScope,
-      ...(run.launch.skills.length > 0
-         ? { skills: run.launch.skills.map((skill) => skill.name) }
+      id: profileName,
+      ...(profilePath.startsWith("<builtin>/")
+         ? { isBuiltIn: true }
          : {}),
-      ...(typeof run.launch.reasoningEffort === "string"
-         ? { reasoningEffort: run.launch.reasoningEffort }
-         : {})
+      model: run.launch.model,
+      mode: run.mode,
+      name: profileName,
+      path: profilePath,
+      permissions: run.mode,
+      provider: run.launch.provider,
+      scope: profileScope,
+      ...(run.launch.skills.length > 0 ? { skills: run.launch.skills } : {})
    };
 
    return {
-      agent,
       killGraceMs: run.launch.killGraceMs,
       launch: run.launch,
       launchMode: run.launchMode,
@@ -517,7 +605,7 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
          cwd: run.launch.cwd,
          env: buildLaunchEnvironment({
             envKeys: run.launch.envKeys,
-            paths,
+            paths: buildRunPaths(run.paths.runDir),
             runId
          }),
          promptTransport: run.launch.promptTransport,
@@ -527,10 +615,12 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
             : {})
       },
       mode: run.mode,
-      resolvedSkills: run.launch.skills,
+      profile,
+      projectRoot: run.projectRoot,
       runCwd: run.launch.cwd,
-      runDir,
+      runDir: run.paths.runDir,
       runId,
+      selectedSkillNames: run.launch.skills,
       startedAt: run.startedAt,
       timeoutMs: run.launch.timeoutMs
    };
@@ -544,18 +634,21 @@ async function executePreparedRun(
          text: string;
       }) => void;
       pid?: number;
+      requestStopOnStart?: boolean;
    }
 ): Promise<RunResult> {
    const paths = buildRunPaths(preparedRun.runDir);
-   const child = spawn(
+   const launch = await resolveCommandLaunch(
       preparedRun.prepared.command,
-      preparedRun.prepared.args,
-      {
-         cwd: preparedRun.prepared.cwd,
-         env: preparedRun.prepared.env,
-         stdio: "pipe"
-      }
+      preparedRun.prepared.args
    );
+   const child = spawn(launch.command, launch.args, {
+      cwd: preparedRun.prepared.cwd,
+      env: preparedRun.prepared.env,
+      shell: launch.needsShell,
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
+      stdio: "pipe"
+   });
    const completionPromise = waitForChildCompletion(child);
    const heartbeatPid =
       typeof options?.pid === "number"
@@ -565,12 +658,13 @@ async function executePreparedRun(
            : undefined;
 
    await writeRunningState({
-      agent: preparedRun.agent,
+      profile: preparedRun.profile,
       cwd: preparedRun.runCwd,
       launch: preparedRun.launch,
       launchMode: preparedRun.launchMode,
       mode: preparedRun.mode,
       ...(typeof heartbeatPid === "number" ? { pid: heartbeatPid } : {}),
+      projectRoot: preparedRun.projectRoot,
       runDir: preparedRun.runDir,
       runId: preparedRun.runId,
       startedAt: preparedRun.startedAt
@@ -586,6 +680,59 @@ async function executePreparedRun(
    let stderr = "";
    let timedOut = false;
    let completed = false;
+   let stopRequested = options?.requestStopOnStart === true;
+   let killTimer: NodeJS.Timeout | null = null;
+
+   const requestChildStop = () => {
+      if (completed) {
+         return;
+      }
+
+      stopRequested = true;
+      if (launch.usesCommandProcessor && process.platform === "win32") {
+         if (typeof child.pid === "number") {
+            void killWindowsProcessTree(child.pid, false);
+         }
+      } else {
+         child.kill("SIGTERM");
+      }
+
+      if (killTimer !== null) {
+         return;
+      }
+
+      killTimer = setTimeout(() => {
+         if (!completed) {
+            if (launch.usesCommandProcessor && process.platform === "win32") {
+               if (typeof child.pid === "number") {
+                  void killWindowsProcessTree(child.pid, true);
+               }
+            } else {
+               child.kill("SIGKILL");
+            }
+         }
+      }, preparedRun.killGraceMs);
+   };
+   const handleProcessSignal = () => {
+      requestChildStop();
+   };
+
+   process.on("SIGINT", handleProcessSignal);
+   process.on("SIGTERM", handleProcessSignal);
+
+   if (options?.requestStopOnStart === true) {
+      requestChildStop();
+   }
+
+   const stopRequestInterval = setInterval(() => {
+      void access(paths.stopRequestedFile)
+         .then(() => {
+            requestChildStop();
+         })
+         .catch(() => undefined);
+   }, stopPollIntervalMs);
+
+   stopRequestInterval.unref?.();
 
    child.stdout?.on("data", (chunk: Buffer | string) => {
       const value = chunk.toString();
@@ -612,20 +759,17 @@ async function executePreparedRun(
 
    child.stdin?.end();
 
-   let killTimer: NodeJS.Timeout | null = null;
    const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGTERM");
-      killTimer = setTimeout(() => {
-         if (!completed) {
-            child.kill("SIGKILL");
-         }
-      }, preparedRun.killGraceMs);
+      requestChildStop();
    }, preparedRun.timeoutMs);
 
    const completion = await completionPromise.finally(async () => {
       completed = true;
       clearTimeout(timer);
+      clearInterval(stopRequestInterval);
+      process.off("SIGINT", handleProcessSignal);
+      process.off("SIGTERM", handleProcessSignal);
 
       if (killTimer) {
          clearTimeout(killTimer);
@@ -639,23 +783,21 @@ async function executePreparedRun(
 
    if (completion.spawnError) {
       const record = createFailedRunRecord({
-         agent: preparedRun.agent.name,
-         agentPath: preparedRun.agent.path,
-         agentScope: preparedRun.agent.scope,
          cwd: preparedRun.runCwd,
          endedAt,
          errorMessage: completion.spawnError.message,
          launch: preparedRun.launch,
          launchMode: preparedRun.launchMode,
-         ...(typeof preparedRun.agent.model === "string"
-            ? { model: preparedRun.agent.model }
+         ...(typeof preparedRun.profile.model === "string"
+            ? { model: preparedRun.profile.model }
             : {}),
          mode: preparedRun.mode,
+         profile: preparedRun.profile.name,
+         profilePath: preparedRun.profile.path,
+         profileScope: preparedRun.profile.scope,
          promptFile: paths.promptFile,
-         provider: preparedRun.agent.provider,
-         ...(typeof preparedRun.agent.reasoningEffort === "string"
-            ? { reasoningEffort: preparedRun.agent.reasoningEffort }
-            : {}),
+         projectRoot: preparedRun.projectRoot,
+         provider: preparedRun.profile.provider,
          runDir: preparedRun.runDir,
          runId: preparedRun.runId,
          startedAt: preparedRun.startedAt,
@@ -667,19 +809,20 @@ async function executePreparedRun(
       return toRunResult(record);
    }
 
-   const adapter = getAdapterForProvider(preparedRun.agent.provider);
+   const adapter = getAdapterForProvider(preparedRun.profile.provider);
    const record = await adapter.parseCompletedRun({
-      agent: preparedRun.agent,
       cwd: preparedRun.runCwd,
       endedAt,
       exitCode: completion.exitCode,
       launch: preparedRun.launch,
       launchMode: preparedRun.launchMode,
       mode: preparedRun.mode,
+      profile: preparedRun.profile,
       promptFile: paths.promptFile,
+      projectRoot: preparedRun.projectRoot,
       runDir: preparedRun.runDir,
       runId: preparedRun.runId,
-      signal: completion.signal,
+      signal: completion.signal ?? (stopRequested ? "SIGTERM" : null),
       startedAt: preparedRun.startedAt,
       stderr,
       ...(stderr.length > 0 ? { stderrLog: paths.stderrLog } : {}),
@@ -689,17 +832,19 @@ async function executePreparedRun(
    const finalRecord = timedOut
       ? {
            ...record,
-           agentPath: preparedRun.agent.path,
-           agentScope: preparedRun.agent.scope,
            errorMessage: "Execution timed out.",
            launchMode: preparedRun.launchMode,
+           profilePath: preparedRun.profile.path,
+           profileScope: preparedRun.profile.scope,
+           projectRoot: preparedRun.projectRoot,
            status: "error" as const
         }
       : {
            ...record,
-           agentPath: preparedRun.agent.path,
-           agentScope: preparedRun.agent.scope,
-           launchMode: preparedRun.launchMode
+           launchMode: preparedRun.launchMode,
+           profilePath: preparedRun.profile.path,
+           profileScope: preparedRun.profile.scope,
+           projectRoot: preparedRun.projectRoot
         };
 
    await persistResult(finalRecord, paths.runFile);
@@ -723,21 +868,25 @@ function toLaunchResult(input: {
 }): LaunchedRun {
    return {
       active: typeof input.pid === "number",
-      agent: input.preparedRun.agent.name,
-      agentPath: input.preparedRun.agent.path,
-      agentScope: input.preparedRun.agent.scope,
-      showCommand: `aiman sesh show ${input.preparedRun.runId}`,
-      inspectCommand: `aiman sesh inspect ${input.preparedRun.runId}`,
+      agent: input.preparedRun.profile.name,
+      agentPath: input.preparedRun.profile.path,
+      agentScope: input.preparedRun.profile.scope,
+      inspectCommand: `aiman run inspect ${input.preparedRun.runId}`,
       launchMode: "detached",
-      logsCommand: `aiman sesh logs ${input.preparedRun.runId} -f`,
+      logsCommand: `aiman run logs ${input.preparedRun.runId} -f`,
       mode: input.preparedRun.mode,
       ...(typeof input.pid === "number" ? { pid: input.pid } : {}),
-      provider: input.preparedRun.agent.provider,
+      profile: input.preparedRun.profile.name,
+      profilePath: input.preparedRun.profile.path,
+      profileScope: input.preparedRun.profile.scope,
+      projectRoot: input.preparedRun.projectRoot,
+      provider: input.preparedRun.profile.provider,
       rights: formatRunRights(
-         input.preparedRun.agent.provider,
+         input.preparedRun.profile.provider,
          input.preparedRun.mode
       ),
       runId: input.preparedRun.runId,
+      showCommand: `aiman run show ${input.preparedRun.runId}`,
       startedAt: input.preparedRun.startedAt,
       status: "running"
    };
@@ -770,16 +919,16 @@ export async function launchRun(input: RunAgentInput): Promise<LaunchedRun> {
    }
 
    input.onRunStarted?.({
-      agent: preparedRun.agent.name,
-      agentPath: preparedRun.agent.path,
-      agentScope: preparedRun.agent.scope,
-      provider: preparedRun.agent.provider,
+      profile: preparedRun.profile.name,
+      profilePath: preparedRun.profile.path,
+      profileScope: preparedRun.profile.scope,
+      provider: preparedRun.profile.provider,
       runId: preparedRun.runId,
       startedAt: preparedRun.startedAt
    });
 
    await writeRunningState({
-      agent: preparedRun.agent,
+      profile: preparedRun.profile,
       cwd: preparedRun.runCwd,
       heartbeatAt: new Date().toISOString(),
       launch: preparedRun.launch,
@@ -787,6 +936,7 @@ export async function launchRun(input: RunAgentInput): Promise<LaunchedRun> {
       mode: preparedRun.mode,
       onlyIfRunning: true,
       ...(typeof pid === "number" ? { pid } : {}),
+      projectRoot: preparedRun.projectRoot,
       runDir: preparedRun.runDir,
       runId: preparedRun.runId,
       startedAt: preparedRun.startedAt
@@ -802,31 +952,75 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
    const preparedRun = await prepareRun(input, "foreground");
 
    input.onRunStarted?.({
-      agent: preparedRun.agent.name,
-      agentPath: preparedRun.agent.path,
-      agentScope: preparedRun.agent.scope,
-      provider: preparedRun.agent.provider,
+      profile: preparedRun.profile.name,
+      profilePath: preparedRun.profile.path,
+      profileScope: preparedRun.profile.scope,
+      provider: preparedRun.profile.provider,
       runId: preparedRun.runId,
       startedAt: preparedRun.startedAt
    });
 
    return executePreparedRun(preparedRun, {
+      ...(input.onRunOutput !== undefined
+         ? { mirrorOutput: input.onRunOutput }
+         : {}),
       pid: process.pid
    });
 }
 
 export async function runDetachedWorker(runId: string): Promise<RunResult> {
-   const preparedRun = await loadPreparedRun(runId);
+   let stopRequested = false;
+   const handleProcessSignal = () => {
+      stopRequested = true;
+   };
 
-   return executePreparedRun(preparedRun, {
-      pid: process.pid
-   });
+   process.on("SIGINT", handleProcessSignal);
+   process.on("SIGTERM", handleProcessSignal);
+
+   try {
+      const preparedRun = await loadPreparedRun(runId);
+
+      return executePreparedRun(preparedRun, {
+         pid: process.pid,
+         requestStopOnStart: stopRequested
+      });
+   } finally {
+      process.off("SIGINT", handleProcessSignal);
+      process.off("SIGTERM", handleProcessSignal);
+   }
 }
 
 export async function listRuns(
    options?: RunListOptions
 ): Promise<RunInspection[]> {
    return listRunDetails(options);
+}
+
+async function waitForRunStop(
+   runId: string,
+   timeoutMs: number
+): Promise<RunInspection> {
+   const deadline = Date.now() + timeoutMs;
+   let run = await readRunDetails(runId);
+
+   while (run.status === "running" && Date.now() < deadline) {
+      await delay(stopPollIntervalMs);
+      run = await readRunDetails(runId);
+   }
+
+   return run;
+}
+
+export async function stopRun(runId: string): Promise<RunInspection> {
+   const run = await readRunDetails(runId);
+
+   if (run.status !== "running" || run.active !== true) {
+      throw new UserError(`Run "${runId}" is not active.`);
+   }
+
+   await writeFile(run.paths.stopRequestedFile, new Date().toISOString(), "utf8");
+
+   return waitForRunStop(runId, run.launch.killGraceMs + stopWaitSlackMs);
 }
 
 export { readRunDetails, readRunLog, toRunResult };

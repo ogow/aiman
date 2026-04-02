@@ -42,7 +42,7 @@ export async function handler(
 
    if (skills.length === 0) {
       process.stdout.write(
-         'No skills found.\n\nCreate one under ".agents/skills/<name>/SKILL.md" or "~/.agents/skills/<name>/SKILL.md".\n'
+         'No skills found.\n\nCreate one under ".aiman/skills/<name>/SKILL.md" or "~/.aiman/skills/<name>/SKILL.md".\n'
       );
       return;
    }
@@ -57,6 +57,6 @@ export async function handler(
    );
 
    process.stdout.write(
-      `${renderSection("Skills", table)}\n\nUse these names in agent frontmatter under "skills:".\n`
+      `${renderSection("Skills", table)}\n\nUse these names in profile frontmatter under "skills:" or pass them with "--skill".\n`
    );
 }

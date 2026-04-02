@@ -11,6 +11,25 @@ import {
    rejectUnsupportedReasoningEffort
 } from "./shared.js";
 
+const impossibleGeminiContextFileName = "__AIMAN_UNUSED_CONTEXT__.md";
+
+function getGeminiChildSettingsOverlay(input: {
+   runDir: string;
+}): { content: string; path: string } {
+   return {
+      content: JSON.stringify(
+         {
+            context: {
+               fileName: impossibleGeminiContextFileName
+            }
+         },
+         null,
+         2
+      ),
+      path: path.join(input.runDir, ".gemini-system-settings.json")
+   };
+}
+
 export function createGeminiAdapter(): ProviderAdapter {
    return {
       async detect(agent) {
@@ -32,6 +51,12 @@ export function createGeminiAdapter(): ProviderAdapter {
       },
       id: "gemini",
       async parseCompletedRun(input) {
+         const profile = input.profile ?? input.agent;
+
+         if (profile === undefined) {
+            throw new Error("Completed Gemini run is missing its profile.");
+         }
+
          const finalText = input.stdout.trim();
          const status =
             input.signal === "SIGTERM"
@@ -45,7 +70,6 @@ export function createGeminiAdapter(): ProviderAdapter {
                : undefined;
 
          return finalizeRecord({
-            agent: input.agent,
             cwd: input.cwd,
             endedAt: input.endedAt,
             exitCode: input.exitCode,
@@ -53,7 +77,9 @@ export function createGeminiAdapter(): ProviderAdapter {
             launchMode: input.launchMode,
             launch: input.launch,
             mode: input.mode,
+            profile,
             promptFile: input.promptFile,
+            projectRoot: input.projectRoot,
             runDir: input.runDir,
             runId: input.runId,
             signal: input.signal,
@@ -68,16 +94,19 @@ export function createGeminiAdapter(): ProviderAdapter {
                : {})
          });
       },
-      prepare(agent, input) {
+      async prepare(agent, input) {
          const prompt = input.renderedPrompt ?? buildPrompt(agent, input);
          const runDir = path.dirname(input.runFile);
+         const childSettingsOverlay = getGeminiChildSettingsOverlay({
+            runDir
+         });
 
          return {
             args: [
                "--prompt",
-               prompt,
+               "",
                "--approval-mode",
-               input.mode === "workspace-write" ? "auto_edit" : "plan",
+               input.mode === "yolo" ? "auto_edit" : "plan",
                ...(agent.model ? ["--model", agent.model] : [])
             ],
             command: "gemini",
@@ -86,10 +115,13 @@ export function createGeminiAdapter(): ProviderAdapter {
                AIMAN_ARTIFACTS_DIR: input.artifactsDir,
                AIMAN_RUN_PATH: input.runFile,
                AIMAN_RUN_DIR: runDir,
-               AIMAN_RUN_ID: input.runId
+               AIMAN_RUN_ID: input.runId,
+               GEMINI_CLI_SYSTEM_SETTINGS_PATH: childSettingsOverlay.path
             }),
-            promptTransport: "arg",
-            renderedPrompt: prompt
+            promptTransport: "stdin",
+            renderedPrompt: prompt,
+            stdin: prompt,
+            supportFiles: [childSettingsOverlay]
          };
       },
       validateAgent(agent) {

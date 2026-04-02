@@ -1,14 +1,18 @@
 export type ProviderId = "codex" | "gemini";
 
-export type AgentScope = "project" | "user";
+export type ProfileScope = "project" | "user";
 
-export type RunMode = "read-only" | "workspace-write";
+export type AgentScope = ProfileScope;
+
+export type RunMode =
+   | "read-only"
+   | "safe"
+   | "workspace-write"
+   | "yolo";
 
 export type LaunchMode = "detached" | "foreground";
 
 export type RunStatus = "cancelled" | "error" | "success";
-
-export type ReasoningEffort = "high" | "low" | "medium";
 
 export type RunListFilter = "active" | "all" | "historic";
 
@@ -25,36 +29,97 @@ export type ProviderCapabilities = {
    provider: ProviderId;
 };
 
-export type AgentDefinition = {
+export type ProfileDefinition = {
    body: string;
+   contextFiles?: string[];
    description: string;
    model: string;
+   mode?: RunMode;
    name: string;
-   permissions: RunMode;
+   permissions?: RunMode;
    provider: ProviderId;
+   reasoningEffort?: string;
    requiredMcps?: string[];
-   reasoningEffort?: ReasoningEffort;
    skills?: string[];
 };
 
-export type ScopedAgentDefinition = AgentDefinition & {
+export type ScopedProfileDefinition = ProfileDefinition & {
    id: string;
+   isBuiltIn?: boolean;
    path: string;
-   scope: AgentScope;
+   scope: ProfileScope;
 };
+
+export type AgentDefinition = ProfileDefinition;
+
+export type ScopedAgentDefinition = ScopedProfileDefinition;
 
 export type ValidationIssue = {
    code: string;
    message: string;
 };
 
+export type ProfileCheckStatus = "invalid" | "ok" | "warnings";
+
+export type CheckedProfileDefinition = {
+   contextFiles?: string[];
+   id: string;
+   model?: string;
+   mode?: string;
+   name?: string;
+   path: string;
+   permissions?: string;
+   provider?: string;
+   requiredMcps?: string[];
+   reasoningEffort?: string;
+   scope: ProfileScope;
+   skills?: string[];
+};
+
+export type ProfileCheckReport = {
+   errors: ValidationIssue[];
+   profile: CheckedProfileDefinition;
+   status: ProfileCheckStatus;
+   warnings: ValidationIssue[];
+};
+
+export type AgentCheckStatus = ProfileCheckStatus;
+
+export type CheckedAgentDefinition = CheckedProfileDefinition;
+
+export type AgentCheckReport = {
+   errors: ValidationIssue[];
+   agent: CheckedAgentDefinition;
+   status: AgentCheckStatus;
+   warnings: ValidationIssue[];
+};
+
 export type PromptTransport = "arg" | "none" | "stdin";
 
-export type ResolvedSkill = {
-   digest: string;
+export type PromptSkill = {
+   body: string;
+   description: string;
+   keywords: string[];
+   modes?: RunMode[];
    name: string;
    path: string;
-   scope: AgentScope;
+   profiles?: string[];
+   scope: ProfileScope;
+};
+
+export type ResolvedSkill = PromptSkill & {
+   digest: string;
+};
+
+export type PromptContextFile = {
+   content: string;
+   path: string;
+};
+
+export type ProjectContext = {
+   content: string;
+   path: string;
+   title: string;
 };
 
 export type PreparedInvocation = {
@@ -64,6 +129,10 @@ export type PreparedInvocation = {
    env: Record<string, string>;
    promptTransport: PromptTransport;
    renderedPrompt: string;
+   supportFiles?: {
+      content: string;
+      path: string;
+   }[];
    stdin?: string;
 };
 
@@ -72,6 +141,7 @@ export type RunPaths = {
    promptFile: string;
    runFile: string;
    runDir: string;
+   stopRequestedFile: string;
    stderrLog?: string;
    stdoutLog?: string;
 };
@@ -114,23 +184,28 @@ export type UsageStats = {
 
 export type PreparedRunInput = {
    artifactsDir: string;
+   contextFiles?: PromptContextFile[];
    cwd: string;
    mode: RunMode;
    promptFile: string;
+   projectContext?: ProjectContext;
    renderedPrompt?: string;
    runFile: string;
    runId: string;
+   skills?: PromptSkill[];
    task?: string;
 };
 
 export type CompletedRunInput = {
-   agent: ScopedAgentDefinition;
+   agent?: ScopedProfileDefinition;
    cwd: string;
    endedAt: string;
    exitCode: number | null;
-   launchMode: LaunchMode;
    launch: RunLaunchSnapshot;
+   launchMode: LaunchMode;
    mode: RunMode;
+   profile?: ScopedProfileDefinition;
+   projectRoot: string;
    promptFile: string;
    runDir: string;
    runId: string;
@@ -146,41 +221,51 @@ export type RunLaunchSnapshot = {
    agentDigest: string;
    agentName: string;
    agentPath: string;
-   agentScope: AgentScope;
+   agentScope: ProfileScope;
    args: string[];
    command: string;
+   contextFiles?: string[];
    cwd: string;
    envKeys: string[];
    killGraceMs: number;
    launchMode: LaunchMode;
    mode: RunMode;
    model?: string;
-   permissions: RunMode;
+   permissions?: RunMode;
+   profileDigest?: string;
+   profileName?: string;
+   profilePath?: string;
+   profileScope?: ProfileScope;
+   projectContextPath?: string;
    promptDigest: string;
    promptTransport: PromptTransport;
    provider: ProviderId;
-   reasoningEffort?: ReasoningEffort;
-   skills: ResolvedSkill[];
+   reasoningEffort?: string;
+   skills: string[];
+   task?: string;
    timeoutMs: number;
 };
 
 export type PersistedRunRecord = {
-   agent: string;
-   agentPath: string;
-   agentScope: AgentScope;
+   agent?: string;
+   agentPath?: string;
+   agentScope?: ProfileScope;
    cwd: string;
    durationMs: number;
    endedAt: string;
    errorMessage?: string;
    exitCode: number | null;
    finalText: string;
-   launchMode: LaunchMode;
    launch: RunLaunchSnapshot;
+   launchMode: LaunchMode;
    model?: string;
    mode: RunMode;
    paths: RunPaths;
+   profile?: string;
+   profilePath?: string;
+   profileScope?: ProfileScope;
+   projectRoot: string;
    provider: ProviderId;
-   reasoningEffort?: ReasoningEffort;
    runId: string;
    signal: string | null;
    startedAt: string;
@@ -189,54 +274,65 @@ export type PersistedRunRecord = {
 };
 
 export type RunResult = {
-   agent: string;
+   agent?: string;
    agentPath?: string;
-   agentScope?: AgentScope;
+   agentScope?: ProfileScope;
    errorMessage?: string;
    finalText: string;
    launchMode?: LaunchMode;
    mode?: RunMode;
+   profile?: string;
+   profilePath?: string;
+   profileScope?: ProfileScope;
+   projectRoot?: string;
    provider: ProviderId;
    rights?: string;
-   runPath?: string;
    runId: string;
+   runPath?: string;
    status: RunStatus;
 };
 
 export type LaunchedRun = {
    active: boolean;
-   agent: string;
-   agentPath: string;
-   agentScope: AgentScope;
-   showCommand: string;
+   agent?: string;
+   agentPath?: string;
+   agentScope?: ProfileScope;
    inspectCommand: string;
    launchMode: "detached";
    logsCommand: string;
    mode: RunMode;
    pid?: number;
+   profile?: string;
+   profilePath?: string;
+   profileScope?: ProfileScope;
+   projectRoot: string;
    provider: ProviderId;
    rights: string;
    runId: string;
+   showCommand: string;
    startedAt: string;
    status: "running";
 };
 
 export type StoredRunState = {
-   agent: string;
-   agentPath: string;
-   agentScope: AgentScope;
+   agent?: string;
+   agentPath?: string;
+   agentScope?: ProfileScope;
    cwd: string;
    endedAt?: string;
    errorMessage?: string;
    heartbeatAt?: string;
-   launchMode: LaunchMode;
    launch: RunLaunchSnapshot;
+   launchMode: LaunchMode;
    model?: string;
    mode: RunMode;
-   pid?: number;
    paths: RunPaths;
+   pid?: number;
+   profile?: string;
+   profilePath?: string;
+   profileScope?: ProfileScope;
+   projectRoot: string;
    provider: ProviderId;
-   reasoningEffort?: ReasoningEffort;
    runId: string;
    startedAt: string;
    status: RunStatus | "running";
@@ -254,9 +350,12 @@ export type RunListOptions = {
 };
 
 export type ProviderAdapter = {
-   detect(agent: AgentDefinition): Promise<ValidationIssue[]>;
+   detect(profile: ProfileDefinition): Promise<ValidationIssue[]>;
    id: ProviderId;
    parseCompletedRun(input: CompletedRunInput): Promise<PersistedRunRecord>;
-   prepare(agent: AgentDefinition, input: PreparedRunInput): PreparedInvocation;
-   validateAgent(agent: AgentDefinition): ValidationIssue[];
+   prepare(
+      profile: ProfileDefinition,
+      input: PreparedRunInput
+   ): Promise<PreparedInvocation>;
+   validateAgent(profile: ProfileDefinition): ValidationIssue[];
 };

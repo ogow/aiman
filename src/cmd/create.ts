@@ -228,7 +228,7 @@ export async function handler(
       { label: "Name", value: agent.name },
       { label: "Scope", value: agent.scope },
       { label: "Provider", value: agent.provider },
-      { label: "Permissions", value: agent.permissions },
+      { label: "Permissions", value: agent.permissions ?? agent.mode ?? "" },
       { label: "Model", value: agent.model ?? "" },
       { label: "Path", value: agent.path },
       {

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
+import { openAimanApp } from "../cmd/app.js";
 import { commands } from "../cmd/index.js";
 
 async function readPackageVersion(): Promise<string> {
@@ -42,13 +43,14 @@ export async function runCli(argv = hideBin(process.argv)): Promise<number> {
          throw new Error(message);
       });
 
-   if (argv.length === 0) {
-      cli.showHelp("log");
-      return 0;
-   }
-
    try {
       process.exitCode = 0;
+
+      if (argv.length === 0) {
+         await openAimanApp();
+         return process.exitCode ?? 0;
+      }
+
       await cli.parseAsync();
       return process.exitCode ?? 0;
    } catch (error) {
