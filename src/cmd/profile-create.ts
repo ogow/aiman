@@ -4,11 +4,13 @@ import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
 import { getProjectPaths } from "../lib/paths.js";
 import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
-import {
-   createProfileFile,
-   profileScopeChoices
-} from "../lib/profiles.js";
-import type { ProfileScope, ProviderId, RunMode } from "../lib/types.js";
+import { createProfileFile, profileScopeChoices } from "../lib/profiles.js";
+import type {
+   ProfileScope,
+   ProviderId,
+   ReasoningEffort,
+   RunMode
+} from "../lib/types.js";
 
 type ProfileCreateArguments = {
    description?: string;
@@ -19,11 +21,13 @@ type ProfileCreateArguments = {
    model?: string;
    name?: string;
    provider?: ProviderId;
+   reasoningEffort?: ReasoningEffort;
    scope?: ProfileScope;
 };
 
 const providerChoices = ["codex", "gemini"] as const;
 const modeChoices = ["safe", "yolo"] as const;
+const reasoningEffortChoices = ["none", "low", "medium", "high"] as const;
 
 export const command = "create <name>";
 export const describe = "Create a profile";
@@ -84,6 +88,13 @@ export function builder(yargs: Argv): Argv {
          describe: "Model for this profile",
          type: "string"
       })
+      .option("reasoning-effort", {
+         choices: reasoningEffortChoices,
+         demandOption: true,
+         describe:
+            'Required reasoning effort for this profile. Use "none" when the selected provider/model does not support reasoning effort.',
+         type: "string"
+      })
       .option("force", {
          default: false,
          describe: "Overwrite the target file in the selected scope",
@@ -130,6 +141,7 @@ export async function handler(
       mode: args.mode ?? "safe",
       name: args.name,
       provider: args.provider ?? "codex",
+      reasoningEffort: args.reasoningEffort ?? "none",
       scope: args.scope ?? "project"
    });
 
@@ -147,6 +159,7 @@ export async function handler(
             { label: "Provider", value: profile.provider },
             { label: "Mode", value: profile.mode ?? "" },
             { label: "Model", value: profile.model },
+            { label: "Reasoning", value: profile.reasoningEffort },
             { label: "Path", value: profile.path }
          ])
       )}\n`

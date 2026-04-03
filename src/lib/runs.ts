@@ -229,12 +229,7 @@ async function killWindowsProcessTree(
    await new Promise<void>((resolve) => {
       const child = spawn(
          "taskkill",
-         [
-            "/PID",
-            String(pid),
-            "/T",
-            ...(force ? ["/F"] : [])
-         ],
+         ["/PID", String(pid), "/T", ...(force ? ["/F"] : [])],
          {
             stdio: "ignore",
             windowsHide: true
@@ -395,9 +390,6 @@ async function buildLaunchSnapshot(input: {
       agentScope: input.profile.scope,
       args: snapshotInvocationArgs(input.prepared),
       command: input.prepared.command,
-      ...(typeof input.projectContextPath === "string"
-         ? { contextFiles: [input.projectContextPath] }
-         : {}),
       cwd: input.prepared.cwd,
       envKeys: Object.keys(input.prepared.env).sort(),
       killGraceMs: input.killGraceMs,
@@ -407,6 +399,7 @@ async function buildLaunchSnapshot(input: {
          : {}),
       mode: input.mode,
       permissions: input.mode,
+      reasoningEffort: input.profile.reasoningEffort,
       profileDigest: hashText(profileSource),
       profileName: input.profile.name,
       profilePath: input.profile.path,
@@ -452,7 +445,7 @@ async function prepareRun(
          ? { profileScope: input.profileScope }
          : input.agentScope !== undefined
            ? { profileScope: input.agentScope }
-         : {})
+           : {})
    });
    const runId = createRunId(profile.name);
    const runDir = path.join(projectPaths.runsDir, runId);
@@ -460,7 +453,7 @@ async function prepareRun(
    const startedAt = new Date().toISOString();
    const timeoutMs = input.timeoutMs ?? defaultTimeoutMs;
    const killGraceMs = input.killGraceMs ?? defaultKillGraceMs;
-   const mode = input.mode ?? profile.mode ?? profile.permissions ?? "safe";
+   const mode = input.mode ?? profile.mode ?? "safe";
 
    await mkdir(runDir, { recursive: true });
    const paths = buildRunPaths(runDir);
@@ -578,15 +571,13 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
       body: renderedPrompt,
       description: "",
       id: profileName,
-      ...(profilePath.startsWith("<builtin>/")
-         ? { isBuiltIn: true }
-         : {}),
+      ...(profilePath.startsWith("<builtin>/") ? { isBuiltIn: true } : {}),
       model: run.launch.model,
       mode: run.mode,
       name: profileName,
       path: profilePath,
-      permissions: run.mode,
       provider: run.launch.provider,
+      reasoningEffort: run.launch.reasoningEffort ?? "none",
       scope: profileScope,
       ...(run.launch.skills.length > 0 ? { skills: run.launch.skills } : {})
    };
@@ -1018,7 +1009,11 @@ export async function stopRun(runId: string): Promise<RunInspection> {
       throw new UserError(`Run "${runId}" is not active.`);
    }
 
-   await writeFile(run.paths.stopRequestedFile, new Date().toISOString(), "utf8");
+   await writeFile(
+      run.paths.stopRequestedFile,
+      new Date().toISOString(),
+      "utf8"
+   );
 
    return waitForRunStop(runId, run.launch.killGraceMs + stopWaitSlackMs);
 }

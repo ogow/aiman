@@ -8,10 +8,7 @@ import {
    getProviderCapabilities,
    summarizeProviderModes
 } from "../lib/provider-capabilities.js";
-import {
-   loadProfileDefinition,
-   profileScopeChoices
-} from "../lib/profiles.js";
+import { loadProfileDefinition, profileScopeChoices } from "../lib/profiles.js";
 import type { ProfileScope } from "../lib/types.js";
 
 type ProfileShowArguments = {
@@ -70,9 +67,13 @@ export async function handler(
                value: profile.isBuiltIn === true ? "builtin" : profile.scope
             },
             { label: "Provider", value: profile.provider },
-            { label: "Mode", value: profile.mode ?? profile.permissions ?? "" },
-            { label: "Run modes", value: summarizeProviderModes(profile.provider) },
+            { label: "Mode", value: profile.mode ?? "" },
+            {
+               label: "Run modes",
+               value: summarizeProviderModes(profile.provider)
+            },
             { label: "Model", value: profile.model },
+            { label: "Reasoning", value: profile.reasoningEffort },
             { label: "Skills", value: profile.skills?.join(", ") ?? "" },
             { label: "Description", value: profile.description },
             { label: "Path", value: profile.path }

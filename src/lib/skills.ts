@@ -4,10 +4,7 @@ import * as path from "node:path";
 
 import { UserError, hasErrorCode } from "./errors.js";
 import { parseFrontmatter } from "./frontmatter.js";
-import {
-   getSkillsDirectoryForScope,
-   type ProjectPaths
-} from "./paths.js";
+import { getSkillsDirectoryForScope, type ProjectPaths } from "./paths.js";
 import type {
    ProfileDefinition,
    ProfileScope,
@@ -47,14 +44,12 @@ function validateSkillName(name: string): string {
    return trimmed;
 }
 
-function parseStringList(
-   input: {
-      code: string;
-      field: string;
-      name: string;
-      value: unknown;
-   }
-): string[] {
+function parseStringList(input: {
+   code: string;
+   field: string;
+   name: string;
+   value: unknown;
+}): string[] {
    if (input.value === undefined) {
       return [];
    }
@@ -180,7 +175,9 @@ async function readSkillsForScope(
          })
       );
 
-      return skills.filter((skill): skill is PromptSkill => skill !== undefined);
+      return skills.filter(
+         (skill): skill is PromptSkill => skill !== undefined
+      );
    } catch (error) {
       if (hasErrorCode(error, "ENOENT")) {
          return [];
@@ -346,7 +343,7 @@ export async function resolveSkillsForRun(
    }
 ): Promise<SkillSelectionResult> {
    const catalog = await listSkills(projectPaths);
-   const activeMode = input.profile.mode ?? input.profile.permissions ?? "safe";
+   const activeMode = input.profile.mode ?? "safe";
    const catalogByName = new Map(catalog.map((skill) => [skill.name, skill]));
    const active: PromptSkill[] = [];
    const suggested: PromptSkill[] = [];

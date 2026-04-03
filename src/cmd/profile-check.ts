@@ -24,7 +24,9 @@ function renderIssueList(issues: ValidationIssue[]): string {
       return "None.";
    }
 
-   return issues.map((issue) => `- [${issue.code}] ${issue.message}`).join("\n");
+   return issues
+      .map((issue) => `- [${issue.code}] ${issue.message}`)
+      .join("\n");
 }
 
 export function builder(yargs: Argv): Argv {
@@ -75,6 +77,7 @@ export async function handler(
             { label: "Provider", value: report.profile.provider ?? "" },
             { label: "Mode", value: report.profile.mode ?? "" },
             { label: "Model", value: report.profile.model ?? "" },
+            { label: "Reasoning", value: report.profile.reasoningEffort ?? "" },
             { label: "Path", value: report.profile.path },
             { label: "Errors", value: String(report.errors.length) },
             { label: "Warnings", value: String(report.warnings.length) }

@@ -2,7 +2,7 @@
 
 > A small terminal workbench for running one profile at a time, then keeping a trustworthy record of what happened.
 
-`aiman` is for teams that want a simple, human-first terminal app instead of a bigger orchestration system. You define profiles as Markdown files, optionally keep local `aiman` skills in the repo, run through Codex or Gemini, and inspect the saved run later through the TUI or the `run` commands.
+`aiman` is for teams that want a simple, human-first terminal app instead of a bigger orchestration system. You define profiles as Markdown files, optionally keep local `aiman` skills in the repo, optionally expose a narrow repo runtime context through `AGENTS.md`, run through Codex or Gemini, and inspect the saved run later through the OpenTUI workbench or the `run` commands.
 
 ## Why It Exists
 
@@ -10,10 +10,10 @@ Most agent tooling jumps quickly into orchestration, routing, and background sys
 
 - one profile per run
 - explicit profile files
-- explicit `AGENTS.md` runtime context
+- optional `AGENTS.md#Aiman Runtime Context`
 - explicit local `aiman` skills
 - persisted prompts, logs, and run metadata
-- a small-terminal-first TUI plus simple CLI inspection
+- a small-terminal-first OpenTUI workbench plus simple CLI inspection
 
 If you want a boring, inspectable way to author specialists and keep a durable record of each run, this is the shape.
 
@@ -23,7 +23,7 @@ If you want a boring, inspectable way to author specialists and keep a durable r
 flowchart LR
     A["Profile (.aiman/profiles/*.md)"] --> B["aiman run <profile>"]
     S["Local aiman skills (.aiman/skills/*)"] --> B
-    G["AGENTS.md#Aiman Runtime Context"] --> B
+    G["AGENTS.md#Aiman Runtime Context (if present)"] --> B
     M["Provider CLI (Codex or Gemini)"] --> B
     B --> R["~/.aiman/runs/<run-id>/run.md"]
     B --> P["prompt.md + stdout.log + stderr.log"]
@@ -45,21 +45,23 @@ flowchart LR
 ### 1. Install dependencies
 
 ```bash
-npm install
+bun install
 ```
+
+`aiman` now expects Bun for the interactive workbench and local development commands.
 
 ### 2. Make the CLI available everywhere
 
 ```bash
-npm run install:global
+bun run install:global
 ```
 
-That builds `dist/` and links the `aiman` binary into your global npm bin so you can run `aiman ...` from any directory.
+That builds `dist/` and links the `aiman` binary so you can run `aiman ...` from any directory where Bun is available.
 
 If you want to remove it later:
 
 ```bash
-npm run uninstall:global
+bun run uninstall:global
 ```
 
 ### 3. Create a profile
@@ -70,6 +72,7 @@ aiman profile create reviewer \
   --provider codex \
   --mode safe \
   --model gpt-5.4-mini \
+  --reasoning-effort medium \
   --description "Reviews diffs" \
   --instructions "Review the current patch and call out concrete bugs."
 ```
@@ -108,13 +111,12 @@ aiman run inspect <run-id>
 
 Use these to create and inspect authored profiles.
 
-| Command                                          | Purpose                                                 |
-| ------------------------------------------------ | ------------------------------------------------------- |
-| `aiman profile list [--scope project&#124;user]` | List available profiles                                 |
-| `aiman profile show <profile> [--scope ...]`     | Show one profile's provider, mode, and prompt           |
-| `aiman profile check <profile> [--scope ...]`    | Statically validate one profile                         |
-| `aiman profile create <name> ...`                | Create a new profile file                               |
-| `aiman profile migrate`                          | Convert legacy `.aiman/agents/*.md` files into profiles |
+| Command                                          | Purpose                                       |
+| ------------------------------------------------ | --------------------------------------------- |
+| `aiman profile list [--scope project&#124;user]` | List available profiles                       |
+| `aiman profile show <profile> [--scope ...]`     | Show one profile's provider, mode, and prompt |
+| `aiman profile check <profile> [--scope ...]`    | Statically validate one profile               |
+| `aiman profile create <name> ...`                | Create a new profile file                     |
 
 ### Skill Commands
 
@@ -147,13 +149,13 @@ Use these to inspect what already happened.
 | `aiman sesh show <run-id>`              | Show compact per-run status                       |
 | `aiman sesh logs <run-id>`              | Read persisted stdout and stderr, optionally live |
 | `aiman sesh inspect <run-id>`           | Read the full persisted evidence                  |
-| `aiman sesh top [--filter ...]`         | Interactive TTY dashboard for humans only         |
 
 ### TTY Surfaces
 
-- `aiman` with no arguments opens the default Ink app for creating and inspecting runs.
-- `aiman sesh top` opens the Ink session dashboard with list/detail navigation for active and historic runs.
-- Both interactive screens are real-TTY-only, small-terminal-first, and share the same `src/ui/` theme and pane helpers.
+- `aiman` with no arguments opens the default OpenTUI workbench for creating, inspecting, stopping, and reusing runs.
+- The workbench is real-TTY-only, small-terminal-first, and unifies launch plus run monitoring in one keyboard-first surface.
+- `launch` is the default workspace for profile selection, profile details, and multiline task entry.
+- `runs` keeps active and historic runs together, with answer/log/prompt details plus stop and reuse actions.
 
 ## How Profiles Work
 
@@ -166,6 +168,7 @@ provider: gemini
 description: Respond with a short, friendly greeting
 mode: safe
 model: gemini-2.5-flash-lite
+reasoningEffort: none
 ---
 
 ## Role
@@ -188,13 +191,11 @@ Respond briefly and warmly.
 - `description`
 - `mode`
 - `model`
+- `reasoningEffort`
 
 ### Optional frontmatter
 
-- `reasoningEffort`
 - `skills`
-- `requiredMcps`
-- `contextFiles`
 
 ### `profile create` requirements
 
@@ -204,39 +205,44 @@ When creating a profile through the CLI, these flags are required:
 - `--provider`
 - `--mode`
 - `--model`
+- `--reasoning-effort`
 - `--description`
 
 ### Important prompt rule
 
 `aiman` does not append a hidden runtime footer anymore. The profile body is the real prompt contract. If the profile should receive the caller's task, include `{{task}}` in the body.
 
-### Explicit baseline context
+### Explicit runtime context
 
-`contextFiles` is the explicit way to attach repo guidance to an authored profile. `aiman` does not automatically inherit the repo `AGENTS.md`.
+If your repo needs shared guidance for all `aiman` runs, put it under `AGENTS.md#Aiman Runtime Context`.
 
-For stable neutral repo context, prefer a small baseline file such as [`docs/agent-baseline.md`](./docs/agent-baseline.md):
+`aiman` attaches only that section, not the whole router file. Keep it boring and stable: build/test commands, important paths, terminology, and safety rules. Keep task strategy and specialist behavior in the authored profile body instead.
 
-```yaml
-contextFiles:
-   - docs/agent-baseline.md
-```
-
-Keep that baseline boring: build/test commands, important paths, terminology, and safety rules. Keep task strategy and steering in the authored profile body instead.
+For a drafting reference, see [`docs/agent-baseline.md`](./docs/agent-baseline.md).
 
 For a stronger checklist on requirements, prompt shape, and reliability, see [`docs/agent-authoring.md`](./docs/agent-authoring.md).
 
 Before first use, run `aiman profile check <name>`. It is a static validation pass: it does not launch the provider, probe MCPs, or require auth. Blocking errors fail with exit code `1`; warnings still exit `0`.
 
+`reasoningEffort` is required, but the allowed values depend on the provider:
+
+- `codex`: `none`, `low`, `medium`, or `high`
+- `gemini`: `none`
+
+Use `none` when the selected provider or model does not support configurable reasoning effort.
+
+Profiles that use old fields such as `permissions`, `contextFiles`, or `requiredMcps` are invalid and should be rewritten to the current contract instead of migrated in place.
+
 ## How Skills Fit In
 
-Skills are not expanded by `aiman` itself. Instead:
+Local `aiman` skills are part of the rendered prompt contract:
 
 1. A profile may declare `skills:` in frontmatter.
-2. `aiman run` records those declared names in the launch snapshot.
-3. The selected provider uses skills natively.
-4. The saved run keeps the declared names for later inspection.
+2. `aiman run` resolves those names from `.aiman/skills/` or `~/.aiman/skills/`.
+3. The selected local skill bodies are attached to the rendered prompt as explicit run context.
+4. The saved run keeps the resolved skill names for later inspection.
 
-That means `aiman` validates and records skill usage, but does not become a second skill runtime.
+That means `aiman` owns local skill resolution and prompt attachment, not just bookkeeping.
 
 `aiman` resolves skills from two locations:
 
@@ -247,8 +253,8 @@ Inspect them with:
 
 ```bash
 aiman skill list
-aiman skill show aiman
-aiman skill check aiman
+aiman skill show aiman-profile-authoring
+aiman skill check aiman-profile-authoring
 ```
 
 By default, `aiman skill list` applies the same project-over-user precedence that `aiman run` uses for resolving declared skill names.
@@ -296,7 +302,7 @@ Practical rule:
 
 - let the main agent own orchestration
 - let `aiman` own one specialist run plus the persisted evidence
-- let provider-native skills stay with the provider instead of trying to re-expand them in the parent
+- let local `aiman` skills stay attached at the `aiman` run layer instead of re-expanding them in the parent
 
 ## How Runs Work
 
@@ -352,9 +358,10 @@ Provider behavior stays explicit:
 - Codex also uses per-command `--config` overrides so repo `AGENTS.md`, prompt-shaping project Codex instructions, and repo-defined Codex agent roles do not leak into authored `aiman` profiles.
 - Gemini also uses a child-local settings overlay passed only to the spawned run so `context.fileName` points at an impossible filename and ambient `GEMINI.md`-style context does not leak into authored `aiman` profiles.
 
-### MCP requirements
+### Runtime context attachment
 
-Profiles may declare `requiredMcps:`. Before launch, `aiman` checks the selected provider CLI and fails fast when a required MCP is missing or not ready.
+When `AGENTS.md` includes a `## Aiman Runtime Context` section, `aiman` appends only that section to the rendered prompt.
+It does not attach the rest of `AGENTS.md`, and it intentionally blocks provider-native ambient repo prompt files from leaking into authored profile runs.
 
 ## Project vs User Scope
 
@@ -373,9 +380,7 @@ Home-level `~/.aiman` stays user scope only. It does not make `$HOME` count as a
 
 - Use normal command output when you're working in a terminal.
 - Use `--json` when a wrapper or another tool needs structured data.
-- Use `aiman` or `aiman sesh top` only from a real TTY; both are Ink-based interactive screens for humans.
-- Use `aiman sesh top` only as a real TTY dashboard for humans.
-- Use `aiman sesh top --filter historic` or `--filter all` when you want completed runs in the dashboard.
+- Use `aiman` only from a real TTY when you want the interactive OpenTUI workbench.
 - Use `aiman run stop <run-id>` when you need to stop one active run from a non-TTY flow.
 
 For automation and agentic tooling, prefer:
@@ -390,13 +395,13 @@ For automation and agentic tooling, prefer:
 ### Useful commands
 
 ```bash
-npm run dev
-npm run install:global
-npm test
-npm run test:provider-contract
-npm run lint
-npm run typecheck
-npm run build
+bun run dev
+bun run install:global
+bun run test
+bun run test:provider-contract
+bun run lint
+bun run typecheck
+bun run build
 ```
 
 ### Internal docs

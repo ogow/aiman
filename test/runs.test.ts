@@ -1,10 +1,4 @@
-import {
-   mkdtemp,
-   mkdir,
-   readFile,
-   readdir,
-   writeFile
-} from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import * as assert from "node:assert/strict";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -91,6 +85,7 @@ description: Reviews code for risks
 provider: codex
 model: gpt-5.4-mini
 mode: safe
+reasoningEffort: medium
 skills:
   - review-helper
 ---
@@ -113,13 +108,7 @@ You are a focused reviewer.
       "utf8"
    );
    await writeFile(
-      path.join(
-         projectRoot,
-         ".aiman",
-         "skills",
-         "review-helper",
-         "SKILL.md"
-      ),
+      path.join(projectRoot, ".aiman", "skills", "review-helper", "SKILL.md"),
       `---
 name: review-helper
 description: Adds review-specific guidance
@@ -205,7 +194,10 @@ test("runAgent executes a profile and persists task context and skills", async (
       const run = await readRunDetails(result.runId);
       const prompt = await readFile(run.paths.promptFile, "utf8");
 
-      assert.equal(run.launch.projectContextPath, "AGENTS.md#Aiman Runtime Context");
+      assert.equal(
+         run.launch.projectContextPath,
+         "AGENTS.md#Aiman Runtime Context"
+      );
       assert.deepEqual(run.launch.skills, ["review-helper"]);
       assert.equal(run.launch.task, "Review the docs");
       assert.match(prompt, /## Project Context/);
@@ -228,7 +220,9 @@ test("runAgent creates distinct run ids for repeated launches", async () => {
          profileName: "reviewer",
          task: "Review the second diff"
       });
-      const runDirs = await readdir(path.join(fixture.homeRoot, ".aiman", "runs"));
+      const runDirs = await readdir(
+         path.join(fixture.homeRoot, ".aiman", "runs")
+      );
 
       assert.notEqual(first.runId, second.runId);
       assert.ok(runDirs.includes(first.runId));

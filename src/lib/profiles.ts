@@ -1,4 +1,4 @@
-import { copyFile, readFile, readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
 import { UserError, hasErrorCode } from "./errors.js";
@@ -13,6 +13,7 @@ import type {
    ProfileDefinition,
    ProfileScope,
    ProviderId,
+   ReasoningEffort,
    RunMode,
    ScopedProfileDefinition,
    ValidationIssue
@@ -20,6 +21,13 @@ import type {
 
 const providers = new Set<ProviderId>(["codex", "gemini"]);
 const runModes = new Set<RunMode>(["safe", "yolo"]);
+const codexReasoningEfforts = new Set<ReasoningEffort>([
+   "none",
+   "low",
+   "medium",
+   "high"
+]);
+const geminiReasoningEfforts = new Set<ReasoningEffort>(["none"]);
 const recommendedSectionNames = [
    "Role",
    "Task Input",
@@ -31,21 +39,9 @@ const taskPlaceholder = "{{task}}";
 const profileScopeChoices = ["project", "user"] as const;
 const builtInProfileModel = "gpt-5.4-mini";
 
-type ProfileFileReference = {
-   filePath: string;
-   id: string;
-   scope: ProfileScope;
-};
-
 type ParsedBodySection = {
    content: string;
    normalizedTitle: string;
-};
-
-type MigrationWarning = {
-   message: string;
-   path: string;
-   profile: string;
 };
 
 export const builtinProfiles: ScopedProfileDefinition[] = [
@@ -78,9 +74,9 @@ export const builtinProfiles: ScopedProfileDefinition[] = [
       mode: "yolo",
       model: builtInProfileModel,
       name: "build",
-      permissions: "yolo",
       path: "<builtin>/build",
       provider: "codex",
+      reasoningEffort: "medium",
       scope: "user"
    },
    {
@@ -112,9 +108,9 @@ export const builtinProfiles: ScopedProfileDefinition[] = [
       mode: "safe",
       model: builtInProfileModel,
       name: "plan",
-      permissions: "safe",
       path: "<builtin>/plan",
       provider: "codex",
+      reasoningEffort: "medium",
       scope: "user"
    }
 ];
@@ -180,6 +176,16 @@ function parseDeclaredSkills(
    return skills;
 }
 
+function getAllowedReasoningEfforts(
+   provider: ProviderId
+): ReadonlySet<ReasoningEffort> {
+   return provider === "codex" ? codexReasoningEfforts : geminiReasoningEfforts;
+}
+
+function renderReasoningEffortList(provider: ProviderId): string {
+   return [...getAllowedReasoningEfforts(provider)].join('", "');
+}
+
 function validateFrontmatterAttributes(
    filePath: string,
    attributes: Record<string, unknown>,
@@ -196,13 +202,15 @@ function validateFrontmatterAttributes(
          ? attributes.description.trim()
          : undefined;
    const model =
-      typeof attributes.model === "string" ? attributes.model.trim() : undefined;
+      typeof attributes.model === "string"
+         ? attributes.model.trim()
+         : undefined;
    const mode =
-      typeof attributes.mode === "string"
-         ? attributes.mode.trim()
-         : typeof attributes.permissions === "string"
-           ? attributes.permissions.trim()
-           : undefined;
+      typeof attributes.mode === "string" ? attributes.mode.trim() : undefined;
+   const reasoningEffort =
+      typeof attributes.reasoningEffort === "string"
+         ? attributes.reasoningEffort.trim()
+         : undefined;
    const skills = parseDeclaredSkills(attributes.skills, name, filePath);
 
    if (typeof name !== "string" || name.length === 0) {
@@ -223,6 +231,41 @@ function validateFrontmatterAttributes(
       throw new UserError(`Profile "${name}" is missing a model.`);
    }
 
+   if (attributes.permissions !== undefined) {
+      throw new UserError(
+         `Profile "${name}" uses unsupported field "permissions". Use "mode: safe" or "mode: yolo".`
+      );
+   }
+
+   if (attributes.contextFiles !== undefined) {
+      throw new UserError(
+         `Profile "${name}" uses unsupported field "contextFiles". Put shared repo guidance in AGENTS.md under "## Aiman Runtime Context".`
+      );
+   }
+
+   if (attributes.requiredMcps !== undefined) {
+      throw new UserError(
+         `Profile "${name}" uses unsupported field "requiredMcps". Remove it from the profile contract.`
+      );
+   }
+
+   if (typeof reasoningEffort !== "string" || reasoningEffort.length === 0) {
+      throw new UserError(
+         `Profile "${name}" is missing a reasoningEffort. Use one of "${renderReasoningEffortList(provider as ProviderId)}" for provider "${provider ?? "missing"}".`
+      );
+   }
+
+   if (
+      providers.has(provider as ProviderId) &&
+      !getAllowedReasoningEfforts(provider as ProviderId).has(
+         reasoningEffort as ReasoningEffort
+      )
+   ) {
+      throw new UserError(
+         `Profile "${name}" has invalid reasoningEffort "${reasoningEffort}" for provider "${provider}". Use one of "${renderReasoningEffortList(provider as ProviderId)}".`
+      );
+   }
+
    if (!runModes.has(mode as RunMode)) {
       throw new UserError(
          `Profile "${name}" has invalid mode: ${mode ?? "missing"}.`
@@ -235,27 +278,12 @@ function validateFrontmatterAttributes(
 
    return {
       body,
-      ...(attributes.contextFiles !== undefined
-         ? { contextFiles: parseDeclaredSkills(attributes.contextFiles, name, filePath) }
-         : {}),
       description,
       model,
       mode: mode as RunMode,
       name,
-      permissions: mode as RunMode,
       provider: provider as ProviderId,
-      ...(typeof attributes.reasoningEffort === "string"
-         ? { reasoningEffort: attributes.reasoningEffort }
-         : {}),
-      ...(attributes.requiredMcps !== undefined
-         ? {
-              requiredMcps: parseDeclaredSkills(
-                 attributes.requiredMcps,
-                 name,
-                 filePath
-              )
-           }
-         : {}),
+      reasoningEffort: reasoningEffort as ReasoningEffort,
       ...(skills.length > 0 ? { skills } : {})
    };
 }
@@ -303,32 +331,6 @@ async function readProfileDirectory(
             })
          )
       );
-   } catch (error) {
-      if (hasErrorCode(error, "ENOENT")) {
-         return [];
-      }
-
-      throw error;
-   }
-}
-
-async function readProfileFileReferences(
-   projectPaths: ProjectPaths,
-   scope: ProfileScope
-): Promise<ProfileFileReference[]> {
-   const profilesDir = getProfilesDirectoryForScope(projectPaths, scope);
-
-   try {
-      const entries = await readdir(profilesDir, { withFileTypes: true });
-
-      return entries
-         .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-         .map((entry) => ({
-            filePath: path.join(profilesDir, entry.name),
-            id: path.parse(entry.name).name,
-            scope
-         }))
-         .sort((left, right) => left.id.localeCompare(right.id));
    } catch (error) {
       if (hasErrorCode(error, "ENOENT")) {
          return [];
@@ -451,9 +453,7 @@ function collectPromptStructureWarnings(body: string): ValidationIssue[] {
    return warnings;
 }
 
-function dedupeValidationIssues(
-   issues: ValidationIssue[]
-): ValidationIssue[] {
+function dedupeValidationIssues(issues: ValidationIssue[]): ValidationIssue[] {
    const seen = new Set<string>();
 
    return issues.filter((issue) => {
@@ -475,6 +475,7 @@ function renderProfileMarkdown(input: {
    mode: RunMode;
    name: string;
    provider: ProviderId;
+   reasoningEffort: ReasoningEffort;
 }): string {
    return [
       "---",
@@ -483,6 +484,7 @@ function renderProfileMarkdown(input: {
       `description: ${input.description}`,
       `model: ${input.model}`,
       `mode: ${input.mode}`,
+      `reasoningEffort: ${input.reasoningEffort}`,
       "---",
       "",
       "## Role",
@@ -537,13 +539,17 @@ export async function loadProfileDefinition(
    }
 
    const profiles = await listProfiles(projectPaths, scope);
-   const exactFileMatch = profiles.find((profile) => profile.id === trimmedName);
+   const exactFileMatch = profiles.find(
+      (profile) => profile.id === trimmedName
+   );
 
    if (exactFileMatch !== undefined) {
       return exactFileMatch;
    }
 
-   const exactNameMatch = profiles.find((profile) => profile.name === trimmedName);
+   const exactNameMatch = profiles.find(
+      (profile) => profile.name === trimmedName
+   );
 
    if (exactNameMatch !== undefined) {
       return exactNameMatch;
@@ -562,6 +568,7 @@ export async function createProfileFile(
       mode: RunMode;
       name: string;
       provider: ProviderId;
+      reasoningEffort: ReasoningEffort;
       scope: ProfileScope;
    }
 ): Promise<ScopedProfileDefinition> {
@@ -581,7 +588,10 @@ export async function createProfileFile(
 
    const profilesDir = getProfilesDirectoryForScope(projectPaths, input.scope);
    const targetPath = path.join(profilesDir, `${fileId}.md`);
-   const existingProfiles = await readProfileDirectory(projectPaths, input.scope);
+   const existingProfiles = await readProfileDirectory(
+      projectPaths,
+      input.scope
+   );
    const conflictingName = existingProfiles.find(
       (profile) => profile.name === trimmedName && profile.path !== targetPath
    );
@@ -602,18 +612,23 @@ export async function createProfileFile(
       );
    }
 
-   await writeFile(
+   const renderedProfile = renderProfileMarkdown({
+      description: trimmedDescription,
+      instructions: trimmedInstructions,
+      model: trimmedModel,
+      mode: input.mode,
+      name: trimmedName,
+      provider: input.provider,
+      reasoningEffort: input.reasoningEffort
+   });
+   const parsedProfile = parseFrontmatter(renderedProfile);
+   validateFrontmatterAttributes(
       targetPath,
-      renderProfileMarkdown({
-         description: trimmedDescription,
-         instructions: trimmedInstructions,
-         model: trimmedModel,
-         mode: input.mode,
-         name: trimmedName,
-         provider: input.provider
-      }),
-      "utf8"
+      parsedProfile.attributes,
+      parsedProfile.body
    );
+
+   await writeFile(targetPath, renderedProfile, "utf8");
 
    return readProfileFile({
       filePath: targetPath,
@@ -636,7 +651,8 @@ export async function checkProfileDefinition(
    const profiles = await listProfiles(projectPaths, scope);
    const profile = profiles.find(
       (currentProfile) =>
-         currentProfile.id === trimmedName || currentProfile.name === trimmedName
+         currentProfile.id === trimmedName ||
+         currentProfile.name === trimmedName
    );
 
    if (profile === undefined) {
@@ -664,10 +680,8 @@ export async function checkProfileDefinition(
          ...(typeof profile.mode === "string" ? { mode: profile.mode } : {}),
          name: profile.name,
          path: profile.path,
-         ...(typeof profile.mode === "string"
-            ? { permissions: profile.mode }
-            : {}),
          provider: profile.provider,
+         reasoningEffort: profile.reasoningEffort,
          scope: profile.scope,
          ...(profile.skills !== undefined ? { skills: profile.skills } : {})
       },
@@ -679,140 +693,6 @@ export async function checkProfileDefinition(
               : "ok",
       warnings: dedupeValidationIssues(warnings)
    };
-}
-
-async function readLegacyAgentFiles(
-   directoryPath: string,
-   scope: ProfileScope
-): Promise<ProfileFileReference[]> {
-   try {
-      const entries = await readdir(directoryPath, { withFileTypes: true });
-
-      return entries
-         .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-         .map((entry) => ({
-            filePath: path.join(directoryPath, entry.name),
-            id: path.parse(entry.name).name,
-            scope
-         }));
-   } catch (error) {
-      if (hasErrorCode(error, "ENOENT")) {
-         return [];
-      }
-
-      throw error;
-   }
-}
-
-export async function migrateLegacyAgents(
-   projectPaths: ProjectPaths
-): Promise<{
-   created: ScopedProfileDefinition[];
-   warnings: MigrationWarning[];
-}> {
-   const legacyDirectories: Array<{
-      directoryPath: string;
-      scope: ProfileScope;
-   }> = [
-      {
-         directoryPath: path.join(projectPaths.aimanDir, "agents"),
-         scope: "project"
-      },
-      {
-         directoryPath: path.join(projectPaths.userAimanDir, "agents"),
-         scope: "user"
-      }
-   ];
-   const references = (
-      await Promise.all(
-         legacyDirectories.map(async (entry) =>
-            readLegacyAgentFiles(entry.directoryPath, entry.scope)
-         )
-      )
-   ).flat();
-   const created: ScopedProfileDefinition[] = [];
-   const warnings: MigrationWarning[] = [];
-
-   for (const reference of references) {
-      const markdown = await readFile(reference.filePath, "utf8");
-      const parsed = parseFrontmatter(markdown);
-      const attributes = parsed.attributes;
-      const mode =
-         attributes.permissions === "workspace-write" ? "yolo" : "safe";
-      const skills = Array.isArray(attributes.skills)
-         ? attributes.skills.filter(
-              (entry): entry is string =>
-                 typeof entry === "string" && entry.trim().length > 0
-           )
-         : [];
-
-      if (attributes.contextFiles !== undefined) {
-         warnings.push({
-            message:
-               "Dropped legacy contextFiles. Use AGENTS.md ## Aiman Runtime Context instead.",
-            path: reference.filePath,
-            profile: reference.id
-         });
-      }
-
-      if (attributes.requiredMcps !== undefined) {
-         warnings.push({
-            message:
-               "Dropped legacy requiredMcps. vNext keeps provider setup outside the profile contract.",
-            path: reference.filePath,
-            profile: reference.id
-         });
-      }
-
-      if (attributes.reasoningEffort !== undefined) {
-         warnings.push({
-            message:
-               "Dropped legacy reasoningEffort. vNext keeps provider tuning out of the public profile contract.",
-            path: reference.filePath,
-            profile: reference.id
-         });
-      }
-
-      const profile = await createProfileFile(projectPaths, {
-         description:
-            typeof attributes.description === "string"
-               ? attributes.description
-               : `Migrated profile from ${reference.id}`,
-         force: true,
-         instructions: parsed.body,
-         model:
-            typeof attributes.model === "string"
-               ? attributes.model
-               : builtInProfileModel,
-         mode,
-         name:
-            typeof attributes.name === "string" && attributes.name.trim().length > 0
-               ? attributes.name
-               : reference.id,
-         provider:
-            attributes.provider === "gemini" ? "gemini" : "codex",
-         scope: reference.scope
-      });
-
-      if (skills.length > 0) {
-         const targetBody = await readFile(profile.path, "utf8");
-         const augmentedBody = targetBody.replace(
-            /^mode: (safe|yolo)$/m,
-            (match) =>
-               `${match}\nskills:\n${skills.map((skill) => `  - ${skill}`).join("\n")}`
-         );
-         await writeFile(profile.path, augmentedBody, "utf8");
-         created.push(await readProfileFile({
-            filePath: profile.path,
-            id: profile.id,
-            scope: profile.scope
-         }));
-      } else {
-         created.push(profile);
-      }
-   }
-
-   return { created, warnings };
 }
 
 export { profileScopeChoices };

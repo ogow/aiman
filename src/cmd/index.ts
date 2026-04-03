@@ -6,4 +6,10 @@ import * as run from "./run.js";
 import * as sesh from "./sesh.js";
 import * as skill from "./skill.js";
 
-export const commands: CommandModule[] = [profile, skill, run, sesh, internalRun];
+export const commands: CommandModule[] = [
+   profile,
+   skill,
+   run,
+   sesh,
+   internalRun
+];

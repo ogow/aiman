@@ -1,4 +1,3 @@
-import type { DatabaseSync } from "node:sqlite";
 import { mkdir } from "node:fs/promises";
 import * as path from "node:path";
 
@@ -15,24 +14,36 @@ import type {
 
 type IndexedRunRecord = {
    cwd: string;
-    endedAt?: string;
-    heartbeatAt?: string;
-    launchMode: LaunchMode;
-    mode: RunMode;
-    pid?: number;
-    profile: string;
-    profilePath: string;
-    profileScope: ProfileScope;
-    projectRoot: string;
-    provider: ProviderId;
-    runDir: string;
+   endedAt?: string;
+   heartbeatAt?: string;
+   launchMode: LaunchMode;
+   mode: RunMode;
+   pid?: number;
+   profile: string;
+   profilePath: string;
+   profileScope: ProfileScope;
+   projectRoot: string;
+   provider: ProviderId;
+   runDir: string;
    runId: string;
    startedAt: string;
    status: RunStatus | "running";
 };
 
+type RunIndexStatement = {
+   all(...params: unknown[]): unknown;
+   get(...params: unknown[]): unknown;
+   run(...params: unknown[]): unknown;
+};
+
+type RunIndexDatabase = {
+   close(): void;
+   exec(sql: string): unknown;
+   prepare(sql: string): RunIndexStatement;
+};
+
 let databaseLocation: string | undefined;
-let databasePromise: Promise<DatabaseSync> | undefined;
+let databasePromise: Promise<RunIndexDatabase> | undefined;
 
 function isSqliteExperimentalWarning(
    warning: string | Error,
@@ -52,7 +63,21 @@ function isSqliteExperimentalWarning(
    );
 }
 
-async function loadDatabase(dbPath: string): Promise<DatabaseSync> {
+async function openNodeSqliteDatabase(
+   dbPath: string
+): Promise<RunIndexDatabase> {
+   const sqliteModule = await import("node:sqlite");
+   return new sqliteModule.DatabaseSync(dbPath);
+}
+
+async function openBunSqliteDatabase(
+   dbPath: string
+): Promise<RunIndexDatabase> {
+   const sqliteModule = await import("bun:sqlite");
+   return new sqliteModule.Database(dbPath);
+}
+
+async function loadDatabase(dbPath: string): Promise<RunIndexDatabase> {
    await mkdir(path.dirname(dbPath), { recursive: true });
 
    const originalEmitWarning = process.emitWarning.bind(process);
@@ -75,8 +100,13 @@ async function loadDatabase(dbPath: string): Promise<DatabaseSync> {
    }) as typeof process.emitWarning;
 
    try {
-      const sqliteModule = await import("node:sqlite");
-      const db = new sqliteModule.DatabaseSync(dbPath);
+      let db: RunIndexDatabase;
+
+      try {
+         db = await openNodeSqliteDatabase(dbPath);
+      } catch {
+         db = await openBunSqliteDatabase(dbPath);
+      }
 
       db.exec(`
          PRAGMA journal_mode = WAL;
@@ -110,7 +140,7 @@ async function loadDatabase(dbPath: string): Promise<DatabaseSync> {
    }
 }
 
-async function openRunDatabase(): Promise<DatabaseSync> {
+async function openRunDatabase(): Promise<RunIndexDatabase> {
    const { runDbPath } = getProjectPaths();
 
    if (databaseLocation !== runDbPath) {
@@ -148,7 +178,9 @@ function toIndexedRunRecord(
       profile: record.profile ?? record.agent ?? "",
       profilePath: record.profilePath ?? record.agentPath ?? "",
       profileScope:
-         record.profileScope ?? record.agentScope ?? ("project" as ProfileScope),
+         record.profileScope ??
+         record.agentScope ??
+         ("project" as ProfileScope),
       projectRoot: record.projectRoot,
       provider: record.provider,
       runDir: record.paths.runDir,

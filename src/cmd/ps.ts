@@ -50,9 +50,7 @@ export async function handler(
 
    if (runs.length === 0) {
       process.stdout.write(
-         args.all === true
-            ? "No runs found.\n"
-            : "No active runs found.\n"
+         args.all === true ? "No runs found.\n" : "No active runs found.\n"
       );
       return;
    }

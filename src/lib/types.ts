@@ -4,11 +4,9 @@ export type ProfileScope = "project" | "user";
 
 export type AgentScope = ProfileScope;
 
-export type RunMode =
-   | "read-only"
-   | "safe"
-   | "workspace-write"
-   | "yolo";
+export type ReasoningEffort = "high" | "low" | "medium" | "none";
+
+export type RunMode = "read-only" | "safe" | "workspace-write" | "yolo";
 
 export type LaunchMode = "detached" | "foreground";
 
@@ -38,7 +36,7 @@ export type ProfileDefinition = {
    name: string;
    permissions?: RunMode;
    provider: ProviderId;
-   reasoningEffort?: string;
+   reasoningEffort: ReasoningEffort;
    requiredMcps?: string[];
    skills?: string[];
 };
@@ -71,7 +69,7 @@ export type CheckedProfileDefinition = {
    permissions?: string;
    provider?: string;
    requiredMcps?: string[];
-   reasoningEffort?: string;
+   reasoningEffort?: ReasoningEffort;
    scope: ProfileScope;
    skills?: string[];
 };
@@ -240,7 +238,7 @@ export type RunLaunchSnapshot = {
    promptDigest: string;
    promptTransport: PromptTransport;
    provider: ProviderId;
-   reasoningEffort?: string;
+   reasoningEffort?: ReasoningEffort;
    skills: string[];
    task?: string;
    timeoutMs: number;

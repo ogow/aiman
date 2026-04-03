@@ -1,14 +1,15 @@
 import type { ArgumentsCamelCase, Argv } from "yargs";
 
-import {
-   agentScopeChoices,
-   checkAgentDefinition
-} from "../lib/agents.js";
+import { agentScopeChoices, checkAgentDefinition } from "../lib/agents.js";
 import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
 import { getProjectPaths } from "../lib/paths.js";
 import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
-import type { AgentCheckReport, AgentScope, ValidationIssue } from "../lib/types.js";
+import type {
+   AgentCheckReport,
+   AgentScope,
+   ValidationIssue
+} from "../lib/types.js";
 
 type CheckArguments = {
    agent?: string;

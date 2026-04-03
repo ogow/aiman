@@ -4,9 +4,8 @@ import * as inspect from "./inspect.js";
 import * as list from "./ps.js";
 import * as logs from "./logs.js";
 import * as show from "./status.js";
-import * as top from "./top.js";
 
-const seshCommands: CommandModule[] = [list, show, logs, inspect, top];
+const seshCommands: CommandModule[] = [list, show, logs, inspect];
 
 export const command = "sesh <command>";
 export const describe = "Inspect live and recorded sessions";

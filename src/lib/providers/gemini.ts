@@ -13,9 +13,10 @@ import {
 
 const impossibleGeminiContextFileName = "__AIMAN_UNUSED_CONTEXT__.md";
 
-function getGeminiChildSettingsOverlay(input: {
-   runDir: string;
-}): { content: string; path: string } {
+function getGeminiChildSettingsOverlay(input: { runDir: string }): {
+   content: string;
+   path: string;
+} {
    return {
       content: JSON.stringify(
          {

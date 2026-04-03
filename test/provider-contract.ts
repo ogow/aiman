@@ -5,16 +5,19 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 
-import { resolveCommandLaunch, resolveExecutable } from "../src/lib/executables.js";
+import {
+   resolveCommandLaunch,
+   resolveExecutable
+} from "../src/lib/executables.js";
 import { createCodexAdapter } from "../src/lib/providers/codex.js";
 import { createGeminiAdapter } from "../src/lib/providers/gemini.js";
 import { buildPrompt } from "../src/lib/providers/shared.js";
 import type {
    PreparedInvocation,
-   PromptContextFile,
+   ProjectContext,
    ProviderAdapter,
    RunLaunchSnapshot,
-   ScopedAgentDefinition
+   ScopedProfileDefinition
 } from "../src/lib/types.js";
 
 const providerContractTimeoutMs = Number.parseInt(
@@ -29,95 +32,91 @@ function getContractModel(provider: "codex" | "gemini"): string {
            "gemini-2.5-flash-lite");
 }
 
-function createContractAgent(input: {
-   agentPath: string;
+function createContractProfile(input: {
+   profilePath: string;
    model: string;
    provider: "codex" | "gemini";
-}): ScopedAgentDefinition {
+}): ScopedProfileDefinition {
    return {
       body: [
          "## Task Input",
          "{{task}}",
          "",
          "## Instructions",
-         'Return only compact JSON with keys "ambientAgents", "ambientGemini", and "baseline".',
+         'Return only compact JSON with keys "ambientAgents", "ambientGemini", and "runtimeContext".',
          "Inspect only the text already present in your instructions and attached project context.",
          "Do not use tools and do not read workspace files.",
          'If you can see a line `AGENTS_ROUTER_SENTINEL: <value>`, set `ambientAgents` to that exact `<value>`; otherwise return `"NONE"`.',
          'If you can see a line `GEMINI_ROUTER_SENTINEL: <value>`, set `ambientGemini` to that exact `<value>`; otherwise return `"NONE"`.',
-         'If you can see a line `BASELINE_CONTEXT_SENTINEL: <value>`, set `baseline` to that exact `<value>`; otherwise return `"NONE"`.',
+         'If you can see a line `RUNTIME_CONTEXT_SENTINEL: <value>`, set `runtimeContext` to that exact `<value>`; otherwise return `"NONE"`.',
          "Do not infer, guess, or paraphrase hidden values."
       ].join("\n"),
-      contextFiles: ["docs/agent-baseline.md"],
       description:
          "Reports which sentinels are visible in the authored prompt contract",
       id: `provider-contract-${input.provider}`,
       model: input.model,
+      mode: "safe",
       name: `provider-contract-${input.provider}`,
-      path: input.agentPath,
-      permissions: "read-only",
+      path: input.profilePath,
       provider: input.provider,
+      reasoningEffort: input.provider === "codex" ? "medium" : "none",
       scope: "project"
    };
 }
 
 async function createContractFixture(provider: "codex" | "gemini"): Promise<{
-   agent: ScopedAgentDefinition;
+   profile: ScopedProfileDefinition;
    ambientAgentsSentinel: string;
    ambientGeminiSentinel: string;
-   baselineContext: PromptContextFile;
-   baselineSentinel: string;
    cwd: string;
    promptFile: string;
+   projectContext: ProjectContext;
    projectRoot: string;
    runDir: string;
    runFile: string;
    runId: string;
+   runtimeContextSentinel: string;
 }> {
    const projectRoot = await mkdtemp(
       path.join(os.tmpdir(), `aiman-provider-contract-${provider}-`)
    );
-   const runDir = path.join(projectRoot, ".aiman", "runs", `contract-${provider}`);
-   const agentPath = path.join(
+   const runDir = path.join(
       projectRoot,
       ".aiman",
-      "agents",
+      "runs",
+      `contract-${provider}`
+   );
+   const profilePath = path.join(
+      projectRoot,
+      ".aiman",
+      "profiles",
       `provider-contract-${provider}.md`
    );
    const promptFile = path.join(runDir, "prompt.md");
    const runFile = path.join(runDir, "run.md");
-   const baselineFile = path.join(projectRoot, "docs", "agent-baseline.md");
    const ambientAgentsSentinel = `ambient-agents-${provider}-sentinel`;
    const ambientGeminiSentinel = `ambient-gemini-${provider}-sentinel`;
-   const baselineSentinel = `baseline-${provider}-sentinel`;
-   const agent = createContractAgent({
-      agentPath,
+   const runtimeContextSentinel = `runtime-context-${provider}-sentinel`;
+   const profile = createContractProfile({
+      profilePath,
       model: getContractModel(provider),
       provider
    });
-   const agentFile = [
+   const profileFile = [
       "---",
-      `name: ${agent.name}`,
-      `provider: ${agent.provider}`,
-      `description: ${agent.description}`,
-      `permissions: ${agent.permissions}`,
-      `model: ${agent.model}`,
-      "contextFiles:",
-      "  - docs/agent-baseline.md",
+      `name: ${profile.name}`,
+      `provider: ${profile.provider}`,
+      `description: ${profile.description}`,
+      `mode: ${profile.mode}`,
+      `model: ${profile.model}`,
+      `reasoningEffort: ${profile.reasoningEffort}`,
       "---",
       "",
-      agent.body,
-      ""
-   ].join("\n");
-   const baselineContent = [
-      "# Agent Baseline",
-      `BASELINE_CONTEXT_SENTINEL: ${baselineSentinel}`,
-      "This file is attached explicitly through contextFiles.",
+      profile.body,
       ""
    ].join("\n");
 
-   await mkdir(path.dirname(agentPath), { recursive: true });
-   await mkdir(path.dirname(baselineFile), { recursive: true });
+   await mkdir(path.dirname(profilePath), { recursive: true });
    await mkdir(runDir, { recursive: true });
    const gitInit = spawnSync("git", ["init", "--quiet"], {
       cwd: projectRoot,
@@ -134,6 +133,9 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
       [
          "# Router",
          `AGENTS_ROUTER_SENTINEL: ${ambientAgentsSentinel}`,
+         "",
+         "## Aiman Runtime Context",
+         `RUNTIME_CONTEXT_SENTINEL: ${runtimeContextSentinel}`,
          ""
       ].join("\n"),
       "utf8"
@@ -147,24 +149,24 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
       ].join("\n"),
       "utf8"
    );
-   await writeFile(baselineFile, baselineContent, "utf8");
-   await writeFile(agentPath, agentFile, "utf8");
+   await writeFile(profilePath, profileFile, "utf8");
 
    return {
-      agent,
+      profile,
       ambientAgentsSentinel,
       ambientGeminiSentinel,
-      baselineContext: {
-         content: baselineContent,
-         path: "docs/agent-baseline.md"
-      },
-      baselineSentinel,
       cwd: projectRoot,
+      projectContext: {
+         content: `RUNTIME_CONTEXT_SENTINEL: ${runtimeContextSentinel}`,
+         path: "AGENTS.md#Aiman Runtime Context",
+         title: "## Aiman Runtime Context"
+      },
       projectRoot,
       promptFile,
       runDir,
       runFile,
-      runId: `provider-contract-${provider}`
+      runId: `provider-contract-${provider}`,
+      runtimeContextSentinel
    };
 }
 
@@ -259,31 +261,31 @@ async function executePreparedInvocation(input: {
 }
 
 function buildLaunchSnapshot(input: {
-   agent: ScopedAgentDefinition;
+   profile: ScopedProfileDefinition;
    prepared: PreparedInvocation;
    runId: string;
    timeoutMs: number;
 }): RunLaunchSnapshot {
    return {
       agentDigest: "provider-contract-agent",
-      agentName: input.agent.name,
-      agentPath: input.agent.path,
-      agentScope: input.agent.scope,
+      agentName: input.profile.name,
+      agentPath: input.profile.path,
+      agentScope: input.profile.scope,
       args: input.prepared.args,
       command: input.prepared.command,
-      contextFiles: input.agent.contextFiles ?? [],
       cwd: input.prepared.cwd,
       envKeys: Object.keys(input.prepared.env).sort((left, right) =>
          left.localeCompare(right)
       ),
       killGraceMs: 1000,
       launchMode: "foreground",
-      mode: input.agent.permissions,
-      model: input.agent.model,
-      permissions: input.agent.permissions,
+      mode: input.profile.mode ?? "safe",
+      model: input.profile.model,
+      projectContextPath: "AGENTS.md#Aiman Runtime Context",
       promptDigest: `provider-contract-prompt-${input.runId}`,
       promptTransport: input.prepared.promptTransport,
-      provider: input.agent.provider,
+      provider: input.profile.provider,
+      reasoningEffort: input.profile.reasoningEffort,
       skills: [],
       timeoutMs: input.timeoutMs
    };
@@ -298,13 +300,10 @@ function isSkippableProviderSetupFailure(output: string): boolean {
 function parseJsonObject(rawText: string): {
    ambientAgents: string;
    ambientGemini: string;
-   baseline: string;
+   runtimeContext: string;
 } {
    const trimmed = rawText.trim();
-   const withoutCodeFence = trimmed.replace(
-      /^```(?:json)?\s*|\s*```$/g,
-      ""
-   );
+   const withoutCodeFence = trimmed.replace(/^```(?:json)?\s*|\s*```$/g, "");
    const match = withoutCodeFence.match(/\{[\s\S]*\}/);
 
    if (!match) {
@@ -314,13 +313,13 @@ function parseJsonObject(rawText: string): {
    const parsed = JSON.parse(match[0]) as {
       ambientAgents?: unknown;
       ambientGemini?: unknown;
-      baseline?: unknown;
+      runtimeContext?: unknown;
    };
 
    if (
       typeof parsed.ambientAgents !== "string" ||
       typeof parsed.ambientGemini !== "string" ||
-      typeof parsed.baseline !== "string"
+      typeof parsed.runtimeContext !== "string"
    ) {
       throw new Error(`Provider JSON was missing expected keys:\n${rawText}`);
    }
@@ -328,7 +327,7 @@ function parseJsonObject(rawText: string): {
    return {
       ambientAgents: parsed.ambientAgents,
       ambientGemini: parsed.ambientGemini,
-      baseline: parsed.baseline
+      runtimeContext: parsed.runtimeContext
    };
 }
 
@@ -347,11 +346,11 @@ async function runProviderContract(
    }
 
    const fixture = await createContractFixture(input.provider);
-   const renderedPrompt = buildPrompt(fixture.agent, {
+   const renderedPrompt = buildPrompt(fixture.profile, {
       artifactsDir: path.join(fixture.runDir, "artifacts"),
-      contextFiles: [fixture.baselineContext],
       cwd: fixture.cwd,
-      mode: fixture.agent.permissions,
+      mode: fixture.profile.mode ?? "safe",
+      projectContext: fixture.projectContext,
       runFile: fixture.runFile,
       runId: fixture.runId,
       task: "Report visible sentinels from the authored prompt contract."
@@ -359,11 +358,12 @@ async function runProviderContract(
 
    await writeFile(fixture.promptFile, renderedPrompt, "utf8");
 
-   const prepared = await input.adapter.prepare(fixture.agent, {
+   const prepared = await input.adapter.prepare(fixture.profile, {
       artifactsDir: path.join(fixture.runDir, "artifacts"),
       cwd: fixture.cwd,
-      mode: fixture.agent.permissions,
+      mode: fixture.profile.mode ?? "safe",
       promptFile: fixture.promptFile,
+      projectContext: fixture.projectContext,
       renderedPrompt,
       runFile: fixture.runFile,
       runId: fixture.runId,
@@ -398,18 +398,18 @@ async function runProviderContract(
    );
 
    const record = await input.adapter.parseCompletedRun({
-      agent: fixture.agent,
+      agent: fixture.profile,
       cwd: fixture.cwd,
       endedAt: new Date().toISOString(),
       exitCode: completed.exitCode,
       launch: buildLaunchSnapshot({
-         agent: fixture.agent,
+         profile: fixture.profile,
          prepared,
          runId: fixture.runId,
          timeoutMs: providerContractTimeoutMs
       }),
       launchMode: "foreground",
-      mode: fixture.agent.permissions,
+      mode: fixture.profile.mode ?? "safe",
       promptFile: fixture.promptFile,
       projectRoot: fixture.projectRoot,
       runDir: fixture.runDir,
@@ -432,18 +432,18 @@ async function runProviderContract(
       `${input.provider} leaked ambient GEMINI.md context.`
    );
    assert.equal(
-      parsed.baseline,
-      fixture.baselineSentinel,
-      `${input.provider} did not preserve explicit baseline context.`
+      parsed.runtimeContext,
+      fixture.runtimeContextSentinel,
+      `${input.provider} did not preserve the explicit runtime context section.`
    );
 
    const persistedPrompt = await readFile(fixture.promptFile, "utf8");
 
    assert.match(persistedPrompt, /## Project Context/);
-   assert.match(persistedPrompt, /docs\/agent-baseline\.md/);
+   assert.match(persistedPrompt, /AGENTS\.md#Aiman Runtime Context/);
    assert.match(
       persistedPrompt,
-      new RegExp(`BASELINE_CONTEXT_SENTINEL: ${fixture.baselineSentinel}`)
+      new RegExp(`RUNTIME_CONTEXT_SENTINEL: ${fixture.runtimeContextSentinel}`)
    );
    assert.doesNotMatch(
       persistedPrompt,
@@ -456,7 +456,7 @@ async function runProviderContract(
 }
 
 test(
-   "codex live contract keeps ambient project docs out and preserves explicit baseline context",
+   "codex live contract keeps ambient project docs out and preserves explicit runtime context",
    { timeout: providerContractTimeoutMs + 15_000 },
    async (t) => {
       await runProviderContract(t, {
@@ -467,7 +467,7 @@ test(
 );
 
 test(
-   "gemini live contract keeps ambient project docs out and preserves explicit baseline context",
+   "gemini live contract keeps ambient project docs out and preserves explicit runtime context",
    { timeout: providerContractTimeoutMs + 15_000 },
    async (t) => {
       await runProviderContract(t, {

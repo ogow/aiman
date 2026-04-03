@@ -92,7 +92,9 @@ test("getProjectPaths does not treat home-level user dirs as a project root", as
 
 test("getProjectPaths ignores AGENTS.md alone as a project marker", async () => {
    const homeRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-home-root-"));
-   const agentsOnlyRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-project-"));
+   const agentsOnlyRoot = await mkdtemp(
+      path.join(os.tmpdir(), "aiman-project-")
+   );
    const nestedCwd = path.join(agentsOnlyRoot, "packages", "cli");
 
    await mkdir(nestedCwd, { recursive: true });

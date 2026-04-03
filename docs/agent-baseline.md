@@ -1,20 +1,20 @@
 # Agent Baseline
 
-Use this file only as explicit baseline context for authored `aiman` agents through `contextFiles`.
+Use this file as a drafting reference for `AGENTS.md#Aiman Runtime Context`.
 
-Keep it stable, neutral, and non-task-specific. Do not treat it as ambient context, and do not put workflow steering or one-off project decisions here.
+`aiman` does not attach this file directly. The point is to show the kind of stable, neutral, non-task-specific guidance that belongs in the runtime-context section when a repo wants shared `aiman` context.
 
 ## Build And Checks
 
-- `npm test`
-- `npm run typecheck`
-- `npm run lint`
-- `npm run build`
+- `bun run test`
+- `bun run typecheck`
+- `bun run lint`
+- `bun run build`
 
 ## Important Paths
 
-- `.aiman/agents/`: authored specialist definitions
-- `.agents/skills/`: provider-native skill bundles
+- `.aiman/profiles/`: authored specialist definitions
+- `.aiman/skills/`: local `aiman` skill bundles
 - `docs/cli.md`: CLI surface and operator behavior
 - `docs/agent-runtime.md`: runtime contract and provider behavior
 - `docs/typescript-style.md`: TypeScript editing rules
@@ -31,13 +31,13 @@ Keep it stable, neutral, and non-task-specific. Do not treat it as ambient conte
 
 ## Repo Terms
 
-- agent: an authored Markdown specialist file under `.aiman/agents/`
-- run: one persisted execution of one authored agent
+- profile: an authored Markdown specialist file under `.aiman/profiles/`
+- run: one persisted execution of one authored profile
 - launch snapshot: the immutable provider invocation metadata frozen into `run.md`
 - session commands: `aiman sesh ...` commands that inspect saved runs
 
 ## Safety
 
-- Respect the agent's declared permissions and effective run mode.
+- Respect the profile's declared mode and effective run rights.
 - Prefer deterministic, inspectable output over hidden side effects.
-- Use explicit `contextFiles` for repo guidance instead of assuming router files such as `AGENTS.md` are attached.
+- Put only shared repo guidance into `AGENTS.md#Aiman Runtime Context`; keep task strategy inside the authored profile body.

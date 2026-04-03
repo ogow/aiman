@@ -46,8 +46,7 @@ function getUserHomeDirectories(): Set<string> {
    const candidates = [
       process.env.HOME,
       process.env.USERPROFILE,
-      process.env.HOMEDRIVE !== undefined &&
-      process.env.HOMEPATH !== undefined
+      process.env.HOMEDRIVE !== undefined && process.env.HOMEPATH !== undefined
          ? path.join(process.env.HOMEDRIVE, process.env.HOMEPATH)
          : undefined,
       os.homedir()
@@ -71,8 +70,10 @@ function hasProjectMarker(
    );
 
    return (
-      (!isUserHomeDirectory && existsSync(path.join(directoryPath, ".aiman"))) ||
-      (!isUserHomeDirectory && existsSync(path.join(directoryPath, ".agents"))) ||
+      (!isUserHomeDirectory &&
+         existsSync(path.join(directoryPath, ".aiman"))) ||
+      (!isUserHomeDirectory &&
+         existsSync(path.join(directoryPath, ".agents"))) ||
       (!isUserHomeDirectory && existsSync(path.join(directoryPath, ".git")))
    );
 }

@@ -39,8 +39,8 @@ type StoredRunPaths = RunPaths & {
 
 const reservedRunFrontmatterKeys = new Set([
    "cwd",
-    "durationMs",
-    "endedAt",
+   "durationMs",
+   "endedAt",
    "errorMessage",
    "exitCode",
    "heartbeatAt",
@@ -287,15 +287,14 @@ function getLaunchSnapshot(
    }
 
    return {
-      agentDigest: typeof launch.agentDigest === "string"
-         ? launch.agentDigest
-         : profileDigest,
-      agentName: typeof launch.agentName === "string"
-         ? launch.agentName
-         : profileName,
-      agentPath: typeof launch.agentPath === "string"
-         ? launch.agentPath
-         : profilePath,
+      agentDigest:
+         typeof launch.agentDigest === "string"
+            ? launch.agentDigest
+            : profileDigest,
+      agentName:
+         typeof launch.agentName === "string" ? launch.agentName : profileName,
+      agentPath:
+         typeof launch.agentPath === "string" ? launch.agentPath : profilePath,
       agentScope:
          launch.agentScope === "project" || launch.agentScope === "user"
             ? launch.agentScope
@@ -312,9 +311,7 @@ function getLaunchSnapshot(
       profileName,
       profilePath,
       profileScope,
-      ...(typeof projectContextPath === "string"
-         ? { projectContextPath }
-         : {}),
+      ...(typeof projectContextPath === "string" ? { projectContextPath } : {}),
       promptDigest,
       promptTransport,
       provider,
@@ -361,6 +358,9 @@ function buildRunFrontmatter(
       provider: value.provider,
       launchMode: value.launchMode,
       ...(typeof value.model === "string" ? { model: value.model } : {}),
+      ...(typeof value.launch.reasoningEffort === "string"
+         ? { reasoningEffort: value.launch.reasoningEffort }
+         : {}),
       mode: value.mode,
       permissions: value.mode,
       ...(typeof value.profile === "string" ? { profile: value.profile } : {}),
@@ -544,8 +544,8 @@ function parseStoredStateFromDocument(
          launchMode,
          ...(typeof model === "string" ? { model } : {}),
          mode,
-          ...(typeof pid === "number" ? { pid } : {}),
-          paths,
+         ...(typeof pid === "number" ? { pid } : {}),
+         paths,
          profile,
          profilePath,
          profileScope,
@@ -673,7 +673,9 @@ export function toRunResult(record: PersistedRunRecord): RunResult {
       finalText: record.finalText,
       launchMode: record.launchMode,
       mode: record.mode,
-      ...(typeof record.profile === "string" ? { profile: record.profile } : {}),
+      ...(typeof record.profile === "string"
+         ? { profile: record.profile }
+         : {}),
       ...(typeof record.profilePath === "string"
          ? { profilePath: record.profilePath }
          : {}),
@@ -810,21 +812,20 @@ export async function listRunDetails(
    const entries = await listRunIndexEntries();
 
    const runs = await Promise.all(
-      entries
-         .map(async (entry) => {
-            try {
-               return await readRunDetailsFromPaths(
-                  entry.runId,
-                  buildRunPaths(entry.runDir)
-               );
-            } catch (error) {
-               if (error instanceof UserError) {
-                  return undefined;
-               }
-
-               throw error;
+      entries.map(async (entry) => {
+         try {
+            return await readRunDetailsFromPaths(
+               entry.runId,
+               buildRunPaths(entry.runDir)
+            );
+         } catch (error) {
+            if (error instanceof UserError) {
+               return undefined;
             }
-         })
+
+            throw error;
+         }
+      })
    );
 
    return applyRunListOptions(

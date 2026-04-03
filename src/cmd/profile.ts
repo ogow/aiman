@@ -3,10 +3,9 @@ import type { Argv, CommandModule } from "yargs";
 import * as check from "./profile-check.js";
 import * as create from "./profile-create.js";
 import * as list from "./profile-list.js";
-import * as migrate from "./profile-migrate.js";
 import * as show from "./profile-show.js";
 
-const profileCommands: CommandModule[] = [list, show, check, create, migrate];
+const profileCommands: CommandModule[] = [list, show, check, create];
 
 export const command = "profile <command>";
 export const describe = "Browse and manage profiles";

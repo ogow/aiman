@@ -41,7 +41,11 @@ export async function handler(
       throw new UserError("Skill name is required.");
    }
 
-   const skill = await loadSkillDefinition(getProjectPaths(), args.skill, args.scope);
+   const skill = await loadSkillDefinition(
+      getProjectPaths(),
+      args.skill,
+      args.scope
+   );
 
    if (args.json) {
       writeJson({ skill });

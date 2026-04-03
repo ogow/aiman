@@ -40,6 +40,14 @@ function getWindowsAutomationConfigArgs(): string[] {
    ];
 }
 
+function getReasoningEffortConfigArgs(reasoningEffort: string): string[] {
+   if (reasoningEffort === "none") {
+      return [];
+   }
+
+   return ["--config", `model_reasoning_effort=${reasoningEffort}`];
+}
+
 export function createCodexAdapter(): ProviderAdapter {
    return {
       async detect(agent) {
@@ -130,6 +138,7 @@ export function createCodexAdapter(): ProviderAdapter {
                lastMessagePath,
                ...getCodexInstructionIsolationConfigArgs(),
                ...getWindowsAutomationConfigArgs(),
+               ...getReasoningEffortConfigArgs(agent.reasoningEffort),
                ...(agent.model ? ["--model", agent.model] : []),
                "-"
             ],

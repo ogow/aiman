@@ -11,7 +11,6 @@ import {
    createProfileFile,
    listProfiles,
    loadProfileDefinition,
-   migrateLegacyAgents,
    profileScopeChoices
 } from "./profiles.js";
 import type { ProjectPaths } from "./paths.js";
@@ -51,7 +50,7 @@ export async function createAgentFile(
       name: string;
       permissions?: AgentDefinition["mode"];
       provider: AgentDefinition["provider"];
-      reasoningEffort?: string;
+      reasoningEffort: AgentDefinition["reasoningEffort"];
       scope: AgentScope;
    }
 ): Promise<ScopedAgentDefinition> {
@@ -96,5 +95,3 @@ export async function collectAgentRuntimeIssues(
 ): Promise<ValidationIssue[]> {
    return collectAgentValidationIssues(agent);
 }
-
-export { migrateLegacyAgents };

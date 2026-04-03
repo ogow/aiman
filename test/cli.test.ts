@@ -1,9 +1,4 @@
-import {
-   mkdtemp,
-   mkdir,
-   readFile,
-   writeFile
-} from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import * as assert from "node:assert/strict";
 import * as os from "node:os";
@@ -12,7 +7,6 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const cliEntrypoint = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
-const tsxImportPath = import.meta.resolve("tsx");
 
 function runCli(
    args: string[],
@@ -22,19 +16,15 @@ function runCli(
       input?: string;
    }
 ) {
-   return spawnSync(
-      process.execPath,
-      ["--import", tsxImportPath, cliEntrypoint, ...args],
-      {
-         cwd: options.cwd,
-         encoding: "utf8",
-         env: {
-            ...process.env,
-            ...options.env
-         },
-         input: options.input
-      }
-   );
+   return spawnSync(process.execPath, ["run", cliEntrypoint, ...args], {
+      cwd: options.cwd,
+      encoding: "utf8",
+      env: {
+         ...process.env,
+         ...options.env
+      },
+      input: options.input
+   });
 }
 
 async function createHomeFixture(): Promise<string> {
@@ -131,6 +121,7 @@ description: Reviews changes carefully
 provider: codex
 model: gpt-5.4-mini
 mode: safe
+reasoningEffort: medium
 skills:
   - review-helper
 ---
@@ -157,13 +148,7 @@ You are a focused reviewer.
       recursive: true
    });
    await writeFile(
-      path.join(
-         projectRoot,
-         ".aiman",
-         "skills",
-         "review-helper",
-         "SKILL.md"
-      ),
+      path.join(projectRoot, ".aiman", "skills", "review-helper", "SKILL.md"),
       `---
 name: review-helper
 description: Adds review-specific guidance
@@ -275,6 +260,8 @@ test("profile create writes a project-scope profile", async () => {
          "safe",
          "--model",
          "gpt-5.4-mini",
+         "--reasoning-effort",
+         "medium",
          "--description",
          "Audits the project",
          "--instructions",
@@ -296,20 +283,64 @@ test("profile create writes a project-scope profile", async () => {
    const created = await readFile(createdPath, "utf8");
    assert.match(created, /name: auditor/);
    assert.match(created, /mode: safe/);
+   assert.match(created, /reasoningEffort: medium/);
 });
 
-test("profile migrate converts legacy agents into profiles with warnings", async () => {
+test("profile create rejects unsupported provider reasoning effort", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
-   await mkdir(path.join(projectRoot, ".aiman", "agents"), { recursive: true });
+   const createdPath = path.join(
+      projectRoot,
+      ".aiman",
+      "profiles",
+      "auditor.md"
+   );
+   const result = runCli(
+      [
+         "profile",
+         "create",
+         "auditor",
+         "--scope",
+         "project",
+         "--provider",
+         "gemini",
+         "--mode",
+         "safe",
+         "--model",
+         "gemini-2.5-flash-lite",
+         "--reasoning-effort",
+         "medium",
+         "--description",
+         "Audits the project",
+         "--instructions",
+         "Follow the task carefully."
+      ],
+      {
+         cwd: projectRoot,
+         env: createCliEnv({ homeRoot })
+      }
+   );
+
+   assert.notEqual(result.status, 0);
+   assert.match(
+      result.stderr,
+      /invalid reasoningEffort "medium" for provider "gemini"/
+   );
+   await assert.rejects(readFile(createdPath, "utf8"), { code: "ENOENT" });
+});
+
+test("profile check rejects unsupported legacy frontmatter", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
    await writeFile(
-      path.join(projectRoot, ".aiman", "agents", "legacy.md"),
+      path.join(projectRoot, ".aiman", "profiles", "legacy.md"),
       `---
 name: legacy
-description: Legacy agent
+description: Legacy profile
 provider: codex
 model: gpt-5.4-mini
-permissions: workspace-write
+mode: safe
+reasoningEffort: none
 contextFiles:
   - docs/old.md
 ---
@@ -319,30 +350,27 @@ Legacy body {{task}}
       "utf8"
    );
 
-   const result = runCli(["profile", "migrate", "--json"], {
+   const result = runCli(["profile", "check", "legacy"], {
       cwd: projectRoot,
       env: createCliEnv({ homeRoot })
    });
 
-   assert.equal(result.status, 0);
-   const payload = JSON.parse(result.stdout) as {
-      created: Array<{ mode: string; name: string; path: string }>;
-      warnings: Array<{ message: string }>;
-   };
-
-   assert.equal(payload.created[0]?.name, "legacy");
-   assert.equal(payload.created[0]?.mode, "yolo");
-   assert.ok(
-      payload.warnings.some((warning) =>
-         warning.message.includes("Dropped legacy contextFiles")
-      )
-   );
+   assert.notEqual(result.status, 0);
+   assert.match(result.stderr, /unsupported field "contextFiles"/);
 });
 
 test("run prompt includes AGENTS runtime context and active skills", async () => {
    const fixture = await createRunnableFixture();
    const runResult = runCli(
-      ["run", "reviewer", "--task", "Review the docs", "--skill", "repo-search", "--json"],
+      [
+         "run",
+         "reviewer",
+         "--task",
+         "Review the docs",
+         "--skill",
+         "repo-search",
+         "--json"
+      ],
       {
          cwd: fixture.projectRoot,
          env: createCliEnv({
@@ -379,16 +407,13 @@ test("run prompt includes AGENTS runtime context and active skills", async () =>
    assert.match(promptResult.stdout, /review-helper/);
    assert.match(promptResult.stdout, /repo-search/);
 
-   const inspectResult = runCli(
-      ["run", "inspect", payload.runId, "--json"],
-      {
-         cwd: fixture.projectRoot,
-         env: createCliEnv({
-            binDir: fixture.binDir,
-            homeRoot: fixture.homeRoot
-         })
-      }
-   );
+   const inspectResult = runCli(["run", "inspect", payload.runId, "--json"], {
+      cwd: fixture.projectRoot,
+      env: createCliEnv({
+         binDir: fixture.binDir,
+         homeRoot: fixture.homeRoot
+      })
+   });
 
    assert.equal(inspectResult.status, 0);
    const inspectPayload = JSON.parse(inspectResult.stdout) as {
@@ -458,4 +483,16 @@ test("run list show and logs use the new run command surface", async () => {
    });
    assert.equal(logsResult.status, 0);
    assert.match(logsResult.stdout, /provider stdout/);
+});
+
+test("sesh top is removed from the public command surface", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   const result = runCli(["sesh", "top"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+
+   assert.notEqual(result.status, 0);
+   assert.match(result.stderr, /Did you mean show/);
 });

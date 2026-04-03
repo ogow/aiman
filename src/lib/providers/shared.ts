@@ -9,7 +9,6 @@ import type {
    PersistedRunRecord,
    ProfileDefinition,
    ProjectContext,
-   PromptContextFile,
    PromptSkill,
    RunLaunchSnapshot,
    RunMode,
@@ -182,14 +181,10 @@ export async function runCommandCapture(input: {
 
 async function killWindowsProcessTree(pid: number): Promise<void> {
    await new Promise<void>((resolve) => {
-      const child = spawn(
-         "taskkill",
-         ["/PID", String(pid), "/T", "/F"],
-         {
-            stdio: "ignore",
-            windowsHide: true
-         }
-      );
+      const child = spawn("taskkill", ["/PID", String(pid), "/T", "/F"], {
+         stdio: "ignore",
+         windowsHide: true
+      });
 
       child.once("error", () => {
          resolve();
@@ -290,6 +285,15 @@ export async function detectRequiredMcps(input: {
 export function rejectUnsupportedReasoningEffort(
    agent: ProfileDefinition
 ): ValidationIssue[] {
+   if (agent.reasoningEffort !== "none") {
+      return [
+         {
+            code: "unsupported-reasoning-effort",
+            message: `Provider "${agent.provider}" requires reasoningEffort "none".`
+         }
+      ];
+   }
+
    return [];
 }
 
@@ -297,7 +301,6 @@ export function buildPrompt(
    profile: ProfileDefinition,
    input: {
       artifactsDir: string;
-      contextFiles?: PromptContextFile[];
       cwd: string;
       mode: RunMode;
       projectContext?: ProjectContext;
@@ -336,23 +339,6 @@ export function buildPrompt(
             input.projectContext.content.trimEnd(),
             "</project_context>"
          ].join("\n")
-      );
-   } else if (input.contextFiles !== undefined && input.contextFiles.length > 0) {
-      sections.push(
-         [
-            "## Project Context",
-            "Only the following legacy attached project files are in scope for this run.",
-            input.contextFiles
-               .map((contextFile) =>
-                  [
-                     `### ${contextFile.path}`,
-                     "<project_context>",
-                     contextFile.content.trimEnd(),
-                     "</project_context>"
-                  ].join("\n")
-               )
-               .join("\n\n")
-         ].join("\n\n")
       );
    }
 

@@ -53,7 +53,7 @@ export async function handler(
                profile.name,
                profile.isBuiltIn === true ? "builtin" : profile.scope,
                profile.provider,
-               profile.mode ?? profile.permissions ?? "",
+               profile.mode ?? "",
                profile.description
             ])
          )

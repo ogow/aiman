@@ -270,7 +270,10 @@ export function renderInspectView(
       sections.push(
          renderSection(
             "Skills",
-            renderTable(["Name"], run.launch.skills.map((skill) => [skill]))
+            renderTable(
+               ["Name"],
+               run.launch.skills.map((skill) => [skill])
+            )
          )
       );
    }

@@ -24,6 +24,7 @@ const codexProfile: ScopedProfileDefinition = {
    name: "code-reviewer",
    path: "/repo/.aiman/profiles/code-reviewer.md",
    provider: "codex",
+   reasoningEffort: "medium",
    scope: "project"
 };
 
@@ -36,6 +37,7 @@ const geminiProfile: ScopedProfileDefinition = {
    name: "builder",
    path: "/repo/.aiman/profiles/builder.md",
    provider: "gemini",
+   reasoningEffort: "none",
    scope: "project"
 };
 
@@ -65,11 +67,27 @@ test("codex adapter prepares a safe invocation with provider isolation", async (
    assert.match(prepared.args.join(" "), /developer_instructions=""/);
    assert.match(prepared.args.join(" "), /instructions=""/);
    assert.match(prepared.args.join(" "), /agents=\{\}/);
+   assert.match(prepared.args.join(" "), /model_reasoning_effort=medium/);
    assert.equal(
       prepared.renderedPrompt,
       "Task: Review the diff\n\nReview the current change carefully."
    );
    assert.equal(prepared.promptTransport, "stdin");
+});
+
+test("gemini adapter rejects non-none reasoning effort", () => {
+   const adapter = createGeminiAdapter();
+   const issues = adapter.validateAgent({
+      ...geminiProfile,
+      reasoningEffort: "medium"
+   });
+
+   assert.deepEqual(issues, [
+      {
+         code: "unsupported-reasoning-effort",
+         message: 'Provider "gemini" requires reasoningEffort "none".'
+      }
+   ]);
 });
 
 test("gemini adapter prepares a yolo invocation with auto_edit", async () => {

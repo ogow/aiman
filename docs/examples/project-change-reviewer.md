@@ -2,11 +2,9 @@
 name: project-change-reviewer
 provider: codex
 description: Reviews one project change for correctness and maintainability risks
-permissions: read-only
+mode: safe
 model: gpt-5.4-mini
-contextFiles:
-   - docs/agent-baseline.md
-   - docs/typescript-style.md
+reasoningEffort: medium
 ---
 
 ## Role
@@ -27,7 +25,7 @@ When evidence is incomplete, say what is missing instead of guessing.
 
 - Stay within the supplied change and clearly related files.
 - Do not propose edits unless the caller explicitly asks for a fix.
-- Use only the attached baseline and style docs as shared repo guidance.
+- Use only the attached `AGENTS.md#Aiman Runtime Context` and active local skills as shared repo guidance.
 
 ## Expected Output
 

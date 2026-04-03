@@ -30,7 +30,7 @@ type RunArguments = {
    profile?: string;
    skill?: string[];
    scope?: AgentScope;
-    stream?: "all" | "prompt" | "run" | "stderr" | "stdout";
+   stream?: "all" | "prompt" | "run" | "stderr" | "stdout";
    task?: string;
    tail?: number;
 };
@@ -174,59 +174,53 @@ export async function handler(
 ): Promise<void> {
    switch (args.profile) {
       case "list":
-         await listCommand.handler(args as ArgumentsCamelCase<{
-            all?: boolean;
-            json?: boolean;
-            limit?: number;
-         }>);
+         await listCommand.handler(
+            args as ArgumentsCamelCase<{
+               all?: boolean;
+               json?: boolean;
+               limit?: number;
+            }>
+         );
          return;
       case "show":
-         await showCommand.handler(
-            {
-               ...args,
-               runId: args.extra
-            } as ArgumentsCamelCase<{
-               json?: boolean;
-               runId?: string;
-            }>
-         );
+         await showCommand.handler({
+            ...args,
+            runId: args.extra
+         } as ArgumentsCamelCase<{
+            json?: boolean;
+            runId?: string;
+         }>);
          return;
       case "logs":
-         await logsCommand.handler(
-            {
-               ...args,
-               runId: args.extra
-            } as ArgumentsCamelCase<{
-               follow?: boolean;
-               json?: boolean;
-               runId?: string;
-               stream?: "all" | "stderr" | "stdout";
-               tail?: number;
-            }>
-         );
+         await logsCommand.handler({
+            ...args,
+            runId: args.extra
+         } as ArgumentsCamelCase<{
+            follow?: boolean;
+            json?: boolean;
+            runId?: string;
+            stream?: "all" | "stderr" | "stdout";
+            tail?: number;
+         }>);
          return;
       case "inspect":
-         await inspectCommand.handler(
-            {
-               ...args,
-               runId: args.extra
-            } as ArgumentsCamelCase<{
-               json?: boolean;
-               runId?: string;
-               stream?: "prompt" | "run" | "stderr" | "stdout";
-            }>
-         );
+         await inspectCommand.handler({
+            ...args,
+            runId: args.extra
+         } as ArgumentsCamelCase<{
+            json?: boolean;
+            runId?: string;
+            stream?: "prompt" | "run" | "stderr" | "stdout";
+         }>);
          return;
       case "stop":
-         await stopCommand.handler(
-            {
-               ...args,
-               id: args.extra
-            } as ArgumentsCamelCase<{
-               id?: string;
-               json?: boolean;
-            }>
-         );
+         await stopCommand.handler({
+            ...args,
+            id: args.extra
+         } as ArgumentsCamelCase<{
+            id?: string;
+            json?: boolean;
+         }>);
          return;
       default:
          break;

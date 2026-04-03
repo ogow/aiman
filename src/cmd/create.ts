@@ -27,7 +27,7 @@ type CreateArguments = {
 
 const providerChoices = ["codex", "gemini"] as const;
 const permissionChoices = ["read-only", "workspace-write"] as const;
-const reasoningEffortChoices = ["low", "medium", "high"] as const;
+const reasoningEffortChoices = ["none", "low", "medium", "high"] as const;
 
 export const command = "create <name>";
 export const describe = "Create an authored agent";
@@ -115,7 +115,9 @@ export function builder(yargs: Argv): Argv {
       })
       .option("reasoning-effort", {
          choices: reasoningEffortChoices,
-         describe: "Optional reasoning effort override",
+         demandOption: true,
+         describe:
+            'Required reasoning effort. Use "none" when the selected provider/model does not support reasoning effort.',
          type: "string"
       })
       .option("force", {
@@ -209,9 +211,7 @@ export async function handler(
       name: args.name,
       permissions,
       provider,
-      ...(typeof args.reasoningEffort === "string"
-         ? { reasoningEffort: args.reasoningEffort }
-         : {}),
+      reasoningEffort: args.reasoningEffort ?? "none",
       scope
    });
 
