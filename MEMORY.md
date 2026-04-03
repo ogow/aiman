@@ -16,7 +16,7 @@
 - Codex mode mapping is `safe -> --sandbox read-only` and `yolo -> --sandbox workspace-write`.
 - Gemini mode mapping is `safe -> --approval-mode plan` and `yolo -> --approval-mode auto_edit`.
 - Run persistence remains global under `~/.aiman/runs/`, indexed by `~/.aiman/aiman.db`.
-- Persisted launch snapshots now record profile identity, active local skill names, optional `AGENTS.md` runtime-context attachment, and the original task text for reuse/rerun flows.
+- Persisted launch snapshots now record profile identity, active local skill names, optional `AGENTS.md` runtime-context attachment, and the original task text.
 - TypeScript edits should follow `docs/typescript-style.md`, which adapts the Google TypeScript Style Guide to this repo.
 - Verification runs through `bun test`; most suites still use Node-compatible `node:test` APIs, and the TUI layer now also includes OpenTUI React interaction tests.
 - The repo keeps durable agent memory in root-level files plus `.agents/memories/`.
@@ -40,12 +40,15 @@
 - Operator-facing run liveness is derived from both the persisted supervising `aiman` process `pid` and a fresh supervisor heartbeat in `run.md`; `sesh list` only treats runs as active when both signals are current, while `sesh show`/`sesh inspect` warn when a run never reached a terminal record.
 - Active runs can be stopped through `aiman run stop <run-id>` or the default interactive workbench; both write a persisted `.stop-requested` marker that the supervising worker polls so stop behavior works cross-platform, including PowerShell/Windows and `.cmd`-wrapped provider process trees.
 - Human TTY surfaces now use Bun + OpenTUI React under `src/ui/`; `aiman` with no args remains the only interactive TTY entrypoint, and `aiman sesh top` is removed.
-- The default interactive workbench now unifies launch and run monitoring in two workspaces: `launch` for profile selection plus task entry, and `runs` for active/historic run inspection plus stop/reuse actions.
-- The OpenTUI workbench stays keyboard-first: `Tab` cycles focus, `1/2` switch workspaces, `Ctrl+L` launches, `Ctrl+R` refreshes runs, `Ctrl+S` stops the selected active run, and `Ctrl+U` reuses the selected run task back into `launch`.
+- The default interactive workbench now unifies launch and run monitoring in two workspaces: `launch` for profile selection plus task entry, and `runs` for active/historic run inspection plus stop actions.
+- The OpenTUI workbench stays keyboard-first: `Tab` cycles focus, `1/2` switch workspaces, `Ctrl+L` launches, `Ctrl+R` refreshes runs, and `Ctrl+S` stops the selected active run.
 - Operator-facing surfaces should make provider rights explicit: `show` describes each provider's read-only vs write-enabled modes, and concrete run views/reporting include the effective rights for that run.
 - Human TTY surfaces may show an indeterminate activity indicator for active runs, but `aiman` does not pretend to know true percent-complete progress.
 - The global run index must work under both Node and Bun: prefer `node:sqlite` when available, but fall back to `bun:sqlite` so the Bun-native CLI can still record and inspect runs.
 - Foreground human `aiman run` output should stay caller-friendly: print the final answer on success when one exists, stay quiet on successful empty output, and leave verbose status/log detail to `run show`, `run logs`, and `run inspect`.
+- Removed the confusing prompt reuse functionality and its associated `Ctrl+U` shortcut from the workbench.
+- Improved the `Escape` key behavior to always clear the active notice/error banner.
+- Updated documentation and tests to reflect the removal of prompt reuse.
 - Prefer explicit failure over degraded fallback behavior in the current harness: operator surfaces should either work under their stated requirements or fail clearly, and provider success parsing should require the expected persisted artifacts.
 - `src/lib/run-doc.ts` uses `gray-matter` for the run document instead of a custom YAML/frontmatter parser.
 - This repo is currently forward-only during active development; do not preserve backward compatibility unless the user explicitly asks for it.

@@ -226,8 +226,8 @@ describe("AimanWorkbench", () => {
     // Switch to Tasks workspace (t)
     await pressKey("t");
 
-    // Focus task editor
-    await pressTab();
+    // Focus task editor (drill down with Enter)
+    await pressKey("enter");
 
     await typeText("Audit the repo");
     await settle();
@@ -242,38 +242,6 @@ describe("AimanWorkbench", () => {
     expect(frame).toContain("Runs");
     expect(frame).toContain("run-001 finished successfully");
     expect(frame).toContain("Final answer");
-  });
-
-  test("reuses the selected run task back into tasks workspace", async () => {
-    const setup = await renderWorkbench({
-      async listProfiles() {
-        return [sampleProfile];
-      },
-      async listRuns() {
-        return [createRun()];
-      },
-      async loadProjectContext() {
-        return sampleContext;
-      },
-      async readRunLog() {
-        return "prompt body";
-      },
-      async readRunOutput() {
-        return "stdout";
-      }
-    });
-
-    // Switch to Runs workspace (r)
-    await pressKey("r");
-
-    // Ctrl+U to reuse run
-    await pressKey("u", { ctrl: true });
-    await settle(10);
-
-    const frame = setup.captureCharFrame();
-
-    expect(frame).toContain("Copied the task from run-001 back into Tasks.");
-    expect(frame).toContain("Audit the repo");
   });
 
   test("requests stop for the selected active run", async () => {

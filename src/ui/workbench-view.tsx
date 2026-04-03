@@ -52,15 +52,7 @@ function Panel(input: {
 }) {
   return (
     <box
-      border
-      borderColor={getPanelBorderColor({
-        activeRegion: input.focusRegion,
-        region: input.region
-      })}
-      borderStyle="rounded"
       flexDirection="column"
-      padding={1}
-      title={input.title}
       onMouseDown={() => input.setFocusRegion?.(input.region)}
       {...(typeof input.flexGrow === "number"
         ? { flexGrow: input.flexGrow }
@@ -68,7 +60,9 @@ function Panel(input: {
       {...(input.height !== undefined ? { height: input.height } : {})}
       {...(input.width !== undefined ? { width: input.width } : {})}
     >
-      {input.children}
+      <box flexGrow={1}>
+        {input.children}
+      </box>
     </box>
   );
 }
@@ -81,7 +75,7 @@ function TabsRow(input: {
   onSelect?: (value: any) => void;
 }) {
   return (
-    <box flexDirection="row" gap={1}>
+    <box flexDirection="row" gap={1} marginBottom={1}>
       {input.items.map((item) => {
         const selected = item.value === input.selectedValue;
         return (
@@ -133,7 +127,6 @@ export function WorkbenchShell(input: {
     ["a", "agents"],
     ["t", "tasks"],
     ["r", "runs"],
-    ["tab", "cycle"],
     ["q", "quit"]
   ];
 
@@ -143,8 +136,7 @@ export function WorkbenchShell(input: {
     tasks: [["^L", "launch"]],
     runs: [
       ["^R", "refresh"],
-      ["^S", "stop"],
-      ["^U", "reuse"]
+      ["^S", "stop"]
     ]
   };
 
@@ -158,29 +150,23 @@ export function WorkbenchShell(input: {
       backgroundColor="#0b1320"
       flexDirection="column"
       height="100%"
-      padding={1}
       width="100%"
+      padding={1}
     >
       {/* Header Section */}
-      <box flexDirection="column" height={10} paddingX={1}>
-        <box flexDirection="row" gap={3}>
-          {/* Logo Box */}
+      <box flexDirection="column" flexShrink={0}>
+        {/* Main Header Row: Logo & Shortcuts */}
+        <box flexDirection="row" gap={2} alignItems="flex-start" height={4}>
           <box
-            border
-            borderStyle="single"
-            borderColor="#385170"
-            width={18}
-            height={7}
-            flexDirection="column"
-            alignItems="center"
-            justifyContent="center"
+            width={12}
+            height={4}
+            marginLeft={1}
             onMouseDown={() => input.onNavigate?.("start")}
           >
-            <text fg="#f8d477">{`  ▗▟█▙▖\n ▗▟█▀█▙▖\n ▟█▀  ▀█▙\n ▝▀    ▀▘\n aiman`}</text>
+            <text fg="#f8d477">{` ▗▟█▙▖\n▗▟█▀█▙▖\n▟█▀  ▀█▙\n▝▀    ▀▘`}</text>
           </box>
 
-          {/* Shortcuts Flow */}
-          <box width={35} flexDirection="row" flexWrap="wrap" columnGap={2}>
+          <box width={35} flexDirection="row" flexWrap="wrap" columnGap={2} height={4}>
             {shortcuts.map(([k, label]) => (
               <box
                 flexDirection="row"
@@ -200,18 +186,18 @@ export function WorkbenchShell(input: {
           </box>
         </box>
 
-        {/* Page & Status Row */}
-        <box flexDirection="row" gap={2} alignItems="center">
-          <box border borderStyle="single" borderColor="#385170" paddingX={1}>
-            <text fg="#f8d477">{String(pageTitle)}</text>
+        {/* Sub-header Row: Page Title & Status */}
+        <box flexDirection="row" gap={2} alignItems="center" height={3}>
+          <box border borderStyle="single" borderColor="#385170" paddingX={1} width={12} height={3} marginLeft={1} justifyContent="center">
+            <text fg="#f8d477">{String(pageTitle).toUpperCase()}</text>
           </box>
-          <box flexDirection="row">
+          <box flexDirection="row" gap={2}>
             <text
               fg={counts.running > 0 ? "#10b981" : "#385170"}
-            >{`[●] ${counts.running}  `}</text>
+            >{`[●] ${counts.running}`}</text>
             <text
               fg={counts.failed > 0 ? "#ef4444" : "#385170"}
-            >{`[✖] ${counts.failed}  `}</text>
+            >{`[✖] ${counts.failed}`}</text>
             <text fg="#385170">{`· ${input.projectTitle}`}</text>
           </box>
         </box>
@@ -249,9 +235,6 @@ export function StartWorkspace(input: {
       justifyContent="center"
     >
       <box
-        border
-        borderColor="#f8d477"
-        borderStyle="rounded"
         paddingX={4}
         paddingY={2}
         flexDirection="column"
@@ -308,10 +291,11 @@ function WorkbenchList<T>(input: {
               paddingX={1}
               flexDirection="column"
               onMouseDown={() => {
-                input.onIndexChange(i);
-              }}
-              onDoubleClick={() => {
-                input.onSelect?.(i);
+                if (selected && input.onSelect) {
+                  input.onSelect(i);
+                } else {
+                  input.onIndexChange(i);
+                }
               }}
             >
               <text fg={selected ? "#0b1320" : "#dbe7f5"}>
@@ -339,50 +323,49 @@ export function AgentsWorkspace(input: {
   profileSummary: string;
   profiles: ScopedProfileDefinition[];
   selectedProfileIndex: number;
-  stacked: boolean;
   updateProfileIndex: (index: number) => void;
   onSelectProfile: () => void;
   setFocusRegion: (region: FocusRegion) => void;
 }) {
   const profileOptions = buildProfileOptions(input.profiles);
 
+  // Always use drill-down logic: show list if focused, otherwise show detail
+  const showDetailPane = input.focusRegion === "detailPane";
+
   return (
-    <box
-      flexDirection={input.stacked ? "column" : "row"}
-      flexGrow={1}
-      gap={1}
-      width="100%"
-    >
-      <Panel
-        focusRegion={input.focusRegion}
-        region="profileList"
-        setFocusRegion={input.setFocusRegion}
-        title="Profiles"
-        width={input.stacked ? "100%" : 32}
-        {...(input.stacked ? { height: 12 } : {})}
-      >
-        <WorkbenchList
+    <box flexDirection="row" flexGrow={1} gap={1} width="100%">
+      {!showDetailPane ? (
+        <Panel
           focusRegion={input.focusRegion}
-          items={profileOptions}
-          onIndexChange={(index) => input.updateProfileIndex(index)}
-          onSelect={() => input.onSelectProfile()}
           region="profileList"
-          selectedIndex={input.selectedProfileIndex}
-        />
-      </Panel>
-      <Panel
-        flexGrow={1}
-        focusRegion={input.focusRegion}
-        region="detailPane"
-        setFocusRegion={input.setFocusRegion}
-        title="Profile Details"
-      >
-        <scrollbox focused={input.focusRegion === "detailPane"} flexGrow={1}>
-          <text fg="#dbe7f5" selectable>
-            {input.profileSummary}
-          </text>
-        </scrollbox>
-      </Panel>
+          setFocusRegion={input.setFocusRegion}
+          title="Profiles"
+          width="100%"
+        >
+          <WorkbenchList
+            focusRegion={input.focusRegion}
+            items={profileOptions}
+            onIndexChange={(index) => input.updateProfileIndex(index)}
+            onSelect={() => input.onSelectProfile()}
+            region="profileList"
+            selectedIndex={input.selectedProfileIndex}
+          />
+        </Panel>
+      ) : (
+        <Panel
+          flexGrow={1}
+          focusRegion={input.focusRegion}
+          region="detailPane"
+          setFocusRegion={input.setFocusRegion}
+          title="Profile Details"
+        >
+          <scrollbox focused={input.focusRegion === "detailPane"} flexGrow={1}>
+            <text fg="#dbe7f5" selectable>
+              {input.profileSummary}
+            </text>
+          </scrollbox>
+        </Panel>
+      )}
     </box>
   );
 }
@@ -391,7 +374,6 @@ export function TasksWorkspace(input: {
   focusRegion: FocusRegion;
   profiles: ScopedProfileDefinition[];
   selectedProfileIndex: number;
-  stacked: boolean;
   taskDraft: string;
   taskEditorKey: number;
   taskEditorRef: RefObject<TextareaRenderable | null>;
@@ -401,57 +383,57 @@ export function TasksWorkspace(input: {
 }) {
   const profileOptions = buildProfileOptions(input.profiles);
 
+  // Always use drill-down logic: show list if focused, otherwise show editor
+  const showTaskEditor = input.focusRegion === "taskEditor";
+
   return (
-    <box
-      flexDirection={input.stacked ? "column" : "row"}
-      flexGrow={1}
-      gap={1}
-      width="100%"
-    >
-      <Panel
-        focusRegion={input.focusRegion}
-        region="profileList"
-        setFocusRegion={input.setFocusRegion}
-        title="Select Agent"
-        width={input.stacked ? "100%" : 32}
-        {...(input.stacked ? { height: 12 } : {})}
-      >
-        <WorkbenchList
+    <box flexDirection="row" flexGrow={1} gap={1} width="100%">
+      {!showTaskEditor ? (
+        <Panel
           focusRegion={input.focusRegion}
-          items={profileOptions}
-          onIndexChange={(index) => input.updateProfileIndex(index)}
-          onSelect={() => input.setFocusRegion("taskEditor")}
           region="profileList"
-          selectedIndex={input.selectedProfileIndex}
-        />
-      </Panel>
-      <Panel
-        flexGrow={1}
-        focusRegion={input.focusRegion}
-        region="taskEditor"
-        setFocusRegion={input.setFocusRegion}
-        title="Task Description"
-      >
-        <textarea
-          backgroundColor="#101b2c"
-          cursorColor="#f8d477"
-          focused={input.focusRegion === "taskEditor"}
-          focusedBackgroundColor="#132034"
-          focusedTextColor="#f5f7fa"
-          height="100%"
-          initialValue={input.taskDraft}
-          key={`task-editor-${input.taskEditorKey}`}
-          onContentChange={() => {
-            input.updateTaskDraft(input.taskEditorRef.current?.plainText ?? "");
-          }}
-          placeholder="Describe the work to run with the selected profile."
-          placeholderColor="#6b7c93"
-          ref={input.taskEditorRef}
-          tabIndicator={2}
-          textColor="#dbe7f5"
-          wrapMode="word"
-        />
-      </Panel>
+          setFocusRegion={input.setFocusRegion}
+          title="Select Agent"
+          width="100%"
+        >
+          <WorkbenchList
+            focusRegion={input.focusRegion}
+            items={profileOptions}
+            onIndexChange={(index) => input.updateProfileIndex(index)}
+            onSelect={() => input.setFocusRegion("taskEditor")}
+            region="profileList"
+            selectedIndex={input.selectedProfileIndex}
+          />
+        </Panel>
+      ) : (
+        <Panel
+          flexGrow={1}
+          focusRegion={input.focusRegion}
+          region="taskEditor"
+          setFocusRegion={input.setFocusRegion}
+          title="Task Description"
+        >
+          <textarea
+            backgroundColor="#101b2c"
+            cursorColor="#f8d477"
+            focused={input.focusRegion === "taskEditor"}
+            focusedBackgroundColor="#132034"
+            focusedTextColor="#f5f7fa"
+            height="100%"
+            initialValue={input.taskDraft}
+            key={`task-editor-${input.taskEditorKey}`}
+            onContentChange={() => {
+              input.updateTaskDraft(input.taskEditorRef.current?.plainText ?? "");
+            }}
+            placeholder="Describe the work to run with the selected profile."
+            placeholderColor="#6b7c93"
+            ref={input.taskEditorRef}
+            tabIndicator={2}
+            textColor="#dbe7f5"
+            wrapMode="word"
+          />
+        </Panel>
+      )}
     </box>
   );
 }
@@ -465,7 +447,6 @@ export function RunsWorkspace(input: {
   selectedRunId: string | undefined;
   setDetailTab: (tab: RunDetailTab) => void;
   setSelectedRunId: (runId: string | undefined) => void;
-  stacked: boolean;
   setFocusRegion: (region: FocusRegion) => void;
 }) {
   const runOptions = buildRunOptions(input.runs);
@@ -474,72 +455,72 @@ export function RunsWorkspace(input: {
     input.runs.findIndex((run) => run.runId === input.selectedRunId)
   );
 
+  // Always use drill-down logic: show list if focused, otherwise show inspector
+  const showDetailPane = input.focusRegion === "detailTabs" || input.focusRegion === "detailPane";
+
   return (
-    <box
-      flexDirection={input.stacked ? "column" : "row"}
-      flexGrow={1}
-      gap={1}
-      width="100%"
-    >
-      <Panel
-        focusRegion={input.focusRegion}
-        region="runList"
-        setFocusRegion={input.setFocusRegion}
-        title="Runs"
-        width={input.stacked ? "100%" : 40}
-        {...(input.stacked ? { height: 14 } : {})}
-      >
-        <WorkbenchList
-          focusRegion={input.focusRegion}
-          items={runOptions}
-          onIndexChange={(index) => {
-            const opt = runOptions[index];
-            input.setSelectedRunId(
-              typeof opt?.value === "string" ? opt.value : undefined
-            );
-          }}
-          onSelect={() => input.setFocusRegion("detailTabs")}
-          region="runList"
-          selectedIndex={selectedRunIndex}
-        />
-      </Panel>
-      <box flexDirection="column" flexGrow={1} gap={1}>
+    <box flexDirection="row" flexGrow={1} gap={1} width="100%">
+      {!showDetailPane ? (
         <Panel
           focusRegion={input.focusRegion}
-          region="detailTabs"
+          region="runList"
           setFocusRegion={input.setFocusRegion}
-          title="Inspect"
+          title="Runs"
+          width="100%"
         >
-          <TabsRow
-            activeRegion={input.focusRegion}
-            items={[
-              { label: "Summary", value: "summary" },
-              { label: "Answer", value: "answer" },
-              { label: "Logs", value: "logs" },
-              { label: "Prompt", value: "prompt" }
-            ]}
-            region="detailTabs"
-            selectedValue={input.detailTab}
-            onSelect={(value) => {
-              input.setFocusRegion("detailTabs");
-              input.setDetailTab(value);
+          <WorkbenchList
+            focusRegion={input.focusRegion}
+            items={runOptions}
+            onIndexChange={(index) => {
+              const opt = runOptions[index];
+              input.setSelectedRunId(
+                typeof opt?.value === "string" ? opt.value : undefined
+              );
             }}
+            onSelect={() => input.setFocusRegion("detailTabs")}
+            region="runList"
+            selectedIndex={selectedRunIndex}
           />
         </Panel>
-        <Panel
-          flexGrow={1}
-          focusRegion={input.focusRegion}
-          region="detailPane"
-          setFocusRegion={input.setFocusRegion}
-          title="Detail"
-        >
-          <scrollbox focused={input.focusRegion === "detailPane"} flexGrow={1}>
-            <text fg="#dbe7f5" selectable>
-              {input.detailLoading ? "Loading detail…" : input.detailBody}
-            </text>
-          </scrollbox>
-        </Panel>
-      </box>
+      ) : (
+        <box flexDirection="column" flexGrow={1} gap={1}>
+          <Panel
+            focusRegion={input.focusRegion}
+            region="detailTabs"
+            setFocusRegion={input.setFocusRegion}
+            title="Inspect"
+          >
+            <TabsRow
+              activeRegion={input.focusRegion}
+              items={[
+                { label: "Summary", value: "summary" },
+                { label: "Answer", value: "answer" },
+                { label: "Logs", value: "logs" },
+                { label: "Prompt", value: "prompt" }
+              ]}
+              region="detailTabs"
+              selectedValue={input.detailTab}
+              onSelect={(value) => {
+                input.setFocusRegion("detailTabs");
+                input.setDetailTab(value);
+              }}
+            />
+          </Panel>
+          <Panel
+            flexGrow={1}
+            focusRegion={input.focusRegion}
+            region="detailPane"
+            setFocusRegion={input.setFocusRegion}
+            title="Detail"
+          >
+            <scrollbox focused={input.focusRegion === "detailPane"} flexGrow={1}>
+              <text fg="#dbe7f5" selectable>
+                {input.detailLoading ? "Loading detail…" : input.detailBody}
+              </text>
+            </scrollbox>
+          </Panel>
+        </box>
+      )}
     </box>
   );
 }

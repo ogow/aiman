@@ -42,7 +42,7 @@ The human TTY surface is now Bun/OpenTUI-based. `aiman` with no arguments opens 
 The workbench is intentionally split into two workspaces:
 
 - `launch`: profile selection, profile details, and multiline task entry
-- `runs`: active plus historic run browsing, detail tabs, stop, and task reuse
+- `runs`: active plus historic run browsing, detail tabs, and stop
 
 Default keyboard flow stays compact:
 

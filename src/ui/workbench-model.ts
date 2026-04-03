@@ -75,7 +75,7 @@ export const detailTabOptions = [
 ] as const;
 
 export const startFocusOrder: FocusRegion[] = ["startPane"];
-export const agentsFocusOrder: FocusRegion[] = ["profileList"];
+export const agentsFocusOrder: FocusRegion[] = ["profileList", "detailPane"];
 export const tasksFocusOrder: FocusRegion[] = ["profileList", "taskEditor"];
 export const runsFocusOrder: FocusRegion[] = [
    "runList",
@@ -190,8 +190,8 @@ export function buildRunOptions(runs: RunInspection[]): Array<{
    value: string;
 }> {
    return runs.map((run) => ({
-      description: `${run.active ? "running" : run.status} · ${getProjectTitle(run.projectRoot)} · ${formatTimestamp(run.startedAt)}`,
-      name: getRunShortLabel(run),
+      description: `${getRunShortLabel(run)} · ${run.active ? "running" : run.status} · ${formatTimestamp(run.startedAt)}`,
+      name: run.runId.replace(/^\d{8}T\d{6}Z-/, ""),
       value: run.runId
    }));
 }

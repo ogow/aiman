@@ -152,10 +152,10 @@ Use these to inspect what already happened.
 
 ### TTY Surfaces
 
-- `aiman` with no arguments opens the default OpenTUI workbench for creating, inspecting, stopping, and reusing runs.
+- `aiman` with no arguments opens the default OpenTUI workbench for creating, inspecting, and stopping runs.
 - The workbench is real-TTY-only, small-terminal-first, and unifies launch plus run monitoring in one keyboard-first surface.
 - `launch` is the default workspace for profile selection, profile details, and multiline task entry.
-- `runs` keeps active and historic runs together, with answer/log/prompt details plus stop and reuse actions.
+- `runs` keeps active and historic runs together, with answer/log/prompt details plus stop actions.
 
 ## How Profiles Work
 

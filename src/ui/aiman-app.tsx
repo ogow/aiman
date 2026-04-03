@@ -212,7 +212,6 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
   const projectTitle = getProjectTitle(props.projectPaths.projectRoot);
   const selectedProfile = profiles[selectedProfileIndex];
   const selectedRun = getSelectedRun(runs, selectedRunId);
-  const stackedLayout = width < 120;
 
   const setWorkspaceState = (
     nextWorkspace: Workspace,
@@ -228,7 +227,24 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
     const order = getFocusOrder(workspace);
     const currentIndex = order.indexOf(focusRegion);
     const safeIndex = currentIndex === -1 ? 0 : currentIndex;
-    const nextIndex = (safeIndex + direction + order.length) % order.length;
+    
+    // In our drill-down model, index 0 is always the "List View" (top level).
+    // Indices 1+ are the "Detail/Sub View" (drilled-in level).
+    const isAtTopLevel = safeIndex === 0;
+    
+    if (isAtTopLevel) {
+      // Tab does nothing at the top level list. Use Enter to drill down.
+      return;
+    }
+
+    // We are in a sub-view (index 1+). Tab should only cycle between other sub-view regions.
+    let nextIndex = (safeIndex + direction + order.length) % order.length;
+    
+    // If Tab tries to go back to the top-level list (index 0), skip it and wrap around the sub-views.
+    if (nextIndex === 0) {
+      nextIndex = direction === 1 ? 1 : order.length - 1;
+    }
+
     const nextRegion = order[nextIndex];
     if (typeof nextRegion === "string") {
       setFocusRegion(nextRegion);
@@ -304,7 +320,7 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
             setSelectedRunId(runId);
             setDetailTab("logs");
             setWorkspace("runs");
-            setFocusRegion("runList");
+            setFocusRegion("detailPane"); // Drill down to logs immediately
             setNotice({
               text: `Running ${profile} in the workbench…`,
               tone: "info"
@@ -330,7 +346,7 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
         setDetailTab(result.status === "success" ? "answer" : "logs");
         setSelectedRunId(result.runId);
         setWorkspace("runs");
-        setFocusRegion("runList");
+        setFocusRegion("detailPane"); // Drill down to result/logs
       });
       await refreshRuns();
     } catch (error) {
@@ -371,36 +387,6 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
     } finally {
       setStoppingRunId(undefined);
     }
-  };
-
-  const reuseSelectedRun = () => {
-    if (selectedRun === undefined) {
-      setNotice({ text: "Select a run before reusing it.", tone: "error" });
-      return;
-    }
-    const task = selectedRun.launch.task?.trim();
-    if (typeof task !== "string" || task.length === 0) {
-      setNotice({
-        text: "The selected run did not persist a reusable task.",
-        tone: "error"
-      });
-      return;
-    }
-    const matchingProfileIndex = profiles.findIndex(
-      (profile) =>
-        profile.name === (selectedRun.profile ?? selectedRun.agent) &&
-        profile.scope ===
-          (selectedRun.profileScope ?? selectedRun.agentScope ?? "project")
-    );
-    if (matchingProfileIndex >= 0) {
-      setSelectedProfileIndex(matchingProfileIndex);
-    }
-    setTaskEditorValue({ setTaskDraft, setTaskEditorKey, value: task });
-    setWorkspaceState("tasks", "taskEditor");
-    setNotice({
-      text: `Copied the task from ${selectedRun.runId} back into Tasks.`,
-      tone: "success"
-    });
   };
 
   useEffect(() => {
@@ -498,10 +484,6 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
       void stopSelectedRun();
       return;
     }
-    if (key.ctrl && key.name === "u") {
-      reuseSelectedRun();
-      return;
-    }
 
     if (
       (key.name === "up" || key.name === "k") &&
@@ -535,7 +517,13 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
       }
     }
 
-    if (key.name === "enter") {
+    const isEnter = key.name === "enter" || key.name === "return";
+
+    if (isEnter) {
+      if (workspace === "start") {
+        setWorkspaceState("agents");
+        return;
+      }
       if (focusRegion === "profileList") {
         if (workspace === "agents") {
           setFocusRegion("detailPane");
@@ -548,9 +536,15 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
         setFocusRegion("detailTabs");
         return;
       }
+      if (focusRegion === "detailTabs") {
+        setFocusRegion("detailPane");
+        return;
+      }
     }
 
     if (key.name === "escape") {
+      setNotice(undefined);
+
       if (focusRegion === "taskEditor") {
         setFocusRegion("profileList");
         return;
@@ -563,20 +557,17 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
         setFocusRegion("runList");
         return;
       }
-      if (workspace === "runs") {
-        setWorkspaceState("start");
-        return;
-      }
       if (workspace === "agents" && focusRegion === "detailPane") {
         setFocusRegion("profileList");
         return;
       }
-      if (workspace === "agents" || workspace === "tasks") {
+      
+      // If we are already at the top-level list of a workspace, go back to Start
+      if (focusRegion === "profileList" || focusRegion === "runList") {
         setWorkspaceState("start");
         return;
       }
 
-      setNotice(undefined);
       return;
     }
 
@@ -628,7 +619,6 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
           })}
           profiles={profiles}
           selectedProfileIndex={selectedProfileIndex}
-          stacked={stackedLayout}
           updateProfileIndex={(index) => setSelectedProfileIndex(index)}
           onSelectProfile={() => setFocusRegion("detailPane")}
           setFocusRegion={(nextRegion) => setFocusRegion(nextRegion)}
@@ -638,7 +628,6 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
           focusRegion={focusRegion}
           profiles={profiles}
           selectedProfileIndex={selectedProfileIndex}
-          stacked={stackedLayout}
           taskDraft={taskDraft}
           taskEditorKey={taskEditorKey}
           taskEditorRef={taskEditorRef}
@@ -656,7 +645,6 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
           selectedRunId={selectedRunId}
           setDetailTab={(nextDetailTab) => setDetailTab(nextDetailTab)}
           setSelectedRunId={(runId) => setSelectedRunId(runId)}
-          stacked={stackedLayout}
           setFocusRegion={(nextRegion) => setFocusRegion(nextRegion)}
         />
       )}

@@ -35,7 +35,7 @@
 - [src/lib/run-output.ts](/Users/ogow/Code/aiman/src/lib/run-output.ts) tails and follows persisted logs without introducing a daemon or side-channel IPC layer.
 - [src/lib/activity.ts](/Users/ogow/Code/aiman/src/lib/activity.ts) renders the small indeterminate activity bar used by foreground `run` and other active operator-facing views.
 - [src/lib/run-render.ts](/Users/ogow/Code/aiman/src/lib/run-render.ts) centralizes the human-facing plain-text views used by `ps`, `status`, and `inspect`, including the frozen launch evidence surfaced by `inspect`.
-- [src/ui/aiman-app.tsx](/Users/ogow/Code/aiman/src/ui/aiman-app.tsx) now owns the Bun/OpenTUI renderer bootstrap plus the unified workbench controller: it loads profiles/context/runs, polls run state, launches profiles, stops active runs, and reuses prior tasks back into the launch workspace.
+- [src/ui/aiman-app.tsx](/Users/ogow/Code/aiman/src/ui/aiman-app.tsx) now owns the Bun/OpenTUI renderer bootstrap plus the unified workbench controller: it loads profiles/context/runs, polls run state, launches profiles, and stops active runs.
 - [src/ui/workbench-model.ts](/Users/ogow/Code/aiman/src/ui/workbench-model.ts) holds the stable workbench enums, run/profile summary builders, tab/focus order, and small formatting helpers used across the TTY surface.
 - [src/ui/workbench-view.tsx](/Users/ogow/Code/aiman/src/ui/workbench-view.tsx) contains the OpenTUI React presentation layer for the shell chrome, launch workspace, and runs workspace.
 - [src/lib/providers/index.ts](/Users/ogow/Code/aiman/src/lib/providers/index.ts) selects the strict provider adapters for `codex` and `gemini`.
