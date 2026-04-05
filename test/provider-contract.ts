@@ -14,7 +14,6 @@ import { createGeminiAdapter } from "../src/lib/providers/gemini.js";
 import { buildPrompt } from "../src/lib/providers/shared.js";
 import type {
    PreparedInvocation,
-   ProjectContext,
    ProviderAdapter,
    RunLaunchSnapshot,
    ScopedProfileDefinition
@@ -43,12 +42,12 @@ function createContractProfile(input: {
          "{{task}}",
          "",
          "## Instructions",
-         'Return only compact JSON with keys "ambientAgents", "ambientGemini", and "runtimeContext".',
-         "Inspect only the text already present in your instructions and attached project context.",
+         'Return only compact JSON with keys "ambientAgents", "ambientGemini", and "profilePrompt".',
+         "Inspect only the text already present in your instructions and any native bootstrap context the CLI applied automatically.",
          "Do not use tools and do not read workspace files.",
          'If you can see a line `AGENTS_ROUTER_SENTINEL: <value>`, set `ambientAgents` to that exact `<value>`; otherwise return `"NONE"`.',
          'If you can see a line `GEMINI_ROUTER_SENTINEL: <value>`, set `ambientGemini` to that exact `<value>`; otherwise return `"NONE"`.',
-         'If you can see a line `RUNTIME_CONTEXT_SENTINEL: <value>`, set `runtimeContext` to that exact `<value>`; otherwise return `"NONE"`.',
+         'If you can see a line `PROFILE_PROMPT_SENTINEL: <value>`, set `profilePrompt` to that exact `<value>`; otherwise return `"NONE"`.',
          "Do not infer, guess, or paraphrase hidden values."
       ].join("\n"),
       description:
@@ -69,13 +68,12 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
    ambientAgentsSentinel: string;
    ambientGeminiSentinel: string;
    cwd: string;
+   profilePromptSentinel: string;
    promptFile: string;
-   projectContext: ProjectContext;
    projectRoot: string;
    runDir: string;
    runFile: string;
    runId: string;
-   runtimeContextSentinel: string;
 }> {
    const projectRoot = await mkdtemp(
       path.join(os.tmpdir(), `aiman-provider-contract-${provider}-`)
@@ -96,7 +94,7 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
    const runFile = path.join(runDir, "run.md");
    const ambientAgentsSentinel = `ambient-agents-${provider}-sentinel`;
    const ambientGeminiSentinel = `ambient-gemini-${provider}-sentinel`;
-   const runtimeContextSentinel = `runtime-context-${provider}-sentinel`;
+   const profilePromptSentinel = `profile-prompt-${provider}-sentinel`;
    const profile = createContractProfile({
       profilePath,
       model: getContractModel(provider),
@@ -112,7 +110,10 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
       `reasoningEffort: ${profile.reasoningEffort}`,
       "---",
       "",
-      profile.body,
+      profile.body.replace(
+         "{{task}}",
+         `PROFILE_PROMPT_SENTINEL: ${profilePromptSentinel}`
+      ),
       ""
    ].join("\n");
 
@@ -130,14 +131,9 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
    );
    await writeFile(
       path.join(projectRoot, "AGENTS.md"),
-      [
-         "# Router",
-         `AGENTS_ROUTER_SENTINEL: ${ambientAgentsSentinel}`,
-         "",
-         "## Aiman Runtime Context",
-         `RUNTIME_CONTEXT_SENTINEL: ${runtimeContextSentinel}`,
-         ""
-      ].join("\n"),
+      ["# Router", `AGENTS_ROUTER_SENTINEL: ${ambientAgentsSentinel}`, ""].join(
+         "\n"
+      ),
       "utf8"
    );
    await writeFile(
@@ -156,17 +152,12 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
       ambientAgentsSentinel,
       ambientGeminiSentinel,
       cwd: projectRoot,
-      projectContext: {
-         content: `RUNTIME_CONTEXT_SENTINEL: ${runtimeContextSentinel}`,
-         path: "AGENTS.md#Aiman Runtime Context",
-         title: "## Aiman Runtime Context"
-      },
+      profilePromptSentinel,
       projectRoot,
       promptFile,
       runDir,
       runFile,
-      runId: `provider-contract-${provider}`,
-      runtimeContextSentinel
+      runId: `provider-contract-${provider}`
    };
 }
 
@@ -281,12 +272,11 @@ function buildLaunchSnapshot(input: {
       launchMode: "foreground",
       mode: input.profile.mode ?? "safe",
       model: input.profile.model,
-      projectContextPath: "AGENTS.md#Aiman Runtime Context",
+      contextFiles: ["AGENTS.md"],
       promptDigest: `provider-contract-prompt-${input.runId}`,
       promptTransport: input.prepared.promptTransport,
       provider: input.profile.provider,
       reasoningEffort: input.profile.reasoningEffort,
-      skills: [],
       timeoutMs: input.timeoutMs
    };
 }
@@ -300,7 +290,7 @@ function isSkippableProviderSetupFailure(output: string): boolean {
 function parseJsonObject(rawText: string): {
    ambientAgents: string;
    ambientGemini: string;
-   runtimeContext: string;
+   profilePrompt: string;
 } {
    const trimmed = rawText.trim();
    const withoutCodeFence = trimmed.replace(/^```(?:json)?\s*|\s*```$/g, "");
@@ -313,13 +303,13 @@ function parseJsonObject(rawText: string): {
    const parsed = JSON.parse(match[0]) as {
       ambientAgents?: unknown;
       ambientGemini?: unknown;
-      runtimeContext?: unknown;
+      profilePrompt?: unknown;
    };
 
    if (
       typeof parsed.ambientAgents !== "string" ||
       typeof parsed.ambientGemini !== "string" ||
-      typeof parsed.runtimeContext !== "string"
+      typeof parsed.profilePrompt !== "string"
    ) {
       throw new Error(`Provider JSON was missing expected keys:\n${rawText}`);
    }
@@ -327,7 +317,7 @@ function parseJsonObject(rawText: string): {
    return {
       ambientAgents: parsed.ambientAgents,
       ambientGemini: parsed.ambientGemini,
-      runtimeContext: parsed.runtimeContext
+      profilePrompt: parsed.profilePrompt
    };
 }
 
@@ -350,24 +340,23 @@ async function runProviderContract(
       artifactsDir: path.join(fixture.runDir, "artifacts"),
       cwd: fixture.cwd,
       mode: fixture.profile.mode ?? "safe",
-      projectContext: fixture.projectContext,
       runFile: fixture.runFile,
       runId: fixture.runId,
-      task: "Report visible sentinels from the authored prompt contract."
+      task: `PROFILE_PROMPT_SENTINEL: ${fixture.profilePromptSentinel}`
    });
 
    await writeFile(fixture.promptFile, renderedPrompt, "utf8");
 
    const prepared = await input.adapter.prepare(fixture.profile, {
       artifactsDir: path.join(fixture.runDir, "artifacts"),
+      contextFileNames: ["AGENTS.md"],
       cwd: fixture.cwd,
       mode: fixture.profile.mode ?? "safe",
       promptFile: fixture.promptFile,
-      projectContext: fixture.projectContext,
       renderedPrompt,
       runFile: fixture.runFile,
       runId: fixture.runId,
-      task: "Report visible sentinels from the authored prompt contract."
+      task: `PROFILE_PROMPT_SENTINEL: ${fixture.profilePromptSentinel}`
    });
    const startedAt = new Date().toISOString();
    const completed = await executePreparedInvocation({
@@ -423,27 +412,25 @@ async function runProviderContract(
 
    assert.equal(
       parsed.ambientAgents,
-      "NONE",
-      `${input.provider} leaked ambient AGENTS.md context.`
+      fixture.ambientAgentsSentinel,
+      `${input.provider} did not expose AGENTS.md through native context discovery.`
    );
    assert.equal(
       parsed.ambientGemini,
       "NONE",
-      `${input.provider} leaked ambient GEMINI.md context.`
+      `${input.provider} loaded a non-configured GEMINI.md context file.`
    );
    assert.equal(
-      parsed.runtimeContext,
-      fixture.runtimeContextSentinel,
-      `${input.provider} did not preserve the explicit runtime context section.`
+      parsed.profilePrompt,
+      fixture.profilePromptSentinel,
+      `${input.provider} did not preserve the authored profile prompt.`
    );
 
    const persistedPrompt = await readFile(fixture.promptFile, "utf8");
 
-   assert.match(persistedPrompt, /## Project Context/);
-   assert.match(persistedPrompt, /AGENTS\.md#Aiman Runtime Context/);
    assert.match(
       persistedPrompt,
-      new RegExp(`RUNTIME_CONTEXT_SENTINEL: ${fixture.runtimeContextSentinel}`)
+      new RegExp(`PROFILE_PROMPT_SENTINEL: ${fixture.profilePromptSentinel}`)
    );
    assert.doesNotMatch(
       persistedPrompt,
@@ -456,7 +443,7 @@ async function runProviderContract(
 }
 
 test(
-   "codex live contract keeps ambient project docs out and preserves explicit runtime context",
+   "codex live contract uses AGENTS.md as native bootstrap context and ignores non-configured files",
    { timeout: providerContractTimeoutMs + 15_000 },
    async (t) => {
       await runProviderContract(t, {
@@ -467,7 +454,7 @@ test(
 );
 
 test(
-   "gemini live contract keeps ambient project docs out and preserves explicit runtime context",
+   "gemini live contract uses AGENTS.md as native bootstrap context and ignores non-configured files",
    { timeout: providerContractTimeoutMs + 15_000 },
    async (t) => {
       await runProviderContract(t, {

@@ -2,13 +2,19 @@ export type ProviderId = "codex" | "gemini";
 
 export type ProfileScope = "project" | "user";
 
-export type AgentScope = ProfileScope;
-
 export type ReasoningEffort = "high" | "low" | "medium" | "none";
 
 export type RunMode = "read-only" | "safe" | "workspace-write" | "yolo";
 
 export type LaunchMode = "detached" | "foreground";
+
+export type AimanConfig = {
+   contextFileNames?: string[];
+};
+
+export type ResolvedAimanConfig = {
+   contextFileNames?: string[];
+};
 
 export type RunStatus = "cancelled" | "error" | "success";
 
@@ -29,16 +35,12 @@ export type ProviderCapabilities = {
 
 export type ProfileDefinition = {
    body: string;
-   contextFiles?: string[];
    description: string;
    model: string;
-   mode?: RunMode;
+   mode: RunMode;
    name: string;
-   permissions?: RunMode;
    provider: ProviderId;
    reasoningEffort: ReasoningEffort;
-   requiredMcps?: string[];
-   skills?: string[];
 };
 
 export type ScopedProfileDefinition = ProfileDefinition & {
@@ -48,10 +50,6 @@ export type ScopedProfileDefinition = ProfileDefinition & {
    scope: ProfileScope;
 };
 
-export type AgentDefinition = ProfileDefinition;
-
-export type ScopedAgentDefinition = ScopedProfileDefinition;
-
 export type ValidationIssue = {
    code: string;
    message: string;
@@ -60,18 +58,14 @@ export type ValidationIssue = {
 export type ProfileCheckStatus = "invalid" | "ok" | "warnings";
 
 export type CheckedProfileDefinition = {
-   contextFiles?: string[];
    id: string;
    model?: string;
    mode?: string;
    name?: string;
    path: string;
-   permissions?: string;
    provider?: string;
-   requiredMcps?: string[];
    reasoningEffort?: ReasoningEffort;
    scope: ProfileScope;
-   skills?: string[];
 };
 
 export type ProfileCheckReport = {
@@ -81,33 +75,7 @@ export type ProfileCheckReport = {
    warnings: ValidationIssue[];
 };
 
-export type AgentCheckStatus = ProfileCheckStatus;
-
-export type CheckedAgentDefinition = CheckedProfileDefinition;
-
-export type AgentCheckReport = {
-   errors: ValidationIssue[];
-   agent: CheckedAgentDefinition;
-   status: AgentCheckStatus;
-   warnings: ValidationIssue[];
-};
-
 export type PromptTransport = "arg" | "none" | "stdin";
-
-export type PromptSkill = {
-   body: string;
-   description: string;
-   keywords: string[];
-   modes?: RunMode[];
-   name: string;
-   path: string;
-   profiles?: string[];
-   scope: ProfileScope;
-};
-
-export type ResolvedSkill = PromptSkill & {
-   digest: string;
-};
 
 export type PromptContextFile = {
    content: string;
@@ -182,6 +150,7 @@ export type UsageStats = {
 
 export type PreparedRunInput = {
    artifactsDir: string;
+   contextFileNames?: string[];
    contextFiles?: PromptContextFile[];
    cwd: string;
    mode: RunMode;
@@ -190,7 +159,6 @@ export type PreparedRunInput = {
    renderedPrompt?: string;
    runFile: string;
    runId: string;
-   skills?: PromptSkill[];
    task?: string;
 };
 
@@ -239,7 +207,6 @@ export type RunLaunchSnapshot = {
    promptTransport: PromptTransport;
    provider: ProviderId;
    reasoningEffort?: ReasoningEffort;
-   skills: string[];
    task?: string;
    timeoutMs: number;
 };

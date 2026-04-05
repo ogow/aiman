@@ -8,8 +8,6 @@ import type {
    LaunchMode,
    PersistedRunRecord,
    ProfileDefinition,
-   ProjectContext,
-   PromptSkill,
    RunLaunchSnapshot,
    RunMode,
    ScopedProfileDefinition,
@@ -61,8 +59,7 @@ const allowedEnvironmentKeys = [
    "XDG_DATA_HOME",
    "XDG_STATE_HOME"
 ];
-
-const mcpDetectionTimeoutMs = 5_000;
+const defaultMcpDetectionTimeoutMs = 5_000;
 
 type ListedMcp = {
    connected: boolean;
@@ -113,7 +110,7 @@ export async function runCommandCapture(input: {
    timedOut: boolean;
 }> {
    const launch = await resolveCommandLaunch(input.command, input.args);
-   const timeoutMs = input.timeoutMs ?? mcpDetectionTimeoutMs;
+   const timeoutMs = input.timeoutMs ?? defaultMcpDetectionTimeoutMs;
 
    return new Promise((resolve) => {
       const child = spawn(launch.command, launch.args, {
@@ -195,10 +192,6 @@ async function killWindowsProcessTree(pid: number): Promise<void> {
    });
 }
 
-function formatShellCommand(command: string, args: string[]): string {
-   return [command, ...args].join(" ");
-}
-
 export function parseCodexMcpList(stdout: string): ListedMcp[] {
    try {
       const parsed = JSON.parse(stdout) as unknown;
@@ -273,7 +266,7 @@ export function parseGeminiMcpList(stdout: string): ListedMcp[] {
    });
 }
 
-export async function detectRequiredMcps(input: {
+export async function detectRequiredMcps(_input: {
    agent: ProfileDefinition;
    args: string[];
    command: string;
@@ -303,10 +296,8 @@ export function buildPrompt(
       artifactsDir: string;
       cwd: string;
       mode: RunMode;
-      projectContext?: ProjectContext;
       runFile: string;
       runId: string;
-      skills?: PromptSkill[];
       task?: string;
    }
 ): string {
@@ -328,38 +319,6 @@ export function buildPrompt(
       (placeholder) => replacements[placeholder] ?? placeholder
    );
    const sections = [renderedBody];
-
-   if (input.projectContext !== undefined) {
-      sections.push(
-         [
-            "## Project Context",
-            "Only the following AGENTS.md runtime context is attached for this run. Do not assume any other repo instruction files are in scope.",
-            `### ${input.projectContext.path}`,
-            "<project_context>",
-            input.projectContext.content.trimEnd(),
-            "</project_context>"
-         ].join("\n")
-      );
-   }
-
-   if (input.skills !== undefined && input.skills.length > 0) {
-      sections.push(
-         [
-            "## Active Skills",
-            "These local aiman skills were selected explicitly for this run.",
-            input.skills
-               .map((skill) =>
-                  [
-                     `### ${skill.name}`,
-                     `<skill path="${skill.path}">`,
-                     skill.body.trimEnd(),
-                     "</skill>"
-                  ].join("\n")
-               )
-               .join("\n\n")
-         ].join("\n\n")
-      );
-   }
 
    return sections.join("\n\n");
 }

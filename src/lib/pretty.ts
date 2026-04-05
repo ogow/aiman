@@ -15,9 +15,18 @@ export function truncateText(value: string, maxLength: number): string {
    return `${value.slice(0, Math.max(0, maxLength - 3))}...`;
 }
 
+function visibleLength(value: string): number {
+   // eslint-disable-next-line no-control-regex
+   return value.replace(/\x1B\[\d+m/g, "").length;
+}
+
 function padCells(cells: string[], widths: number[]): string {
    return cells
-      .map((cell, index) => cell.padEnd(widths[index] ?? 0))
+      .map((cell, index) => {
+         const width = widths[index] ?? 0;
+         const visible = visibleLength(cell);
+         return cell + " ".repeat(Math.max(0, width - visible));
+      })
       .join("  ");
 }
 
@@ -29,21 +38,27 @@ export function renderLabelValueBlock(entries: LabelValue[]): string {
    }
 
    const labelWidth = Math.max(
-      ...visibleEntries.map((entry) => entry.label.length)
+      ...visibleEntries.map((entry) => visibleLength(entry.label))
    );
 
    return visibleEntries
-      .map((entry) => `${entry.label.padEnd(labelWidth)}  ${entry.value}`)
+      .map((entry) => {
+         const label = entry.label;
+         const padding = " ".repeat(
+            Math.max(0, labelWidth - visibleLength(label))
+         );
+         return `${label}${padding}  ${entry.value}`;
+      })
       .join("\n");
 }
 
 export function renderTable(headers: string[], rows: string[][]): string {
    const widths = headers.map((header, index) =>
       Math.max(
-         header.length,
+         visibleLength(header),
          ...rows.map((row) => {
             const value = row[index];
-            return value === undefined ? 0 : value.length;
+            return value === undefined ? 0 : visibleLength(value);
          })
       )
    );

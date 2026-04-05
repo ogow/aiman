@@ -29,18 +29,14 @@ function runCli(
 
 async function createHomeFixture(): Promise<string> {
    const homeRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-home-"));
-   await mkdir(path.join(homeRoot, ".aiman", "profiles"), { recursive: true });
-   await mkdir(path.join(homeRoot, ".aiman", "skills"), { recursive: true });
+   await mkdir(path.join(homeRoot, ".aiman", "agents"), { recursive: true });
    await mkdir(path.join(homeRoot, ".aiman", "runs"), { recursive: true });
    return homeRoot;
 }
 
 async function createProjectFixture(): Promise<string> {
    const projectRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-project-"));
-   await mkdir(path.join(projectRoot, ".aiman", "profiles"), {
-      recursive: true
-   });
-   await mkdir(path.join(projectRoot, ".aiman", "skills"), {
+   await mkdir(path.join(projectRoot, ".aiman", "agents"), {
       recursive: true
    });
    return projectRoot;
@@ -60,9 +56,13 @@ async function createFakeCodexBinary(binDir: string): Promise<void> {
 import * as path from "node:path";
 
 let lastMessagePath = "";
+let useJsonOutput = false;
 for (let index = 0; index < process.argv.length; index += 1) {
    if (process.argv[index] === "--output-last-message") {
       lastMessagePath = process.argv[index + 1] ?? "";
+   }
+   if (process.argv[index] === "--json") {
+      useJsonOutput = true;
    }
 }
 
@@ -83,7 +83,17 @@ if (typeof runDir === "string" && runDir.length > 0) {
    await writeFile(path.join(runDir, "prompt-copy.md"), prompt, "utf8");
 }
 
-process.stdout.write("provider stdout\\n");
+if (useJsonOutput) {
+   process.stdout.write(
+      JSON.stringify({
+         id: "evt-1",
+         message: { role: "assistant", content: "Fake codex result" },
+         type: "turn.completed"
+      }) + "\\n"
+   );
+} else {
+   process.stdout.write("provider stdout\\n");
+}
 `,
       "utf8"
    );
@@ -114,7 +124,7 @@ async function createRunnableFixture(): Promise<{
 
    await createFakeCodexBinary(binDir);
    await writeFile(
-      path.join(projectRoot, ".aiman", "profiles", "reviewer.md"),
+      path.join(projectRoot, ".aiman", "agents", "reviewer.md"),
       `---
 name: reviewer
 description: Reviews changes carefully
@@ -122,8 +132,6 @@ provider: codex
 model: gpt-5.4-mini
 mode: safe
 reasoningEffort: medium
-skills:
-  - review-helper
 ---
 
 ## Role
@@ -137,50 +145,10 @@ You are a focused reviewer.
 - Report the result clearly.
 
 ## Constraints
-- Use only the attached project context and active skills.
+- Use the repo's native context files.
 
 ## Expected Output
 - Return a concise result.
-`,
-      "utf8"
-   );
-   await mkdir(path.join(projectRoot, ".aiman", "skills", "review-helper"), {
-      recursive: true
-   });
-   await writeFile(
-      path.join(projectRoot, ".aiman", "skills", "review-helper", "SKILL.md"),
-      `---
-name: review-helper
-description: Adds review-specific guidance
-keywords:
-  - review
-profiles:
-  - reviewer
----
-
-- Check correctness first.
-- Keep the summary brief.
-`,
-      "utf8"
-   );
-   await mkdir(path.join(projectRoot, ".aiman", "skills", "repo-search"), {
-      recursive: true
-   });
-   await writeFile(
-      path.join(projectRoot, ".aiman", "skills", "repo-search", "SKILL.md"),
-      `---
-name: repo-search
-description: Helps with repo searching
-keywords:
-  - docs
-  - search
-modes:
-  - safe
-profiles:
-  - reviewer
----
-
-- Search the repo for the most relevant files before answering.
 `,
       "utf8"
    );
@@ -193,7 +161,7 @@ This section must not be attached.
 
 ## Aiman Runtime Context
 - Build with \`npm test\`
-- The project keeps profiles under \`.aiman/profiles\`
+- The project keeps agents under \`.aiman/agents\`
 `,
       "utf8"
    );
@@ -227,29 +195,29 @@ test("no-arg aiman opens the app and requires a tty", async () => {
    assert.match(result.stderr, /interactive TTY/);
 });
 
-test("profile list includes built-in build and plan profiles", async () => {
+test("agent list includes built-in build and plan agents", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
-   const result = runCli(["profile", "list", "--json"], {
+   const result = runCli(["agent", "list", "--json"], {
       cwd: projectRoot,
       env: createCliEnv({ homeRoot })
    });
 
    assert.equal(result.status, 0);
    const payload = JSON.parse(result.stdout) as {
-      profiles: Array<{ isBuiltIn?: boolean; name: string }>;
+      agents: Array<{ isBuiltIn?: boolean; name: string }>;
    };
 
-   assert.ok(payload.profiles.some((profile) => profile.name === "build"));
-   assert.ok(payload.profiles.some((profile) => profile.name === "plan"));
+   assert.ok(payload.agents.some((agent) => agent.name === "build"));
+   assert.ok(payload.agents.some((agent) => agent.name === "plan"));
 });
 
-test("profile create writes a project-scope profile", async () => {
+test("agent create writes a project-scope agent", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
    const result = runCli(
       [
-         "profile",
+         "agent",
          "create",
          "auditor",
          "--scope",
@@ -274,30 +242,20 @@ test("profile create writes a project-scope profile", async () => {
    );
 
    assert.equal(result.status, 0);
-   const createdPath = path.join(
-      projectRoot,
-      ".aiman",
-      "profiles",
-      "auditor.md"
-   );
+   const createdPath = path.join(projectRoot, ".aiman", "agents", "auditor.md");
    const created = await readFile(createdPath, "utf8");
    assert.match(created, /name: auditor/);
    assert.match(created, /mode: safe/);
    assert.match(created, /reasoningEffort: medium/);
 });
 
-test("profile create rejects unsupported provider reasoning effort", async () => {
+test("agent create rejects unsupported provider reasoning effort", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
-   const createdPath = path.join(
-      projectRoot,
-      ".aiman",
-      "profiles",
-      "auditor.md"
-   );
+   const createdPath = path.join(projectRoot, ".aiman", "agents", "auditor.md");
    const result = runCli(
       [
-         "profile",
+         "agent",
          "create",
          "auditor",
          "--scope",
@@ -329,14 +287,96 @@ test("profile create rejects unsupported provider reasoning effort", async () =>
    await assert.rejects(readFile(createdPath, "utf8"), { code: "ENOENT" });
 });
 
-test("profile check rejects unsupported legacy frontmatter", async () => {
+test('agent create allows Gemini with "auto" model selection', async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   const result = runCli(
+      [
+         "agent",
+         "create",
+         "doc-checker",
+         "--scope",
+         "project",
+         "--provider",
+         "gemini",
+         "--mode",
+         "safe",
+         "--model",
+         "auto",
+         "--reasoning-effort",
+         "none",
+         "--description",
+         "Checks docs for drift",
+         "--instructions",
+         "Inspect the requested docs and report drift."
+      ],
+      {
+         cwd: projectRoot,
+         env: createCliEnv({ homeRoot })
+      }
+   );
+
+   assert.equal(result.status, 0);
+   assert.match(result.stdout, /automatic \(Gemini default\)/);
+
+   const createdPath = path.join(
+      projectRoot,
+      ".aiman",
+      "agents",
+      "doc-checker.md"
+   );
+   const created = await readFile(createdPath, "utf8");
+   assert.match(created, /provider: gemini/);
+   assert.match(created, /^model: auto$/m);
+   assert.match(created, /reasoningEffort: none/);
+});
+
+test('agent create rejects "auto" model selection for Codex', async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   const createdPath = path.join(projectRoot, ".aiman", "agents", "builder.md");
+   const result = runCli(
+      [
+         "agent",
+         "create",
+         "builder",
+         "--scope",
+         "project",
+         "--provider",
+         "codex",
+         "--mode",
+         "safe",
+         "--model",
+         "auto",
+         "--reasoning-effort",
+         "medium",
+         "--description",
+         "Builds changes",
+         "--instructions",
+         "Work on the requested change."
+      ],
+      {
+         cwd: projectRoot,
+         env: createCliEnv({ homeRoot })
+      }
+   );
+
+   assert.notEqual(result.status, 0);
+   assert.match(
+      result.stderr,
+      /Only Gemini supports automatic model selection via "model: auto"/
+   );
+   await assert.rejects(readFile(createdPath, "utf8"), { code: "ENOENT" });
+});
+
+test("agent check rejects unsupported legacy frontmatter", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
    await writeFile(
-      path.join(projectRoot, ".aiman", "profiles", "legacy.md"),
+      path.join(projectRoot, ".aiman", "agents", "legacy.md"),
       `---
 name: legacy
-description: Legacy profile
+description: Legacy agent
 provider: codex
 model: gpt-5.4-mini
 mode: safe
@@ -350,7 +390,7 @@ Legacy body {{task}}
       "utf8"
    );
 
-   const result = runCli(["profile", "check", "legacy"], {
+   const result = runCli(["agent", "check", "legacy"], {
       cwd: projectRoot,
       env: createCliEnv({ homeRoot })
    });
@@ -359,18 +399,10 @@ Legacy body {{task}}
    assert.match(result.stderr, /unsupported field "contextFiles"/);
 });
 
-test("run prompt includes AGENTS runtime context and active skills", async () => {
+test("run prompt keeps native context out of prompt.md without implicit context files", async () => {
    const fixture = await createRunnableFixture();
    const runResult = runCli(
-      [
-         "run",
-         "reviewer",
-         "--task",
-         "Review the docs",
-         "--skill",
-         "repo-search",
-         "--json"
-      ],
+      ["run", "reviewer", "--task", "Review the docs", "--json"],
       {
          cwd: fixture.projectRoot,
          env: createCliEnv({
@@ -388,7 +420,7 @@ test("run prompt includes AGENTS runtime context and active skills", async () =>
    assert.equal(payload.status, "success");
 
    const promptResult = runCli(
-      ["run", "inspect", payload.runId, "--stream", "prompt"],
+      ["runs", "inspect", payload.runId, "--stream", "prompt"],
       {
          cwd: fixture.projectRoot,
          env: createCliEnv({
@@ -399,15 +431,11 @@ test("run prompt includes AGENTS runtime context and active skills", async () =>
    );
 
    assert.equal(promptResult.status, 0);
-   assert.match(promptResult.stdout, /## Project Context/);
-   assert.match(promptResult.stdout, /AGENTS\.md#Aiman Runtime Context/);
-   assert.match(promptResult.stdout, /Build with `npm test`/);
+   assert.doesNotMatch(promptResult.stdout, /## Project Context/);
    assert.doesNotMatch(promptResult.stdout, /Human Notes/);
-   assert.match(promptResult.stdout, /## Active Skills/);
-   assert.match(promptResult.stdout, /review-helper/);
-   assert.match(promptResult.stdout, /repo-search/);
+   assert.doesNotMatch(promptResult.stdout, /## Active Skills/);
 
-   const inspectResult = runCli(["run", "inspect", payload.runId, "--json"], {
+   const inspectResult = runCli(["runs", "inspect", payload.runId, "--json"], {
       cwd: fixture.projectRoot,
       env: createCliEnv({
          binDir: fixture.binDir,
@@ -418,23 +446,15 @@ test("run prompt includes AGENTS runtime context and active skills", async () =>
    assert.equal(inspectResult.status, 0);
    const inspectPayload = JSON.parse(inspectResult.stdout) as {
       launch: {
-         projectContextPath?: string;
-         skills: string[];
+         contextFiles?: string[];
          task?: string;
       };
    };
-   assert.equal(
-      inspectPayload.launch.projectContextPath,
-      "AGENTS.md#Aiman Runtime Context"
-   );
-   assert.deepEqual(inspectPayload.launch.skills, [
-      "review-helper",
-      "repo-search"
-   ]);
+   assert.equal(inspectPayload.launch.contextFiles, undefined);
    assert.equal(inspectPayload.launch.task, "Review the docs");
 });
 
-test("run list show and logs use the new run command surface", async () => {
+test("runs list show and logs use the new command surface", async () => {
    const fixture = await createRunnableFixture();
    const runResult = runCli(
       ["run", "reviewer", "--task", "Review the docs", "--json"],
@@ -450,7 +470,7 @@ test("run list show and logs use the new run command surface", async () => {
       runId: string;
    };
 
-   const listResult = runCli(["run", "list", "--all", "--json"], {
+   const listResult = runCli(["runs", "list", "--all", "--json"], {
       cwd: fixture.projectRoot,
       env: createCliEnv({
          binDir: fixture.binDir,
@@ -463,7 +483,7 @@ test("run list show and logs use the new run command surface", async () => {
    };
    assert.ok(listPayload.runs.some((run) => run.runId === payload.runId));
 
-   const showResult = runCli(["run", "show", payload.runId], {
+   const showResult = runCli(["runs", "show", payload.runId], {
       cwd: fixture.projectRoot,
       env: createCliEnv({
          binDir: fixture.binDir,
@@ -471,10 +491,10 @@ test("run list show and logs use the new run command surface", async () => {
       })
    });
    assert.equal(showResult.status, 0);
-   assert.match(showResult.stdout, /Profile\s+reviewer/);
+   assert.match(showResult.stdout, /Agent\s+reviewer/);
    assert.match(showResult.stdout, /Next steps/);
 
-   const logsResult = runCli(["run", "logs", payload.runId], {
+   const logsResult = runCli(["runs", "logs", payload.runId], {
       cwd: fixture.projectRoot,
       env: createCliEnv({
          binDir: fixture.binDir,
@@ -482,17 +502,17 @@ test("run list show and logs use the new run command surface", async () => {
       })
    });
    assert.equal(logsResult.status, 0);
-   assert.match(logsResult.stdout, /provider stdout/);
+   assert.match(logsResult.stdout, /"type":"turn\.completed"/);
 });
 
-test("sesh top is removed from the public command surface", async () => {
+test("runs top is removed from the public command surface", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
-   const result = runCli(["sesh", "top"], {
+   const result = runCli(["runs", "top"], {
       cwd: projectRoot,
       env: createCliEnv({ homeRoot })
    });
 
    assert.notEqual(result.status, 0);
-   assert.match(result.stderr, /Did you mean show/);
+   assert.match(result.stderr, /Did you mean (stop|show)/);
 });

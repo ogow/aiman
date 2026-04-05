@@ -1,0 +1,90 @@
+import type { ArgumentsCamelCase, Argv } from "yargs";
+
+import { createAiman } from "../api/index.js";
+import { agentScopeChoices, formatProfileModel } from "../lib/agents.js";
+import { UserError } from "../lib/errors.js";
+import { writeJson } from "../lib/output.js";
+import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
+import {
+   getProviderCapabilities,
+   summarizeProviderModes
+} from "../lib/provider-capabilities.js";
+import type { ProfileScope } from "../lib/types.js";
+
+type AgentShowArguments = {
+   json?: boolean;
+   agent?: string;
+   scope?: ProfileScope;
+};
+
+export const command = "show <agent>";
+export const describe = "Show one agent";
+
+export function builder(yargs: Argv): Argv {
+   return yargs
+      .positional("agent", {
+         describe: "Agent name",
+         type: "string"
+      })
+      .option("scope", {
+         choices: agentScopeChoices,
+         describe: "Resolve the agent from one scope only",
+         type: "string"
+      })
+      .option("json", {
+         default: false,
+         describe: "Print JSON output",
+         type: "boolean"
+      });
+}
+
+export async function handler(
+   args: ArgumentsCamelCase<AgentShowArguments>
+): Promise<void> {
+   if (typeof args.agent !== "string" || args.agent.trim().length === 0) {
+      throw new UserError("Agent name is required.");
+   }
+
+   const agent = await (await createAiman()).agents.get(args.agent, args.scope);
+   const capabilities = getProviderCapabilities(agent.provider);
+
+   if (args.json) {
+      writeJson({ agent, capabilities });
+      return;
+   }
+
+   process.stdout.write(
+      `${renderSection(
+         "Agent",
+         renderLabelValueBlock([
+            { label: "Name", value: agent.name },
+            {
+               label: "Scope",
+               value: agent.isBuiltIn === true ? "builtin" : agent.scope
+            },
+            { label: "Provider", value: agent.provider },
+            { label: "Mode", value: agent.mode },
+            {
+               label: "Run modes",
+               value: summarizeProviderModes(agent.provider)
+            },
+            { label: "Model", value: formatProfileModel(agent) },
+            { label: "Reasoning", value: agent.reasoningEffort },
+            { label: "Description", value: agent.description },
+            { label: "Path", value: agent.path }
+         ])
+      )}\n\n${renderSection(
+         "Rights",
+         renderLabelValueBlock([
+            ...capabilities.modes.map((capability) => ({
+               label: capability.mode,
+               value: capability.details
+            })),
+            {
+               label: "Environment",
+               value: capabilities.environmentSummary
+            }
+         ])
+      )}\n\n${renderSection("Prompt", agent.body)}\n`
+   );
+}

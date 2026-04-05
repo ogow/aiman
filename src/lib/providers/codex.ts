@@ -12,12 +12,16 @@ import {
    readOptionalFile
 } from "./shared.js";
 
-function getCodexInstructionIsolationConfigArgs(): string[] {
+function getCodexContextConfigArgs(
+   contextFileNames: string[] | undefined
+): string[] {
+   const fallbackFileNames = (contextFileNames ?? []).filter(
+      (fileName) => fileName !== "AGENTS.md"
+   );
+
    return [
       "--config",
-      "project_doc_max_bytes=0",
-      "--config",
-      "project_doc_fallback_filenames=[]",
+      `project_doc_fallback_filenames=${JSON.stringify(fallbackFileNames)}`,
       "--config",
       'developer_instructions=""',
       "--config",
@@ -25,6 +29,14 @@ function getCodexInstructionIsolationConfigArgs(): string[] {
       "--config",
       "agents={}"
    ];
+}
+
+function getCodexApprovalConfigArgs(): string[] {
+   return ["--config", 'approval_policy="never"'];
+}
+
+function getCodexOutputArgs(): string[] {
+   return ["--json"];
 }
 
 function getWindowsAutomationConfigArgs(): string[] {
@@ -120,6 +132,10 @@ export function createCodexAdapter(): ProviderAdapter {
          const runDir = path.dirname(input.runFile);
          const lastMessagePath = deriveCodexLastMessagePath(runDir);
          const prompt = input.renderedPrompt ?? buildPrompt(agent, input);
+         const writableRoots =
+            input.artifactsDir.length > 0
+               ? ["--add-dir", input.artifactsDir]
+               : [];
          const environment = buildAllowedEnvironment({
             AIMAN_ARTIFACTS_DIR: input.artifactsDir,
             AIMAN_RUN_PATH: input.runFile,
@@ -136,7 +152,10 @@ export function createCodexAdapter(): ProviderAdapter {
                input.cwd,
                "--output-last-message",
                lastMessagePath,
-               ...getCodexInstructionIsolationConfigArgs(),
+               ...getCodexOutputArgs(),
+               ...writableRoots,
+               ...getCodexApprovalConfigArgs(),
+               ...getCodexContextConfigArgs(input.contextFileNames),
                ...getWindowsAutomationConfigArgs(),
                ...getReasoningEffortConfigArgs(agent.reasoningEffort),
                ...(agent.model ? ["--model", agent.model] : []),

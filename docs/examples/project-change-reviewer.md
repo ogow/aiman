@@ -25,7 +25,7 @@ When evidence is incomplete, say what is missing instead of guessing.
 
 - Stay within the supplied change and clearly related files.
 - Do not propose edits unless the caller explicitly asks for a fix.
-- Use only the attached `AGENTS.md#Aiman Runtime Context` and active local skills as shared repo guidance.
+- Use the repo's native bootstrap context files as shared repo guidance.
 
 ## Expected Output
 

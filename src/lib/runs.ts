@@ -6,6 +6,7 @@ import { createWriteStream } from "node:fs";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
+import { loadAimanConfig } from "./config.js";
 import { UserError } from "./errors.js";
 import { resolveCommandLaunch } from "./executables.js";
 import {
@@ -13,8 +14,7 @@ import {
    getProjectPaths,
    resolveRunCwd
 } from "./paths.js";
-import { loadProfileDefinition } from "./profiles.js";
-import { loadProjectContext } from "./project-context.js";
+import { loadAgentDefinition } from "./agents.js";
 import { formatRunRights } from "./provider-capabilities.js";
 import { buildPrompt } from "./providers/shared.js";
 import {
@@ -30,7 +30,6 @@ import {
    writeRunStateIfRunning
 } from "./run-store.js";
 import { getAdapterForProvider } from "./providers/index.js";
-import { resolveSkillsForRun } from "./skills.js";
 import type {
    LaunchMode,
    LaunchedRun,
@@ -46,7 +45,7 @@ import type {
    ScopedProfileDefinition
 } from "./types.js";
 
-const defaultTimeoutMs = 5 * 60 * 1000;
+const defaultRunTimeoutMs = 5 * 60 * 1000;
 const defaultKillGraceMs = 1 * 1000;
 const promptArgumentPlaceholder = "@prompt.md";
 const runHeartbeatIntervalMs = 1000;
@@ -59,10 +58,13 @@ type RunAgentInput = {
    mode?: RunMode;
    profileName?: string;
    profileScope?: ProfileScope;
+   projectRoot?: string;
    cwd?: string;
    killGraceMs?: number;
-   selectedSkillNames?: string[];
    onRunStarted?: (input: {
+      agent: string;
+      agentPath: string;
+      agentScope: ProfileScope;
       profile: string;
       profilePath: string;
       profileScope: ProfileScope;
@@ -85,7 +87,6 @@ type PreparedRun = {
    runCwd: string;
    runDir: string;
    runId: string;
-   selectedSkillNames: string[];
    startedAt: string;
    timeoutMs: number;
    killGraceMs: number;
@@ -368,13 +369,12 @@ function buildLaunchEnvironment(input: {
 }
 
 async function buildLaunchSnapshot(input: {
+   contextFiles?: string[];
    profile: ScopedProfileDefinition;
    killGraceMs: number;
    launchMode: LaunchMode;
    mode: RunMode;
    prepared: PreparedInvocation;
-   projectContextPath?: string;
-   skills: string[];
    task: string;
    timeoutMs: number;
 }): Promise<RunLaunchSnapshot> {
@@ -390,6 +390,9 @@ async function buildLaunchSnapshot(input: {
       agentScope: input.profile.scope,
       args: snapshotInvocationArgs(input.prepared),
       command: input.prepared.command,
+      ...(input.contextFiles !== undefined && input.contextFiles.length > 0
+         ? { contextFiles: input.contextFiles }
+         : {}),
       cwd: input.prepared.cwd,
       envKeys: Object.keys(input.prepared.env).sort(),
       killGraceMs: input.killGraceMs,
@@ -404,13 +407,9 @@ async function buildLaunchSnapshot(input: {
       profileName: input.profile.name,
       profilePath: input.profile.path,
       profileScope: input.profile.scope,
-      ...(typeof input.projectContextPath === "string"
-         ? { projectContextPath: input.projectContextPath }
-         : {}),
       promptDigest: hashText(input.prepared.renderedPrompt),
       promptTransport: input.prepared.promptTransport,
       provider: input.profile.provider,
-      skills: input.skills,
       task: input.task,
       timeoutMs: input.timeoutMs
    };
@@ -418,10 +417,11 @@ async function buildLaunchSnapshot(input: {
 
 async function resolveProfileForRun(input: {
    profileName: string;
+   projectRoot?: string;
    profileScope?: ProfileScope;
 }): Promise<ScopedProfileDefinition> {
-   return loadProfileDefinition(
-      getProjectPaths(),
+   return loadAgentDefinition(
+      getProjectPaths(input.projectRoot),
       input.profileName,
       input.profileScope
    );
@@ -431,16 +431,20 @@ async function prepareRun(
    input: RunAgentInput,
    launchMode: LaunchMode
 ): Promise<PreparedRun> {
-   const projectPaths = getProjectPaths();
+   const projectPaths = getProjectPaths(input.projectRoot);
    await ensureProjectDirectories(projectPaths);
+   const config = await loadAimanConfig(projectPaths);
    const profileName = input.profileName ?? input.agentName;
 
    if (typeof profileName !== "string" || profileName.trim().length === 0) {
-      throw new UserError("Profile name is required.");
+      throw new UserError("Agent name is required.");
    }
 
    const profile = await resolveProfileForRun({
       profileName,
+      ...(input.projectRoot !== undefined
+         ? { projectRoot: input.projectRoot }
+         : {}),
       ...(input.profileScope !== undefined
          ? { profileScope: input.profileScope }
          : input.agentScope !== undefined
@@ -451,28 +455,18 @@ async function prepareRun(
    const runDir = path.join(projectPaths.runsDir, runId);
    const runCwd = resolveRunCwd(projectPaths.projectRoot, input.cwd);
    const startedAt = new Date().toISOString();
-   const timeoutMs = input.timeoutMs ?? defaultTimeoutMs;
+   const timeoutMs = input.timeoutMs ?? defaultRunTimeoutMs;
    const killGraceMs = input.killGraceMs ?? defaultKillGraceMs;
-   const mode = input.mode ?? profile.mode ?? "safe";
+   const mode = input.mode ?? profile.mode;
 
    await mkdir(runDir, { recursive: true });
    const paths = buildRunPaths(runDir);
-   const projectContext = await loadProjectContext(projectPaths.projectRoot);
-   const skillSelection = await resolveSkillsForRun(projectPaths, {
-      profile,
-      ...(input.selectedSkillNames !== undefined
-         ? { selectedSkillNames: input.selectedSkillNames }
-         : {}),
-      task: input.task
-   });
    const renderedPrompt = buildPrompt(profile, {
       artifactsDir: paths.artifactsDir,
       cwd: runCwd,
       mode,
-      ...(projectContext !== undefined ? { projectContext } : {}),
       runFile: paths.runFile,
       runId,
-      skills: skillSelection.active,
       task: input.task
    });
    const adapter = getAdapterForProvider(profile.provider);
@@ -481,11 +475,12 @@ async function prepareRun(
       cwd: runCwd,
       mode,
       promptFile: paths.promptFile,
-      ...(projectContext !== undefined ? { projectContext } : {}),
       renderedPrompt,
       runFile: paths.runFile,
       runId,
-      skills: skillSelection.active,
+      ...(config.contextFileNames !== undefined
+         ? { contextFileNames: config.contextFileNames }
+         : {}),
       task: input.task
    });
    const launch = await buildLaunchSnapshot({
@@ -494,11 +489,10 @@ async function prepareRun(
       mode,
       prepared,
       profile,
-      ...(projectContext !== undefined
-         ? { projectContextPath: projectContext.path }
-         : {}),
-      skills: skillSelection.active.map((skill) => skill.name),
       task: input.task,
+      ...(config.contextFileNames !== undefined
+         ? { contextFiles: config.contextFileNames }
+         : {}),
       timeoutMs
    });
 
@@ -532,7 +526,6 @@ async function prepareRun(
       runCwd,
       runDir,
       runId,
-      selectedSkillNames: skillSelection.active.map((skill) => skill.name),
       startedAt,
       timeoutMs
    };
@@ -578,8 +571,7 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
       path: profilePath,
       provider: run.launch.provider,
       reasoningEffort: run.launch.reasoningEffort ?? "none",
-      scope: profileScope,
-      ...(run.launch.skills.length > 0 ? { skills: run.launch.skills } : {})
+      scope: profileScope
    };
 
    return {
@@ -611,7 +603,6 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
       runCwd: run.launch.cwd,
       runDir: run.paths.runDir,
       runId,
-      selectedSkillNames: run.launch.skills,
       startedAt: run.startedAt,
       timeoutMs: run.launch.timeoutMs
    };
@@ -862,9 +853,9 @@ function toLaunchResult(input: {
       agent: input.preparedRun.profile.name,
       agentPath: input.preparedRun.profile.path,
       agentScope: input.preparedRun.profile.scope,
-      inspectCommand: `aiman run inspect ${input.preparedRun.runId}`,
+      inspectCommand: `aiman runs inspect ${input.preparedRun.runId}`,
       launchMode: "detached",
-      logsCommand: `aiman run logs ${input.preparedRun.runId} -f`,
+      logsCommand: `aiman runs logs ${input.preparedRun.runId} -f`,
       mode: input.preparedRun.mode,
       ...(typeof input.pid === "number" ? { pid: input.pid } : {}),
       profile: input.preparedRun.profile.name,
@@ -877,7 +868,7 @@ function toLaunchResult(input: {
          input.preparedRun.mode
       ),
       runId: input.preparedRun.runId,
-      showCommand: `aiman run show ${input.preparedRun.runId}`,
+      showCommand: `aiman runs show ${input.preparedRun.runId}`,
       startedAt: input.preparedRun.startedAt,
       status: "running"
    };
@@ -910,6 +901,9 @@ export async function launchRun(input: RunAgentInput): Promise<LaunchedRun> {
    }
 
    input.onRunStarted?.({
+      agent: preparedRun.profile.name,
+      agentPath: preparedRun.profile.path,
+      agentScope: preparedRun.profile.scope,
       profile: preparedRun.profile.name,
       profilePath: preparedRun.profile.path,
       profileScope: preparedRun.profile.scope,
@@ -943,6 +937,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
    const preparedRun = await prepareRun(input, "foreground");
 
    input.onRunStarted?.({
+      agent: preparedRun.profile.name,
+      agentPath: preparedRun.profile.path,
+      agentScope: preparedRun.profile.scope,
       profile: preparedRun.profile.name,
       profilePath: preparedRun.profile.path,
       profileScope: preparedRun.profile.scope,

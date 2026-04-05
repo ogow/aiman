@@ -1,1 +1,1 @@
-export { openAimanApp } from "../ui/aiman-app.js";
+export { openAimanApp } from "../tui/aiman-app.js";

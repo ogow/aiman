@@ -7,16 +7,16 @@ import type { ProfileScope } from "./types.js";
 
 export type ProjectPaths = {
    aimanDir: string;
+   projectConfigPath: string;
    projectAgentsDir: string;
    projectProfilesDir: string;
    projectRoot: string;
-   projectSkillsDir: string;
    runDbPath: string;
    runsDir: string;
    userAimanDir: string;
+   userConfigPath: string;
    userAgentsDir: string;
    userProfilesDir: string;
-   userSkillsDir: string;
 };
 
 function getUserHomeDirectory(): string {
@@ -105,16 +105,16 @@ export function getProjectPaths(projectRoot = process.cwd()): ProjectPaths {
 
    return {
       aimanDir,
-      projectAgentsDir: path.join(aimanDir, "profiles"),
-      projectProfilesDir: path.join(aimanDir, "profiles"),
+      projectConfigPath: path.join(aimanDir, "config.json"),
+      projectAgentsDir: path.join(aimanDir, "agents"),
+      projectProfilesDir: path.join(aimanDir, "agents"),
       projectRoot: resolvedProjectRoot,
-      projectSkillsDir: path.join(aimanDir, "skills"),
       runDbPath: path.join(userAimanDir, "aiman.db"),
       runsDir: path.join(userAimanDir, "runs"),
       userAimanDir,
-      userAgentsDir: path.join(userAimanDir, "profiles"),
-      userProfilesDir: path.join(userAimanDir, "profiles"),
-      userSkillsDir: path.join(userAimanDir, "skills")
+      userConfigPath: path.join(userAimanDir, "config.json"),
+      userAgentsDir: path.join(userAimanDir, "agents"),
+      userProfilesDir: path.join(userAimanDir, "agents")
    };
 }
 
@@ -122,7 +122,6 @@ export async function ensureProjectDirectories(
    projectPaths: ProjectPaths
 ): Promise<void> {
    await mkdir(projectPaths.projectProfilesDir, { recursive: true });
-   await mkdir(projectPaths.projectSkillsDir, { recursive: true });
    await mkdir(projectPaths.runsDir, { recursive: true });
 }
 
@@ -135,15 +134,6 @@ export async function ensureProfileScopeDirectory(
    });
 }
 
-export async function ensureSkillScopeDirectory(
-   projectPaths: ProjectPaths,
-   scope: ProfileScope
-): Promise<void> {
-   await mkdir(getSkillsDirectoryForScope(projectPaths, scope), {
-      recursive: true
-   });
-}
-
 export function getProfilesDirectoryForScope(
    projectPaths: ProjectPaths,
    scope: ProfileScope
@@ -151,15 +141,6 @@ export function getProfilesDirectoryForScope(
    return scope === "project"
       ? projectPaths.projectProfilesDir
       : projectPaths.userProfilesDir;
-}
-
-export function getSkillsDirectoryForScope(
-   projectPaths: ProjectPaths,
-   scope: ProfileScope
-): string {
-   return scope === "project"
-      ? projectPaths.projectSkillsDir
-      : projectPaths.userSkillsDir;
 }
 
 export function resolveRunCwd(projectRoot: string, cwd?: string): string {

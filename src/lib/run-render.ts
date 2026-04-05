@@ -1,3 +1,5 @@
+import chalk from "chalk";
+
 import { renderActivityBar } from "./activity.js";
 import { formatRunRights } from "./provider-capabilities.js";
 import {
@@ -6,16 +8,36 @@ import {
    renderSection,
    renderTable
 } from "./pretty.js";
+import {
+   formatCompactTimestamp,
+   getRunShortLabel,
+   getRunStatusLabel
+} from "../tui/workbench-model.js";
 import type { MarkdownFrontmatter, RunInspection } from "./types.js";
 
-function formatAge(startedAt: string): string {
-   const durationMs = Date.now() - Date.parse(startedAt);
-
-   if (!Number.isFinite(durationMs) || durationMs < 0) {
-      return startedAt;
+function getStatusColor(run: RunInspection): (text: string) => string {
+   if (run.active) {
+      return chalk.yellow;
    }
 
-   return `${formatDuration(durationMs)} ago`;
+   switch (run.status) {
+      case "success":
+         return chalk.green;
+      case "error":
+         return chalk.red;
+      case "cancelled":
+      case "running":
+         return chalk.yellow;
+      default:
+         return chalk.dim;
+   }
+}
+
+function formatRunDurationSummary(run: RunInspection): string {
+   if ("durationMs" in run && typeof run.durationMs === "number") {
+      return formatDuration(run.durationMs);
+   }
+   return "n/a";
 }
 
 function stringifyFrontmatter(frontmatter?: MarkdownFrontmatter): string {
@@ -44,26 +66,37 @@ function formatStringList(values: string[]): string {
    return values.join(", ");
 }
 
-function getRunProfileLabel(run: RunInspection): string {
-   return run.profile ?? run.agent ?? "";
-}
-
 function getRunScopeLabel(run: RunInspection): string {
    return run.profileScope ?? run.agentScope ?? "";
 }
 
 export function renderRunTable(runs: RunInspection[]): string {
+   const headerRow = [
+      chalk.bold("Status"),
+      chalk.bold("Agent"),
+      chalk.bold("Provider"),
+      chalk.bold("Mode"),
+      chalk.bold("Started"),
+      chalk.bold("Time"),
+      chalk.bold("Run ID")
+   ];
+
    return renderTable(
-      ["Run ID", "Agent", "Provider", "Launch", "Mode", "Age", "PID"],
-      runs.map((run) => [
-         run.runId,
-         getRunProfileLabel(run),
-         run.provider,
-         run.launchMode,
-         run.mode,
-         formatAge(run.startedAt),
-         "pid" in run && typeof run.pid === "number" ? String(run.pid) : ""
-      ])
+      headerRow,
+      runs.map((run) => {
+         const color = getStatusColor(run);
+         const status = getRunStatusLabel(run, 0);
+
+         return [
+            color(status),
+            chalk.cyan(getRunShortLabel(run)),
+            run.provider,
+            run.mode,
+            chalk.dim(formatCompactTimestamp(run.startedAt)),
+            formatRunDurationSummary(run),
+            chalk.dim(run.runId)
+         ];
+      })
    );
 }
 
@@ -76,7 +109,7 @@ export function renderStatusView(input: {
       { label: "Active", value: input.run.active ? "yes" : "no" },
       { label: "Recorded status", value: input.run.status },
       { label: "Run ID", value: input.run.runId },
-      { label: "Profile", value: getRunProfileLabel(input.run) },
+      { label: "Agent", value: getRunShortLabel(input.run) },
       { label: "Scope", value: getRunScopeLabel(input.run) },
       { label: "Provider", value: input.run.provider },
       { label: "Launch", value: input.run.launchMode },
@@ -143,8 +176,8 @@ export function renderStatusView(input: {
       renderSection(
          "Next steps",
          renderLabelValueBlock([
-            { label: "Logs", value: `aiman run logs ${input.run.runId} -f` },
-            { label: "Inspect", value: `aiman run inspect ${input.run.runId}` }
+            { label: "Logs", value: `aiman runs logs ${input.run.runId} -f` },
+            { label: "Inspect", value: `aiman runs inspect ${input.run.runId}` }
          ])
       )
    );
@@ -160,7 +193,7 @@ export function renderInspectView(
       { label: "Active", value: run.active ? "yes" : "no" },
       { label: "Recorded status", value: run.status },
       { label: "Run ID", value: run.runId },
-      { label: "Profile", value: getRunProfileLabel(run) },
+      { label: "Agent", value: getRunShortLabel(run) },
       { label: "Scope", value: getRunScopeLabel(run) },
       { label: "Provider", value: run.provider },
       { label: "Launch", value: run.launchMode },
@@ -228,11 +261,11 @@ export function renderInspectView(
          "Launch",
          renderLabelValueBlock([
             {
-               label: "Profile path",
+               label: "Agent path",
                value: run.launch.profilePath ?? run.launch.agentPath ?? ""
             },
             {
-               label: "Profile digest",
+               label: "Agent digest",
                value: run.launch.profileDigest ?? run.launch.agentDigest ?? ""
             },
             { label: "Prompt digest", value: run.launch.promptDigest },
@@ -255,34 +288,24 @@ export function renderInspectView(
                value: formatDuration(run.launch.killGraceMs)
             },
             {
-               label: `Skills (${run.launch.skills.length})`,
-               value: formatStringList(run.launch.skills)
-            },
-            {
-               label: "Project context",
-               value: run.launch.projectContextPath ?? ""
+               label: `Context files (${run.launch.contextFiles?.length ?? 0})`,
+               value: formatStringList(run.launch.contextFiles ?? [])
             }
          ])
       )
    );
 
-   if (run.launch.skills.length > 0) {
+   if (
+      Array.isArray(run.launch.contextFiles) &&
+      run.launch.contextFiles.length > 0
+   ) {
       sections.push(
          renderSection(
-            "Skills",
+            "Context files",
             renderTable(
                ["Name"],
-               run.launch.skills.map((skill) => [skill])
+               run.launch.contextFiles.map((fileName) => [fileName])
             )
-         )
-      );
-   }
-
-   if (typeof run.launch.projectContextPath === "string") {
-      sections.push(
-         renderSection(
-            "Project context",
-            renderTable(["Path"], [[run.launch.projectContextPath]])
          )
       );
    }
@@ -326,15 +349,15 @@ export function renderInspectView(
       renderSection(
          "Next steps",
          renderLabelValueBlock([
-            { label: "Show", value: `aiman run show ${run.runId}` },
-            { label: "Logs", value: `aiman run logs ${run.runId} -f` },
+            { label: "Show", value: `aiman runs show ${run.runId}` },
+            { label: "Logs", value: `aiman runs logs ${run.runId} -f` },
             {
                label: "Run file",
-               value: `aiman run inspect ${run.runId} --stream run`
+               value: `aiman runs inspect ${run.runId} --stream run`
             },
             {
                label: "Prompt",
-               value: `aiman run inspect ${run.runId} --stream prompt`
+               value: `aiman runs inspect ${run.runId} --stream prompt`
             }
          ])
       )

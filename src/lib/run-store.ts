@@ -199,30 +199,6 @@ function getStringList(value: unknown): string[] | undefined {
       : undefined;
 }
 
-function getLaunchSkillNames(value: unknown): string[] | undefined {
-   const stringList = getStringList(value);
-
-   if (stringList !== undefined) {
-      return stringList;
-   }
-
-   if (!Array.isArray(value)) {
-      return undefined;
-   }
-
-   const skillNames = value.flatMap((entry) => {
-      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-         return [];
-      }
-
-      const name = (entry as Record<string, unknown>).name;
-
-      return typeof name === "string" ? [name] : [];
-   });
-
-   return skillNames.length === value.length ? skillNames : undefined;
-}
-
 function getLaunchSnapshot(
    frontmatter: MarkdownFrontmatter
 ): RunLaunchSnapshot | undefined {
@@ -234,6 +210,7 @@ function getLaunchSnapshot(
 
    const args = launch.args;
    const command = launch.command;
+   const contextFiles = getStringList(launch.contextFiles);
    const cwd = launch.cwd;
    const envKeys = launch.envKeys;
    const killGraceMs = launch.killGraceMs;
@@ -248,7 +225,6 @@ function getLaunchSnapshot(
    const promptDigest = launch.promptDigest;
    const promptTransport = launch.promptTransport;
    const provider = launch.provider;
-   const skills = getLaunchSkillNames(launch.skills) ?? [];
    const task = launch.task;
    const timeoutMs = launch.timeoutMs;
 
@@ -301,6 +277,9 @@ function getLaunchSnapshot(
             : profileScope,
       args: args as string[],
       command,
+      ...(contextFiles !== undefined && contextFiles.length > 0
+         ? { contextFiles }
+         : {}),
       cwd,
       envKeys: envKeys as string[],
       killGraceMs,
@@ -315,7 +294,6 @@ function getLaunchSnapshot(
       promptDigest,
       promptTransport,
       provider,
-      skills,
       ...(typeof task === "string" ? { task } : {}),
       timeoutMs
    };

@@ -32,7 +32,7 @@ function useFixture(input: { cwd: string; homeRoot: string }): () => void {
    };
 }
 
-test("getProjectPaths keeps profiles and skills under .aiman", async () => {
+test("getProjectPaths keeps agents under .aiman", async () => {
    const homeRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-home-root-"));
    const projectRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-project-"));
    await mkdir(path.join(projectRoot, ".aiman"), { recursive: true });
@@ -45,19 +45,11 @@ test("getProjectPaths keeps profiles and skills under .aiman", async () => {
       assert.equal(projectPaths.projectRoot, projectRoot);
       assert.equal(
          projectPaths.projectProfilesDir,
-         path.join(projectRoot, ".aiman", "profiles")
-      );
-      assert.equal(
-         projectPaths.projectSkillsDir,
-         path.join(projectRoot, ".aiman", "skills")
+         path.join(projectRoot, ".aiman", "agents")
       );
       assert.equal(
          projectPaths.userProfilesDir,
-         path.join(homeRoot, ".aiman", "profiles")
-      );
-      assert.equal(
-         projectPaths.userSkillsDir,
-         path.join(homeRoot, ".aiman", "skills")
+         path.join(homeRoot, ".aiman", "agents")
       );
    } finally {
       restore();
@@ -67,8 +59,7 @@ test("getProjectPaths keeps profiles and skills under .aiman", async () => {
 test("getProjectPaths does not treat home-level user dirs as a project root", async () => {
    const homeRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-home-root-"));
    const nestedCwd = path.join(homeRoot, "scratch", "demo");
-   await mkdir(path.join(homeRoot, ".aiman", "profiles"), { recursive: true });
-   await mkdir(path.join(homeRoot, ".aiman", "skills"), { recursive: true });
+   await mkdir(path.join(homeRoot, ".aiman", "agents"), { recursive: true });
    await mkdir(nestedCwd, { recursive: true });
 
    const restore = useFixture({ cwd: nestedCwd, homeRoot });
@@ -79,11 +70,11 @@ test("getProjectPaths does not treat home-level user dirs as a project root", as
       assert.equal(projectPaths.projectRoot, nestedCwd);
       assert.equal(
          projectPaths.projectProfilesDir,
-         path.join(nestedCwd, ".aiman", "profiles")
+         path.join(nestedCwd, ".aiman", "agents")
       );
       assert.equal(
          projectPaths.userProfilesDir,
-         path.join(homeRoot, ".aiman", "profiles")
+         path.join(homeRoot, ".aiman", "agents")
       );
    } finally {
       restore();

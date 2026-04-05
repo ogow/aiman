@@ -1,19 +1,18 @@
 # Agent Runtime
 
-`aiman` is a small local profile-run recorder. It launches one authored specialist profile, persists one canonical run record, and makes that run easy to inspect through the `run` and `sesh` commands.
+`aiman` is a small local agent-run recorder. It launches one authored specialist agent, persists one canonical run record, and makes that run easy to inspect through `aiman run` and `aiman runs ...`.
 
 ## Runtime Boundaries
 
 Current responsibilities:
 
-- load authored profiles from project scope, user scope, and the built-in `build` and `plan` profiles
+- load authored agents from project scope, user scope, and the built-in `build` and `plan` agents
 - render the provider prompt from the authored body plus explicit placeholder substitution
-- attach the repo's `AGENTS.md#Aiman Runtime Context` when that section exists
-- attach any selected local `aiman` skills
+- load layered harness config and pass shared native context file names to the downstream provider
 - launch and supervise the downstream CLI safely with explicit argv, cwd, and environment
 - freeze one immutable launch snapshot before execution starts
 - capture logs and persist one canonical `run.md`
-- expose persisted state through `aiman run show`, `aiman run logs`, `aiman run inspect`, `aiman sesh ...`, and the default TUI
+- expose persisted state through `aiman runs show`, `aiman runs logs`, `aiman runs inspect`, and the default TUI
 
 Things `aiman` does not do:
 
@@ -27,17 +26,17 @@ Things `aiman` does not do:
 
 Current flow:
 
-1. The caller chooses a profile name and invokes `aiman run <profile>`.
-2. `aiman` resolves the profile from project scope or user scope. Project scope wins on name collisions unless `--scope` is passed.
-3. `aiman` reads only `AGENTS.md#Aiman Runtime Context` from the repo when that section exists.
-4. `aiman` resolves any declared or explicitly selected local skills from `.aiman/skills/` or `~/.aiman/skills/`.
-5. `aiman` renders `prompt.md`, freezes an immutable `launch` snapshot, writes an initial running `run.md`, and chooses foreground or detached execution.
+1. The caller chooses an agent name and invokes `aiman run <agent>`.
+2. `aiman` resolves the agent from project scope or user scope. Project scope wins on name collisions unless `--scope` is passed.
+3. `aiman` loads the shared repo-level `contextFileNames` setting from layered config.
+4. `aiman` renders `prompt.md`, freezes an immutable `launch` snapshot, writes an initial running `run.md`, and chooses foreground or detached execution.
+5. The downstream provider discovers configured bootstrap context files natively as part of its own repo workflow.
 6. The active `aiman` process drains stdout and stderr into persisted logs while the provider subprocess runs, then normalizes the result and persists the final `run.md`.
 7. Operator-facing reads derive whether the run is still active from the stored supervising `pid` plus a fresh heartbeat instead of trusting `status: running` alone.
 
-## Profile Model
+## Agent Model
 
-Each profile is a Markdown file with frontmatter plus a provider-native body.
+Each agent is a Markdown file with frontmatter plus a provider-native body.
 
 The body is the full authored prompt contract. `aiman` does not append a hidden runtime footer. Instead, it substitutes explicit placeholders when present. Supported runtime placeholders today are:
 
@@ -48,17 +47,20 @@ The body is the full authored prompt contract. `aiman` does not append a hidden 
 - `{{runFile}}`
 - `{{artifactsDir}}`
 
-`{{task}}` is the expected placeholder for runnable profiles created by `aiman profile create`.
+`{{task}}` is the expected placeholder for runnable agents created by `aiman agent create`.
 
 Supported frontmatter for new authoring work:
 
 - required `name`
 - required `provider`
 - required `description`
-- required `model`
 - required `mode`
 - required `reasoningEffort`
-- optional `skills`
+
+`model` is provider-specific:
+
+- `codex`: required and must name an explicit model
+- `gemini`: required; use an explicit model id or `auto` to let Gemini choose its automatic default model
 
 `reasoningEffort` is provider-specific:
 
@@ -67,23 +69,21 @@ Supported frontmatter for new authoring work:
 
 Use `none` when the selected provider or model does not support configurable reasoning effort.
 
-Profiles that use `permissions`, `contextFiles`, or `requiredMcps` are invalid. Rewrite them to the current contract instead of relying on fallback parsing.
+Agents that use `permissions`, `contextFiles`, `skills`, or `requiredMcps` are invalid. Rewrite them to the current contract instead of relying on fallback parsing.
 
 For authoring guidance on turning that contract into a reliable reusable specialist, see `docs/agent-authoring.md`.
 
-## Runtime Context And Skills
+## Runtime Context
 
-`aiman` appends shared repo guidance only from `AGENTS.md#Aiman Runtime Context`.
+`aiman` no longer injects a managed project-context section into prompts. Instead, the harness config can define a shared ordered `contextFileNames` list for the whole repo, for example `["AGENTS.md", "CONTEXT.md"]`.
 
-- If that section is missing, no repo runtime context is attached.
-- The rest of `AGENTS.md` is not attached.
-- Keep the section short, stable, and repo-wide.
-
-`skills`, when present, is a YAML list of local `aiman` skill names.
-
-- `aiman` resolves those names from `.aiman/skills/` and `~/.aiman/skills/`.
-- The selected skill bodies are attached to the prompt as explicit run context.
-- The launch snapshot records the active skill names for later inspection.
+- Home config lives at `~/.aiman/config.json`.
+- Repo config lives at `<repo>/.aiman/config.json`.
+- Repo config overrides home config.
+- When configured, all agents in the same repo use the same file names.
+- Agents do not override those file names individually.
+- When configured, the downstream provider treats those files as native bootstrap context when they exist.
+- When not configured, `aiman` leaves bootstrap file selection to the downstream provider's native behavior.
 
 ## Provider Isolation
 
@@ -93,8 +93,9 @@ Current provider behavior:
 - Codex `yolo` runs use `codex exec --sandbox workspace-write`.
 - Gemini `safe` runs use `gemini --approval-mode plan`.
 - Gemini `yolo` runs use `gemini --approval-mode auto_edit`.
-- Codex launches blank project-doc, instruction, and agent-role prompt inputs so repo `AGENTS.md`, prompt-shaping `.codex` settings, and repo-defined Codex agent roles do not leak into authored `aiman` profiles beyond the explicit runtime-context section.
-- Gemini launches use a child-local settings overlay so ambient `GEMINI.md`-style prompt files do not leak into authored `aiman` profiles beyond the explicit runtime-context section.
+- Codex launches pin non-interactive approval behavior to `approval_policy="never"` so `codex exec` does not inherit interactive approval defaults from local config.
+- Codex launches preserve native `AGENTS.md` handling, pass additional configured bootstrap file names through `project_doc_fallback_filenames`, blank other Codex prompt-shaping inputs such as `developer_instructions`, `instructions`, and `agents`, and grant the run `artifacts/` directory as an explicit extra writable root via `--add-dir`.
+- Gemini launches use a child-local settings overlay so Gemini sees the shared configured bootstrap file names through its native `context.fileName` setting.
 
 Operator-facing surfaces should describe those rights explicitly so the caller can tell whether a run is safe, yolo, read-only, or write-enabled.
 
@@ -102,7 +103,7 @@ Operator-facing surfaces should describe those rights explicitly so the caller c
 
 All execution state lives under the global home store `~/.aiman/runs/<run-id>/`.
 
-`aiman` also keeps a SQLite run index at `~/.aiman/aiman.db`. That index stores run ids, `projectRoot`, status, pid/heartbeat, and the resolved run directory so `sesh list`, `show`, `logs`, `inspect`, and the default workbench can find runs from any working directory without rescanning project-local directories.
+`aiman` also keeps a SQLite run index at `~/.aiman/aiman.db`. That index stores run ids, `projectRoot`, status, pid/heartbeat, and the resolved run directory so `runs list`, `runs show`, `runs logs`, `runs inspect`, and the default workbench can find runs from any working directory without rescanning project-local directories.
 
 Current layout:
 
@@ -122,8 +123,8 @@ File roles:
 
 - `run.md`: canonical persisted run record with deterministic frontmatter plus the final Markdown body
 - `prompt.md`: rendered prompt sent to the provider
-- `.stop-requested`: optional stop request marker written by `aiman run stop <run-id>` or the default OpenTUI workbench; active workers poll for it and stop the provider subprocess when present, including Windows command-processor launch trees for `.cmd` / `.bat` shims
-- `stdout.log` / `stderr.log`: raw subprocess output when those streams contain data
+- `.stop-requested`: optional stop request marker written by `aiman runs stop <run-id>` or the default OpenTUI workbench; active workers poll for it and stop the provider subprocess when present, including Windows command-processor launch trees for `.cmd` / `.bat` shims
+- `stdout.log` / `stderr.log`: raw subprocess output when those streams contain data; for Codex runs, `stdout.log` is the JSONL event stream from `codex exec --json`
 - `artifacts/`: optional directory for run-side files referenced from `run.md`
 
 The runtime derives prompt/log/artifact file paths from the run directory. Those paths are not duplicated in `run.md`.
@@ -165,7 +166,7 @@ The `launch` object is the immutable evidence record for the run. It freezes:
 - working directory, launch mode, timeout, and kill grace period
 - provider command, argv summary, prompt transport, and allowlisted environment key names
 - agent-file digest and prompt digest
-- declared skill names and the attached `AGENTS.md#Aiman Runtime Context` path when present
+- the effective configured native `contextFileNames`
 
 Authored or agent-produced frontmatter can also include task-specific fields like:
 
@@ -198,15 +199,15 @@ Current adapter behavior:
 - both use explicit argv instead of shell command strings
 - Windows `.cmd` and `.bat` provider shims are relaunched through an explicit escaped `cmd.exe /d /s /c` command line so npm-style wrappers still launch without mangling prompt arguments, and stop/timeout handling must terminate that command-processor launch tree rather than only the wrapper process
 - Windows Codex launches also pin the Codex CLI away from login-shell and user-profile shell behavior so provider-side PowerShell commands do not depend on user profile loading
-- Codex launches also blank project-doc, developer-instruction, and agent-role inputs on the CLI so authored `aiman` prompts do not inherit extra repo prompt-shaping inputs beyond `AGENTS.md#Aiman Runtime Context`, while still keeping project-native MCP registration available
-- Gemini launches also inject a child-local settings overlay via `GEMINI_CLI_SYSTEM_SETTINGS_PATH` so Gemini context-file loading uses an impossible filename instead of ambient project prompt files, while still keeping project-native `.gemini/settings.json` MCP registration available
+- Codex launches also preserve native `AGENTS.md` handling, pass additional configured bootstrap file names through the CLI, blank other repo prompt-shaping inputs while keeping project-native MCP registration available, request JSONL event output on stdout, pin `approval_policy="never"` for deterministic automation, and grant the external run `artifacts/` directory as an extra writable root
+- Gemini launches also inject a child-local settings overlay via `GEMINI_CLI_SYSTEM_SETTINGS_PATH` so Gemini uses the shared configured bootstrap file names instead of provider defaults while still keeping project-native `.gemini/settings.json` MCP registration available, and request `--output-format json` so headless runs return one structured JSON object
 - both run with an allowlisted environment
 - both should make provider-specific rights legible to the operator instead of forcing them to reverse-engineer adapter flags
 - both can reuse an already-rendered `prompt.md` during hidden-worker execution so detached runs do not have to reconstruct prompt state differently
 - both rely on the authored agent body as the full prompt and only substitute explicit runtime placeholders
 - both normalize final output into the shared `run.md` contract
-- Codex requires the persisted last-message file for a successful run; if the provider exits successfully without writing it, `aiman` records an error instead of silently switching to stdout parsing
-- Gemini uses stdout as the final answer text
+- Codex requires the persisted last-message file for a successful run; if the provider exits successfully without writing it, `aiman` records an error instead of silently switching to stdout parsing, even though stdout is available as structured JSONL events
+- Gemini requires valid structured stdout from `--output-format json`; `aiman` parses the final response from the JSON object's `response` field and surfaces the structured `error.message` when the CLI exits non-zero
 
 ## Safety and Simplification Rules
 
@@ -235,6 +236,6 @@ That smoke-test suite:
 
 - uses the real Codex and Gemini CLIs
 - creates temp repos with sentinel `AGENTS.md` and `GEMINI.md` files
-- verifies that ambient repo instruction files stay out of authored `aiman` runs
-- verifies that only the explicit `AGENTS.md#Aiman Runtime Context` section appears
+- verifies that configured bootstrap context files appear natively
+- verifies that non-configured context files stay out
 - skips explicitly when the required CLI or auth is unavailable instead of silently passing

@@ -1,8 +1,8 @@
 # Agent Baseline
 
-Use this file as a drafting reference for `AGENTS.md#Aiman Runtime Context`.
+Use this file as a drafting reference for a shared repo bootstrap context file such as `AGENTS.md`.
 
-`aiman` does not attach this file directly. The point is to show the kind of stable, neutral, non-task-specific guidance that belongs in the runtime-context section when a repo wants shared `aiman` context.
+`aiman` does not attach this file directly. The point is to show the kind of stable, neutral, non-task-specific guidance that belongs in a shared bootstrap context file when a repo wants native provider context.
 
 ## Build And Checks
 
@@ -13,8 +13,7 @@ Use this file as a drafting reference for `AGENTS.md#Aiman Runtime Context`.
 
 ## Important Paths
 
-- `.aiman/profiles/`: authored specialist definitions
-- `.aiman/skills/`: local `aiman` skill bundles
+- `.aiman/agents/`: authored specialist definitions
 - `docs/cli.md`: CLI surface and operator behavior
 - `docs/agent-runtime.md`: runtime contract and provider behavior
 - `docs/typescript-style.md`: TypeScript editing rules
@@ -31,13 +30,13 @@ Use this file as a drafting reference for `AGENTS.md#Aiman Runtime Context`.
 
 ## Repo Terms
 
-- profile: an authored Markdown specialist file under `.aiman/profiles/`
-- run: one persisted execution of one authored profile
+- agent: an authored Markdown specialist file under `.aiman/agents/`
+- run: one persisted execution of one authored agent
 - launch snapshot: the immutable provider invocation metadata frozen into `run.md`
-- session commands: `aiman sesh ...` commands that inspect saved runs
+- run commands: `aiman runs ...` commands that inspect saved runs
 
 ## Safety
 
-- Respect the profile's declared mode and effective run rights.
+- Respect the agent's declared mode and effective run rights.
 - Prefer deterministic, inspectable output over hidden side effects.
-- Put only shared repo guidance into `AGENTS.md#Aiman Runtime Context`; keep task strategy inside the authored profile body.
+- Put only shared repo guidance into the shared bootstrap context file; keep task strategy inside the authored agent body.

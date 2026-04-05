@@ -1,9 +1,11 @@
 {
    "name": "aiman",
    "version": "0.1.0",
-   "private": true,
+   "private": false,
    "description": "Human-first Bun/TypeScript terminal workbench",
    "type": "module",
+   "main": "./dist/index.js",
+   "types": "./dist/index.d.ts",
    "packageManager": "bun@1.2.18",
    "engines": {
       "bun": ">=1.2.18",
@@ -11,6 +13,16 @@
    },
    "bin": {
       "aiman": "./dist/cli.js"
+   },
+   "exports": {
+      ".": {
+         "types": "./dist/index.d.ts",
+         "import": "./dist/index.js"
+      },
+      "./cli": {
+         "types": "./dist/cli.d.ts",
+         "import": "./dist/cli.js"
+      }
    },
    "scripts": {
       "dev": "bun run src/cli.ts",
@@ -39,6 +51,7 @@
    "dependencies": {
       "@opentui/core": "^0.1.96",
       "@opentui/react": "^0.1.96",
+      "chalk": "^5.6.2",
       "gray-matter": "^4.0.3",
       "react": "^19.2.4",
       "yargs": "^18.0.0"

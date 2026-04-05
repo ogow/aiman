@@ -8,8 +8,7 @@ import { listRuns, readRunDetails, runAgent } from "../src/lib/runs.js";
 
 async function createHomeFixture(): Promise<string> {
    const homeRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-home-"));
-   await mkdir(path.join(homeRoot, ".aiman", "profiles"), { recursive: true });
-   await mkdir(path.join(homeRoot, ".aiman", "skills"), { recursive: true });
+   await mkdir(path.join(homeRoot, ".aiman", "agents"), { recursive: true });
    await mkdir(path.join(homeRoot, ".aiman", "runs"), { recursive: true });
    return homeRoot;
 }
@@ -28,9 +27,13 @@ async function createFakeCodexBinary(binDir: string): Promise<void> {
 import * as path from "node:path";
 
 let lastMessagePath = "";
+let useJsonOutput = false;
 for (let index = 0; index < process.argv.length; index += 1) {
    if (process.argv[index] === "--output-last-message") {
       lastMessagePath = process.argv[index + 1] ?? "";
+   }
+   if (process.argv[index] === "--json") {
+      useJsonOutput = true;
    }
 }
 
@@ -41,7 +44,17 @@ if (lastMessagePath.length > 0) {
    await writeFile(lastMessagePath, "Fake codex result\\n", "utf8");
 }
 
-process.stdout.write("provider stdout\\n");
+if (useJsonOutput) {
+   process.stdout.write(
+      JSON.stringify({
+         id: "evt-1",
+         message: { role: "assistant", content: "Fake codex result" },
+         type: "turn.completed"
+      }) + "\\n"
+   );
+} else {
+   process.stdout.write("provider stdout\\n");
+}
 `,
       "utf8"
    );
@@ -70,15 +83,12 @@ async function createRunnableFixture(): Promise<{
    const homeRoot = await createHomeFixture();
    const binDir = path.join(projectRoot, "bin");
 
-   await mkdir(path.join(projectRoot, ".aiman", "profiles"), {
-      recursive: true
-   });
-   await mkdir(path.join(projectRoot, ".aiman", "skills", "review-helper"), {
+   await mkdir(path.join(projectRoot, ".aiman", "agents"), {
       recursive: true
    });
    await createFakeCodexBinary(binDir);
    await writeFile(
-      path.join(projectRoot, ".aiman", "profiles", "reviewer.md"),
+      path.join(projectRoot, ".aiman", "agents", "reviewer.md"),
       `---
 name: reviewer
 description: Reviews code for risks
@@ -86,8 +96,6 @@ provider: codex
 model: gpt-5.4-mini
 mode: safe
 reasoningEffort: medium
-skills:
-  - review-helper
 ---
 
 ## Role
@@ -100,25 +108,10 @@ You are a focused reviewer.
 - Review the current change carefully.
 
 ## Constraints
-- Use only the attached project context and active skills.
+- Use the repo's native context files.
 
 ## Expected Output
 - Return a concise result.
-`,
-      "utf8"
-   );
-   await writeFile(
-      path.join(projectRoot, ".aiman", "skills", "review-helper", "SKILL.md"),
-      `---
-name: review-helper
-description: Adds review-specific guidance
-keywords:
-  - review
-profiles:
-  - reviewer
----
-
-- Check correctness first.
 `,
       "utf8"
    );
@@ -176,14 +169,13 @@ function useProjectFixture(input: {
    };
 }
 
-test("runAgent executes a profile and persists task context and skills", async () => {
+test("runAgent omits context files when config does not set them", async () => {
    const fixture = await createRunnableFixture();
    const restore = useProjectFixture(fixture);
 
    try {
       const result = await runAgent({
          profileName: "reviewer",
-         selectedSkillNames: ["review-helper"],
          task: "Review the docs"
       });
 
@@ -194,14 +186,10 @@ test("runAgent executes a profile and persists task context and skills", async (
       const run = await readRunDetails(result.runId);
       const prompt = await readFile(run.paths.promptFile, "utf8");
 
-      assert.equal(
-         run.launch.projectContextPath,
-         "AGENTS.md#Aiman Runtime Context"
-      );
-      assert.deepEqual(run.launch.skills, ["review-helper"]);
+      assert.equal(run.launch.contextFiles, undefined);
       assert.equal(run.launch.task, "Review the docs");
-      assert.match(prompt, /## Project Context/);
-      assert.match(prompt, /## Active Skills/);
+      assert.doesNotMatch(prompt, /## Project Context/);
+      assert.doesNotMatch(prompt, /## Active Skills/);
    } finally {
       restore();
    }

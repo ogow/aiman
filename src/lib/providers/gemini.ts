@@ -11,9 +11,35 @@ import {
    rejectUnsupportedReasoningEffort
 } from "./shared.js";
 
-const impossibleGeminiContextFileName = "__AIMAN_UNUSED_CONTEXT__.md";
+type GeminiJsonError = {
+   message?: string;
+   type?: string;
+};
 
-function getGeminiChildSettingsOverlay(input: { runDir: string }): {
+type GeminiJsonOutput = {
+   error?: GeminiJsonError;
+   response?: string;
+};
+
+function getGeminiContextFileSetting(
+   contextFileNames: string[] | undefined
+): string | string[] {
+   const fileNames =
+      contextFileNames !== undefined && contextFileNames.length > 0
+         ? contextFileNames
+         : ["AGENTS.md"];
+
+   if (fileNames.length === 1) {
+      return fileNames[0] ?? "AGENTS.md";
+   }
+
+   return fileNames;
+}
+
+function getGeminiChildSettingsOverlay(input: {
+   contextFileNames?: string[];
+   runDir: string;
+}): {
    content: string;
    path: string;
 } {
@@ -21,7 +47,7 @@ function getGeminiChildSettingsOverlay(input: { runDir: string }): {
       content: JSON.stringify(
          {
             context: {
-               fileName: impossibleGeminiContextFileName
+               fileName: getGeminiContextFileSetting(input.contextFileNames)
             }
          },
          null,
@@ -29,6 +55,69 @@ function getGeminiChildSettingsOverlay(input: { runDir: string }): {
       ),
       path: path.join(input.runDir, ".gemini-system-settings.json")
    };
+}
+
+function getGeminiOutputFormatArgs(): string[] {
+   return ["--output-format", "json"];
+}
+
+function parseGeminiJsonOutput(stdout: string): {
+   errorMessage?: string;
+   finalText: string;
+   parseError?: string;
+} {
+   const trimmed = stdout.trim();
+
+   if (trimmed.length === 0) {
+      return {
+         finalText: "",
+         parseError: "Gemini did not produce JSON output."
+      };
+   }
+
+   try {
+      const parsed = JSON.parse(trimmed) as unknown;
+
+      if (
+         typeof parsed !== "object" ||
+         parsed === null ||
+         Array.isArray(parsed)
+      ) {
+         return {
+            finalText: "",
+            parseError: "Gemini JSON output must be an object."
+         };
+      }
+
+      const payload = parsed as GeminiJsonOutput;
+      const errorMessage =
+         typeof payload.error?.message === "string"
+            ? payload.error.message.trim()
+            : undefined;
+
+      if (typeof errorMessage === "string" && errorMessage.length > 0) {
+         return {
+            errorMessage,
+            finalText: ""
+         };
+      }
+
+      if (typeof payload.response !== "string") {
+         return {
+            finalText: "",
+            parseError: "Gemini JSON output did not include a response."
+         };
+      }
+
+      return {
+         finalText: payload.response.trim()
+      };
+   } catch {
+      return {
+         finalText: "",
+         parseError: "Gemini did not return valid JSON output."
+      };
+   }
 }
 
 export function createGeminiAdapter(): ProviderAdapter {
@@ -58,23 +147,27 @@ export function createGeminiAdapter(): ProviderAdapter {
             throw new Error("Completed Gemini run is missing its profile.");
          }
 
-         const finalText = input.stdout.trim();
+         const parsedOutput = parseGeminiJsonOutput(input.stdout);
          const status =
             input.signal === "SIGTERM"
                ? "cancelled"
-               : input.exitCode === 0
+               : input.exitCode === 0 &&
+                   parsedOutput.parseError === undefined &&
+                   parsedOutput.errorMessage === undefined
                  ? "success"
                  : "error";
          const errorMessage =
             status === "error"
-               ? input.stderr.trim() || "Gemini execution failed."
+               ? (parsedOutput.parseError ??
+                 parsedOutput.errorMessage ??
+                 (input.stderr.trim() || "Gemini execution failed."))
                : undefined;
 
          return finalizeRecord({
             cwd: input.cwd,
             endedAt: input.endedAt,
             exitCode: input.exitCode,
-            finalText,
+            finalText: parsedOutput.finalText,
             launchMode: input.launchMode,
             launch: input.launch,
             mode: input.mode,
@@ -99,6 +192,9 @@ export function createGeminiAdapter(): ProviderAdapter {
          const prompt = input.renderedPrompt ?? buildPrompt(agent, input);
          const runDir = path.dirname(input.runFile);
          const childSettingsOverlay = getGeminiChildSettingsOverlay({
+            ...(input.contextFileNames !== undefined
+               ? { contextFileNames: input.contextFileNames }
+               : {}),
             runDir
          });
 
@@ -106,9 +202,10 @@ export function createGeminiAdapter(): ProviderAdapter {
             args: [
                "--prompt",
                "",
+               ...getGeminiOutputFormatArgs(),
                "--approval-mode",
                input.mode === "yolo" ? "auto_edit" : "plan",
-               ...(agent.model ? ["--model", agent.model] : [])
+               ...(agent.model !== "auto" ? ["--model", agent.model] : [])
             ],
             command: "gemini",
             cwd: input.cwd,

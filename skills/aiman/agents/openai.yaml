@@ -1,4 +1,0 @@
-interface:
-   display_name: "Aiman"
-   short_description: "Operate and debug the aiman CLI"
-   default_prompt: "Use $aiman to create agents, run them, inspect sessions, or debug aiman behavior safely."

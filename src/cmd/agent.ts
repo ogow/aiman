@@ -1,15 +1,14 @@
 import type { Argv, CommandModule } from "yargs";
 
-import * as check from "./check-agent.js";
-import * as create from "./create.js";
-import * as list from "./list.js";
-import * as show from "./show.js";
-import * as stop from "./stop-agent.js";
+import * as check from "./agent-check.js";
+import * as create from "./agent-create.js";
+import * as list from "./agent-list.js";
+import * as show from "./agent-show.js";
 
-const agentCommands: CommandModule[] = [list, show, check, create, stop];
+const agentCommands: CommandModule[] = [list, show, check, create];
 
 export const command = "agent <command>";
-export const describe = "Browse and author specialist agents";
+export const describe = "Browse and manage agents";
 
 export function builder(yargs: Argv): Argv {
    return yargs.command(agentCommands).demandCommand();
