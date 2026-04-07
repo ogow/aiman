@@ -9,11 +9,13 @@
 ## 🚀 Quick Start
 
 ### 1. Install Dependencies
+
 ```bash
 bun install
 ```
 
 ### 2. Create your first Agent
+
 ```bash
 bun run dev agent create reviewer \
   --description "Reviews project diffs" \
@@ -24,12 +26,15 @@ bun run dev agent create reviewer \
 ```
 
 ### 3. Run the Agent
+
 ```bash
 bun run dev run reviewer --task "Check my latest commit"
 ```
 
 ### 4. Open the Workbench
+
 Run without arguments to enter the interactive TUI:
+
 ```bash
 bun run dev
 ```
@@ -48,15 +53,19 @@ bun run dev
 ## 🛠 Usage
 
 ### The Interactive Workbench (TUI)
+
 Launch `aiman` with no arguments to manage agents, track active runs, and inspect results in a keyboard-first terminal interface.
 
 ### CLI Command Groups
+
 - **`aiman agent <command>`**: List, create, show, and check agent definitions.
 - **`aiman run <agent>`**: Execute an agent in the foreground or detached mode.
 - **`aiman runs <command>`**: Browse history, follow logs, or inspect the technical details of a run.
 
 ### Global Installation
+
 To use `aiman` as a global command in any repo:
+
 ```bash
 bun run install:global
 aiman --help
@@ -66,10 +75,11 @@ aiman --help
 
 ## 🔄 Orchestration & Flows
 
-`aiman` is designed to be consumed programmatically. You can build complex, project-specific logic by importing the `aiman` API into your own scripts.
+`aiman` is designed to be consumed programmatically. You can build autonomous loops by importing the `aiman` API into your own scripts.
 
-- **[Ralph Wiggum Loop](./examples/ralph-loop.ts)**: A standalone example showing how an agent can suggest its own next tasks in a loop.
-- **[Orchestration Guide](./docs/orchestration.md)**: Detailed guidance on building harnesses and multi-agent flows.
+- **[Ralph Wiggum Loop](./examples/ralph-loop.ts)**: The simplest autonomous pattern—an agent suggests its own next tasks until the job is done.
+- **[The Blueprint Loop](./examples/blueprint-loop.ts)**: A more structured example using specialized roles (Planner/Generator) and deterministic test checks.
+- **[Orchestration Guide](./docs/orchestration.md)**: Detailed guidance on building loops, harnesses, and flows.
 
 ---
 
@@ -83,6 +93,7 @@ bun run test       # Run the test suite
 ```
 
 ### Internal Documentation
+
 - [**Architecture**](./ARCHITECTURE.md) - How the engine is built.
 - [**Agent Runtime**](./docs/agent-runtime.md) - Details on execution and results.
 - [**Agent Authoring**](./docs/agent-authoring.md) - How to write effective specialists.

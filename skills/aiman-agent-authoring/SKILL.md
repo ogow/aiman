@@ -59,6 +59,7 @@ Rules:
 Agents can participate in multi-agent flows and loops (like the "Ralph Wiggum" loop) by providing structured handoff suggestions in their output.
 
 Required JSON fields for success:
+
 - `resultType`: string
 - `summary`: string
 - `result`: any
@@ -66,6 +67,7 @@ Required JSON fields for success:
 - `artifacts`: array
 
 The `handoff` object should include:
+
 - `outcome`: status of the task
 - `notes`: findings for the next agent
 - `questions`: unresolved items

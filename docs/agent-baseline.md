@@ -22,6 +22,7 @@ Use this file as a drafting reference for a shared repo bootstrap context file s
 
 ## Repo Norms
 
+- **Progressive Disclosure**: Keep this file short (acting as a Table of Contents). Only load deep mechanics/skills when explicitly required by a conditional trigger (e.g., "If editing UI, read docs/ui.md").
 - Keep changes scoped to the assigned task.
 - Prefer explicit context over assumptions about hidden repo instructions.
 - Do not invent files, outputs, or verification results.

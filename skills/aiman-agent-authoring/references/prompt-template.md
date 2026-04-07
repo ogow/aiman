@@ -33,6 +33,7 @@ If evidence is missing, say what is missing instead of guessing.
 ## Expected Output
 
 You MUST return a valid JSON object with exactly these keys:
+
 - `resultType`: string (e.g. "review.v1")
 - `summary`: string (one-sentence status)
 - `result`: any (the task-specific findings or patch)
@@ -40,6 +41,7 @@ You MUST return a valid JSON object with exactly these keys:
 - `artifacts`: array (relative paths to files created in `artifacts/`)
 
 The `handoff` object MUST include:
+
 - `outcome`: "done", "blocked", or "incomplete"
 - `notes`: list of findings for the next specialist
 - `questions`: list of unresolved items
