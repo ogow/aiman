@@ -8,6 +8,7 @@ import {
    deriveCodexLastMessagePath,
    detectExecutable,
    finalizeRecord,
+   parseAgentSuccessResult,
    parseCodexMcpList,
    readOptionalFile
 } from "./shared.js";
@@ -90,41 +91,42 @@ export function createCodexAdapter(): ProviderAdapter {
          const lastMessagePath = deriveCodexLastMessagePath(input.runDir);
          const lastMessage = (await readOptionalFile(lastMessagePath)).trim();
          const wroteExpectedOutput = lastMessage.length > 0;
+         const parsedResult = parseAgentSuccessResult(lastMessage);
          const status =
             input.signal === "SIGTERM"
                ? "cancelled"
-               : input.exitCode === 0 && wroteExpectedOutput
+               : input.exitCode === 0 &&
+                   wroteExpectedOutput &&
+                   parsedResult.error === undefined
                  ? "success"
                  : "error";
-         const errorMessage =
+         const error =
             status === "error"
                ? input.exitCode === 0 && !wroteExpectedOutput
-                  ? "Codex did not write the expected last-message file."
-                  : input.stderr.trim() || "Codex execution failed."
+                  ? {
+                       message:
+                          "Codex did not write the expected last-message file."
+                    }
+                  : (parsedResult.error ??
+                    (input.stderr.trim().length > 0
+                       ? { message: input.stderr.trim() }
+                       : { message: "Codex execution failed." }))
                : undefined;
 
          return finalizeRecord({
             cwd: input.cwd,
             endedAt: input.endedAt,
+            ...(error ? { error } : {}),
             exitCode: input.exitCode,
-            finalText: lastMessage,
             launchMode: input.launchMode,
             launch: input.launch,
             profile,
-            promptFile: input.promptFile,
             projectRoot: input.projectRoot,
-            runDir: input.runDir,
             runId: input.runId,
+            ...(parsedResult.result ? { result: parsedResult.result } : {}),
             signal: input.signal,
             startedAt: input.startedAt,
-            status,
-            ...(typeof errorMessage === "string" ? { errorMessage } : {}),
-            ...(typeof input.stderrLog === "string"
-               ? { stderrLog: input.stderrLog }
-               : {}),
-            ...(typeof input.stdoutLog === "string"
-               ? { stdoutLog: input.stdoutLog }
-               : {})
+            status
          });
       },
       async prepare(agent, input) {

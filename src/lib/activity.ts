@@ -1,4 +1,4 @@
-import { formatDuration } from "./pretty.js";
+import { formatDuration } from "../lib/pretty.js";
 
 const activityWidth = 10;
 

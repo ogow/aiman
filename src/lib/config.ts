@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 
-import { UserError, hasErrorCode } from "./errors.js";
-import type { ProjectPaths } from "./paths.js";
-import type { AimanConfig, ResolvedAimanConfig } from "./types.js";
+import { UserError, hasErrorCode } from "../lib/errors.js";
+import type { ProjectPaths } from "../lib/paths.js";
+import type { AimanConfig, ResolvedAimanConfig } from "../lib/types.js";
 
 function normalizeContextFileName(
    fileName: string,

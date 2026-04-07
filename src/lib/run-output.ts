@@ -1,6 +1,6 @@
-import { UserError } from "./errors.js";
+import { UserError } from "../lib/errors.js";
 import { readRunDetails, readRunLog } from "./runs.js";
-import type { RunInspection } from "./types.js";
+import type { RunInspection } from "../lib/types.js";
 
 export type RunOutputStream = "all" | "stderr" | "stdout";
 

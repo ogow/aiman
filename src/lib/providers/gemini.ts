@@ -7,6 +7,7 @@ import {
    detectRequiredMcps,
    detectExecutable,
    finalizeRecord,
+   parseAgentSuccessResult,
    parseGeminiMcpList,
    rejectUnsupportedReasoningEffort
 } from "./shared.js";
@@ -69,14 +70,14 @@ function getGeminiWorkspaceArgs(artifactsDir: string): string[] {
 
 function parseGeminiJsonOutput(stdout: string): {
    errorMessage?: string;
-   finalText: string;
+   responseText: string;
    parseError?: string;
 } {
    const trimmed = stdout.trim();
 
    if (trimmed.length === 0) {
       return {
-         finalText: "",
+         responseText: "",
          parseError: "Gemini did not produce JSON output."
       };
    }
@@ -90,7 +91,7 @@ function parseGeminiJsonOutput(stdout: string): {
          Array.isArray(parsed)
       ) {
          return {
-            finalText: "",
+            responseText: "",
             parseError: "Gemini JSON output must be an object."
          };
       }
@@ -104,23 +105,23 @@ function parseGeminiJsonOutput(stdout: string): {
       if (typeof errorMessage === "string" && errorMessage.length > 0) {
          return {
             errorMessage,
-            finalText: ""
+            responseText: ""
          };
       }
 
       if (typeof payload.response !== "string") {
          return {
-            finalText: "",
+            responseText: "",
             parseError: "Gemini JSON output did not include a response."
          };
       }
 
       return {
-         finalText: payload.response.trim()
+         responseText: payload.response.trim()
       };
    } catch {
       return {
-         finalText: "",
+         responseText: "",
          parseError: "Gemini did not return valid JSON output."
       };
    }
@@ -154,43 +155,46 @@ export function createGeminiAdapter(): ProviderAdapter {
          }
 
          const parsedOutput = parseGeminiJsonOutput(input.stdout);
+         const parsedResult =
+            parsedOutput.parseError === undefined &&
+            parsedOutput.errorMessage === undefined
+               ? parseAgentSuccessResult(parsedOutput.responseText)
+               : {};
          const status =
             input.signal === "SIGTERM"
                ? "cancelled"
                : input.exitCode === 0 &&
                    parsedOutput.parseError === undefined &&
-                   parsedOutput.errorMessage === undefined
+                   parsedOutput.errorMessage === undefined &&
+                   parsedResult.error === undefined
                  ? "success"
                  : "error";
-         const errorMessage =
+         const error =
             status === "error"
-               ? (parsedOutput.parseError ??
-                 parsedOutput.errorMessage ??
-                 (input.stderr.trim() || "Gemini execution failed."))
+               ? (parsedResult.error ??
+                 (parsedOutput.parseError
+                    ? { message: parsedOutput.parseError }
+                    : parsedOutput.errorMessage
+                      ? { message: parsedOutput.errorMessage }
+                      : input.stderr.trim().length > 0
+                        ? { message: input.stderr.trim() }
+                        : { message: "Gemini execution failed." }))
                : undefined;
 
          return finalizeRecord({
             cwd: input.cwd,
             endedAt: input.endedAt,
+            ...(error ? { error } : {}),
             exitCode: input.exitCode,
-            finalText: parsedOutput.finalText,
             launchMode: input.launchMode,
             launch: input.launch,
             profile,
-            promptFile: input.promptFile,
             projectRoot: input.projectRoot,
-            runDir: input.runDir,
             runId: input.runId,
+            ...(parsedResult.result ? { result: parsedResult.result } : {}),
             signal: input.signal,
             startedAt: input.startedAt,
-            status,
-            ...(typeof errorMessage === "string" ? { errorMessage } : {}),
-            ...(typeof input.stderrLog === "string"
-               ? { stderrLog: input.stderrLog }
-               : {}),
-            ...(typeof input.stdoutLog === "string"
-               ? { stdoutLog: input.stdoutLog }
-               : {})
+            status
          });
       },
       async prepare(agent, input) {

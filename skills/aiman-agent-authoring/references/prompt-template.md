@@ -32,9 +32,21 @@ If evidence is missing, say what is missing instead of guessing.
 
 ## Expected Output
 
-- Start with the main result or status.
-- Use the exact format the caller needs.
-- Mention residual risk or missing evidence when relevant.
+You MUST return a valid JSON object with exactly these keys:
+- `resultType`: string (e.g. "review.v1")
+- `summary`: string (one-sentence status)
+- `result`: any (the task-specific findings or patch)
+- `handoff`: object (suggestions for the next agent or turn)
+- `artifacts`: array (relative paths to files created in `artifacts/`)
+
+The `handoff` object MUST include:
+- `outcome`: "done", "blocked", or "incomplete"
+- `notes`: list of findings for the next specialist
+- `questions`: list of unresolved items
+- `nextTask` (optional): the next concrete task for this or another agent
+- `nextAgent` (optional): suggested agent name for the next task
+
+Deliver the main result in the `result` field using the format the caller needs. Mention residual risk or missing evidence in `notes`.
 ```
 
 ## Notes

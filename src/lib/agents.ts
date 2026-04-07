@@ -212,7 +212,7 @@ function validateFrontmatterAttributes(
 
    if (attributes.contextFiles !== undefined) {
       throw new UserError(
-         `Agent "${name}" uses unsupported field "contextFiles". Configure shared repo context file names in .aiman/config.json instead of per-agent frontmatter.`
+         `Agent "${name}" uses unsupported field "contextFiles". Configure shared repo context file names in .../config.json instead of per-agent frontmatter.`
       );
    }
 

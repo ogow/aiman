@@ -1,7 +1,11 @@
 import type { ArgumentsCamelCase, Argv } from "yargs";
 
-import { createAiman } from "../api/index.js";
-import { agentScopeChoices, formatProfileModel } from "../lib/agents.js";
+import { getProjectPaths } from "../lib/paths.js";
+import {
+   agentScopeChoices,
+   formatProfileModel,
+   loadAgentDefinition
+} from "../lib/agents.js";
 import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
 import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
@@ -42,7 +46,11 @@ export async function handler(
       throw new UserError("Agent name is required.");
    }
 
-   const agent = await (await createAiman()).agents.get(args.agent, args.scope);
+   const agent = await loadAgentDefinition(
+      getProjectPaths(),
+      args.agent,
+      args.scope
+   );
    const capabilities = getProviderCapabilities(agent.provider);
 
    if (args.json) {

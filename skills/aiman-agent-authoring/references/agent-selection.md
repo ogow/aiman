@@ -45,14 +45,11 @@ If those answers are weak, tighten the scope before creating the file.
 ## Split Or Merge
 
 Split an agent into two when:
-
-- the work mixes read-only review and editing
+- the work mixes unrelated specialties
 - the outputs need different formats
 - the decision standards are materially different
-- one part needs `safe` and another needs `yolo`
 
 Keep one agent when:
-
 - the job is one coherent specialty
 - the same evidence and output style apply across runs
-- the mode and provider choice stay consistent
+- the provider choice stays consistent

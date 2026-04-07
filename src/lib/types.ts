@@ -16,7 +16,9 @@ export type ResolvedAimanConfig = {
    contextFileNames?: string[];
 };
 
-export type RunStatus = "cancelled" | "error" | "success";
+export type TerminalRunStatus = "cancelled" | "error" | "success";
+
+export type RunStatus = TerminalRunStatus | "running";
 
 export type RunListFilter = "active" | "all" | "historic";
 
@@ -96,43 +98,22 @@ export type PreparedInvocation = {
 
 export type RunPaths = {
    artifactsDir: string;
-   promptFile: string;
-   runFile: string;
+   resultFile: string;
    runDir: string;
    stopRequestedFile: string;
-   stderrLog?: string;
-   stdoutLog?: string;
+   stderrLog: string;
+   stdoutLog: string;
 };
 
-export type MarkdownValue =
+export type JsonValue =
    | boolean
    | null
    | number
    | string
-   | MarkdownValue[]
+   | JsonValue[]
    | {
-        [key: string]: MarkdownValue;
+        [key: string]: JsonValue;
      };
-
-export type MarkdownFrontmatter = Record<string, MarkdownValue>;
-
-export type MarkdownArtifact = {
-   exists: boolean;
-   kind?: string;
-   label?: string;
-   metadata?: MarkdownValue;
-   path: string;
-   resolvedPath: string;
-};
-
-export type MarkdownDocument = {
-   artifacts: MarkdownArtifact[];
-   body?: string;
-   exists: boolean;
-   frontmatter?: MarkdownFrontmatter;
-   parseError?: string;
-   path: string;
-};
 
 export type UsageStats = {
    inputTokens?: number;
@@ -140,12 +121,43 @@ export type UsageStats = {
    totalTokens?: number;
 };
 
+export type ResultArtifact = {
+   exists?: boolean;
+   id?: string;
+   kind?: string;
+   path: string;
+   resolvedPath?: string;
+   summary?: string;
+};
+
+export type ResultHandoff = {
+   inputs?: Record<string, JsonValue>;
+   nextAgent?: string;
+   nextTask?: string;
+   notes: string[];
+   outcome: string;
+   questions: string[];
+};
+
+export type ResultError = {
+   code?: string;
+   details?: string;
+   message: string;
+};
+
+export type AgentSuccessResult = {
+   artifacts: ResultArtifact[];
+   handoff: ResultHandoff;
+   result: JsonValue;
+   resultType: string;
+   summary: string;
+};
+
 export type PreparedRunInput = {
    artifactsDir: string;
    contextFileNames?: string[];
    contextFiles?: PromptContextFile[];
    cwd: string;
-   promptFile: string;
    projectContext?: ProjectContext;
    renderedPrompt?: string;
    runFile: string;
@@ -162,15 +174,12 @@ export type CompletedRunInput = {
    launchMode: LaunchMode;
    profile?: ScopedProfileDefinition;
    projectRoot: string;
-   promptFile: string;
    runDir: string;
    runId: string;
    signal: string | null;
    startedAt: string;
    stderr: string;
-   stderrLog?: string;
    stdout: string;
-   stdoutLog?: string;
 };
 
 export type RunLaunchSnapshot = {
@@ -197,68 +206,75 @@ export type RunLaunchSnapshot = {
    promptTransport: PromptTransport;
    provider: ProviderId;
    reasoningEffort?: ReasoningEffort;
+   renderedPrompt: string;
    task?: string;
    timeoutMs: number;
 };
 
 export type PersistedRunRecord = {
-   agent?: string;
-   agentPath?: string;
-   agentScope?: ProfileScope;
+   agent: string;
+   agentPath: string;
+   agentScope: ProfileScope;
+   artifacts: ResultArtifact[];
    cwd: string;
-   durationMs: number;
-   endedAt: string;
-   errorMessage?: string;
-   exitCode: number | null;
-   finalText: string;
+   durationMs?: number;
+   endedAt?: string;
+   error?: ResultError;
+   exitCode?: number | null;
+   heartbeatAt?: string;
    launch: RunLaunchSnapshot;
    launchMode: LaunchMode;
+   logs: {
+      stderr: string;
+      stdout: string;
+   };
    model?: string;
    mode?: RunMode;
-   paths: RunPaths;
-   profile?: string;
-   profilePath?: string;
-   profileScope?: ProfileScope;
+   pid?: number;
    projectRoot: string;
    provider: ProviderId;
+   result?: JsonValue;
+   resultType?: string;
    runId: string;
-   signal: string | null;
+   schemaVersion: 1;
+   signal?: string | null;
    startedAt: string;
    status: RunStatus;
+   summary?: string;
+   task?: string;
    usage?: UsageStats;
+   handoff?: ResultHandoff;
 };
 
 export type RunResult = {
-   agent?: string;
-   agentPath?: string;
-   agentScope?: ProfileScope;
-   errorMessage?: string;
-   finalText: string;
-   launchMode?: LaunchMode;
+   agent: string;
+   agentPath: string;
+   agentScope: ProfileScope;
+   artifacts: ResultArtifact[];
+   error?: ResultError;
+   handoff?: ResultHandoff;
+   launchMode: LaunchMode;
    mode?: RunMode;
-   profile?: string;
-   profilePath?: string;
-   profileScope?: ProfileScope;
-   projectRoot?: string;
+   projectRoot: string;
    provider: ProviderId;
-   rights?: string;
+   result?: JsonValue;
+   resultType?: string;
+   rights: string;
    runId: string;
-   runPath?: string;
-   status: RunStatus;
+   runPath: string;
+   status: TerminalRunStatus;
+   summary?: string;
 };
 
 export type LaunchedRun = {
    active: boolean;
-   agent?: string;
-   agentPath?: string;
-   agentScope?: ProfileScope;
+   agent: string;
+   agentPath: string;
+   agentScope: ProfileScope;
    inspectCommand: string;
    launchMode: "detached";
    logsCommand: string;
    pid?: number;
-   profile?: string;
-   profilePath?: string;
-   profileScope?: ProfileScope;
    projectRoot: string;
    provider: ProviderId;
    rights: string;
@@ -268,33 +284,9 @@ export type LaunchedRun = {
    status: "running";
 };
 
-export type StoredRunState = {
-   agent?: string;
-   agentPath?: string;
-   agentScope?: ProfileScope;
-   cwd: string;
-   endedAt?: string;
-   errorMessage?: string;
-   heartbeatAt?: string;
-   launch: RunLaunchSnapshot;
-   launchMode: LaunchMode;
-   model?: string;
-   mode?: RunMode;
-   paths: RunPaths;
-   pid?: number;
-   profile?: string;
-   profilePath?: string;
-   profileScope?: ProfileScope;
-   projectRoot: string;
-   provider: ProviderId;
-   runId: string;
-   startedAt: string;
-   status: RunStatus | "running";
-};
-
-export type RunInspection = (PersistedRunRecord | StoredRunState) & {
+export type RunInspection = PersistedRunRecord & {
    active: boolean;
-   document: MarkdownDocument;
+   paths: RunPaths;
    warning?: string;
 };
 

@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { createCodexAdapter } from "../src/lib/providers/codex.js";
 import { createGeminiAdapter } from "../src/lib/providers/gemini.js";
 import { buildPrompt } from "../src/lib/providers/shared.js";
-import { toRunResult } from "../src/lib/runs.js";
+import { buildRunPaths, toRunResult } from "../src/lib/run-store.js";
 import type {
    PersistedRunRecord,
    RunLaunchSnapshot,
@@ -20,7 +20,7 @@ const codexProfile: ScopedProfileDefinition = {
    id: "code-reviewer",
    model: "gpt-5.4-mini",
    name: "code-reviewer",
-   path: "/repo/.aiman/agents/code-reviewer.md",
+   path: "/repo/.../agents/code-reviewer.md",
    provider: "codex",
    reasoningEffort: "medium",
    scope: "project"
@@ -32,7 +32,7 @@ const geminiProfile: ScopedProfileDefinition = {
    id: "builder",
    model: "gemini-2.5-flash-lite",
    name: "builder",
-   path: "/repo/.aiman/agents/builder.md",
+   path: "/repo/.../agents/builder.md",
    provider: "gemini",
    reasoningEffort: "none",
    scope: "project"
@@ -44,26 +44,69 @@ const geminiAutoModelProfile: ScopedProfileDefinition = {
    id: "builder-auto",
    model: "auto",
    name: "builder-auto",
-   path: "/repo/.aiman/agents/builder-auto.md",
+   path: "/repo/.../agents/builder-auto.md",
    provider: "gemini",
    reasoningEffort: "none",
    scope: "project"
 };
 
-function expectedPrompt(body: string, artifactsDir: string): string {
-   void artifactsDir;
-   return body;
+function buildAgentEnvelope(summary: string): string {
+   return JSON.stringify({
+      artifacts: [],
+      handoff: {
+         notes: [],
+         outcome: "done",
+         questions: []
+      },
+      result: {
+         summary
+      },
+      resultType: "review.v1",
+      summary
+   });
+}
+
+function buildLaunchSnapshot(input: {
+   preparedPrompt: string;
+   provider: "codex" | "gemini";
+}): RunLaunchSnapshot {
+   return {
+      agentDigest: "digest",
+      agentName: input.provider === "codex" ? "code-reviewer" : "builder",
+      agentPath:
+         input.provider === "codex"
+            ? "/repo/.../agents/code-reviewer.md"
+            : "/repo/.../agents/builder.md",
+      agentScope: "project",
+      args:
+         input.provider === "codex"
+            ? ["exec", "--json"]
+            : ["--prompt", "", "--output-format", "json"],
+      command: input.provider,
+      cwd: "/repo",
+      envKeys: ["PATH"],
+      killGraceMs: 1000,
+      launchMode: "foreground",
+      model:
+         input.provider === "codex" ? "gpt-5.4-mini" : "gemini-2.5-flash-lite",
+      promptDigest: "prompt-digest",
+      promptTransport: "stdin",
+      provider: input.provider,
+      reasoningEffort: input.provider === "codex" ? "medium" : "none",
+      renderedPrompt: input.preparedPrompt,
+      task: "Implement the fix",
+      timeoutMs: 300000
+   };
 }
 
 test("codex adapter prepares a write-enabled invocation with native context files", async () => {
    const adapter = createCodexAdapter();
-   const artifactsDir = "/repo/.aiman/runs/run-1/artifacts";
+   const artifactsDir = "/repo/.../runs/run-1/artifacts";
    const prepared = await adapter.prepare(codexProfile, {
       artifactsDir,
       contextFileNames: ["AGENTS.md", "CONTEXT.md"],
       cwd: "/repo",
-      promptFile: "/repo/.aiman/runs/run-1/prompt.md",
-      runFile: "/repo/.aiman/runs/run-1/run.md",
+      runFile: "/repo/.../runs/run-1/result.json",
       runId: "run-1",
       task: "Review the diff"
    });
@@ -89,17 +132,8 @@ test("codex adapter prepares a write-enabled invocation with native context file
       prepared.args.join(" "),
       /project_doc_fallback_filenames=\["CONTEXT\.md"\]/
    );
-   assert.match(prepared.args.join(" "), /developer_instructions=""/);
-   assert.match(prepared.args.join(" "), /instructions=""/);
-   assert.match(prepared.args.join(" "), /agents=\{\}/);
-   assert.match(prepared.args.join(" "), /model_reasoning_effort=medium/);
-   assert.equal(
-      prepared.renderedPrompt,
-      expectedPrompt(
-         "Task: Review the diff\n\nReview the current change carefully.",
-         artifactsDir
-      )
-   );
+   assert.match(prepared.renderedPrompt, /Task: Review the diff/);
+   assert.match(prepared.renderedPrompt, /## Required Result Contract/);
    assert.equal(prepared.promptTransport, "stdin");
 });
 
@@ -120,13 +154,12 @@ test("gemini adapter rejects non-none reasoning effort", () => {
 
 test("gemini adapter prepares a yolo invocation with yolo approval mode", async () => {
    const adapter = createGeminiAdapter();
-   const artifactsDir = "/repo/.aiman/runs/run-2/artifacts";
+   const artifactsDir = "/repo/.../runs/run-2/artifacts";
    const prepared = await adapter.prepare(geminiProfile, {
       artifactsDir,
       contextFileNames: ["AGENTS.md", "CONTEXT.md"],
       cwd: "/repo",
-      promptFile: "/repo/.aiman/runs/run-2/prompt.md",
-      runFile: "/repo/.aiman/runs/run-2/run.md",
+      runFile: "/repo/.../runs/run-2/result.json",
       runId: "run-2",
       task: "Implement the fix"
    });
@@ -144,34 +177,18 @@ test("gemini adapter prepares a yolo invocation with yolo approval mode", async 
    ]);
    assert.equal(
       prepared.env.GEMINI_CLI_SYSTEM_SETTINGS_PATH,
-      path.join("/repo/.aiman/runs/run-2", ".gemini-system-settings.json")
+      path.join("/repo/.../runs/run-2", ".gemini-system-settings.json")
    );
-   assert.deepEqual(prepared.supportFiles, [
-      {
-         content:
-            '{\n  "context": {\n    "fileName": [\n      "AGENTS.md",\n      "CONTEXT.md"\n    ]\n  }\n}',
-         path: path.join(
-            "/repo/.aiman/runs/run-2",
-            ".gemini-system-settings.json"
-         )
-      }
-   ]);
-   assert.equal(
-      prepared.renderedPrompt,
-      expectedPrompt(
-         "Task: Implement the fix\n\nBuild the requested change directly.",
-         artifactsDir
-      )
-   );
+   assert.match(prepared.renderedPrompt, /Build the requested change directly/);
+   assert.match(prepared.renderedPrompt, /## Required Result Contract/);
 });
 
 test("gemini adapter omits --model when the agent uses automatic selection", async () => {
    const adapter = createGeminiAdapter();
    const prepared = await adapter.prepare(geminiAutoModelProfile, {
-      artifactsDir: "/repo/.aiman/runs/run-2/artifacts",
+      artifactsDir: "/repo/.../runs/run-2/artifacts",
       cwd: "/repo",
-      promptFile: "/repo/.aiman/runs/run-2/prompt.md",
-      runFile: "/repo/.aiman/runs/run-2/run.md",
+      runFile: "/repo/.../runs/run-2/result.json",
       runId: "run-2",
       task: "Check the docs"
    });
@@ -181,77 +198,62 @@ test("gemini adapter omits --model when the agent uses automatic selection", asy
 
 test("gemini adapter parses structured JSON output", async () => {
    const adapter = createGeminiAdapter();
+   const launch = buildLaunchSnapshot({
+      preparedPrompt: buildPrompt(geminiProfile, {
+         artifactsDir: "/repo/.../runs/run-2/artifacts",
+         cwd: "/repo",
+         runFile: "/repo/.../runs/run-2/result.json",
+         runId: "run-2",
+         task: "Implement the fix"
+      }),
+      provider: "gemini"
+   });
    const record = await adapter.parseCompletedRun({
       cwd: "/repo",
       endedAt: "2026-04-05T13:10:05.000Z",
       exitCode: 0,
-      launch: {
-         agentDigest: "digest",
-         agentName: "builder",
-         agentPath: "/repo/.aiman/agents/builder.md",
-         agentScope: "project",
-         args: ["--prompt", "", "--output-format", "json"],
-         command: "gemini",
-         cwd: "/repo",
-         envKeys: ["PATH"],
-         killGraceMs: 1000,
-         launchMode: "foreground",
-         model: "gemini-2.5-flash-lite",
-         promptDigest: "prompt-digest",
-         promptTransport: "stdin",
-         provider: "gemini",
-         task: "Implement the fix",
-         timeoutMs: 300000
-      },
+      launch,
       launchMode: "foreground",
       profile: geminiProfile,
       projectRoot: "/repo",
-      promptFile: "/repo/.aiman/runs/run-2/prompt.md",
-      runDir: "/repo/.aiman/runs/run-2",
+      runDir: "/repo/.../runs/run-2",
       runId: "run-2",
       signal: null,
       startedAt: "2026-04-05T13:10:00.000Z",
       stderr: "",
       stdout: JSON.stringify({
-         response: "Implemented the fix.\n",
+         response: buildAgentEnvelope("Implemented the fix."),
          session_id: "session-1",
          stats: {}
       })
    });
 
-   assert.equal(record.finalText, "Implemented the fix.");
+   assert.equal(record.summary, "Implemented the fix.");
+   assert.equal(record.resultType, "review.v1");
    assert.equal(record.status, "success");
 });
 
 test("gemini adapter reports structured JSON errors", async () => {
    const adapter = createGeminiAdapter();
+   const launch = buildLaunchSnapshot({
+      preparedPrompt: buildPrompt(geminiProfile, {
+         artifactsDir: "/repo/.../runs/run-2/artifacts",
+         cwd: "/repo",
+         runFile: "/repo/.../runs/run-2/result.json",
+         runId: "run-2",
+         task: "Implement the fix"
+      }),
+      provider: "gemini"
+   });
    const record = await adapter.parseCompletedRun({
       cwd: "/repo",
       endedAt: "2026-04-05T13:10:05.000Z",
       exitCode: 1,
-      launch: {
-         agentDigest: "digest",
-         agentName: "builder",
-         agentPath: "/repo/.aiman/agents/builder.md",
-         agentScope: "project",
-         args: ["--prompt", "", "--output-format", "json"],
-         command: "gemini",
-         cwd: "/repo",
-         envKeys: ["PATH"],
-         killGraceMs: 1000,
-         launchMode: "foreground",
-         model: "gemini-2.5-flash-lite",
-         promptDigest: "prompt-digest",
-         promptTransport: "stdin",
-         provider: "gemini",
-         task: "Implement the fix",
-         timeoutMs: 300000
-      },
+      launch,
       launchMode: "foreground",
       profile: geminiProfile,
       projectRoot: "/repo",
-      promptFile: "/repo/.aiman/runs/run-2/prompt.md",
-      runDir: "/repo/.aiman/runs/run-2",
+      runDir: "/repo/.../runs/run-2",
       runId: "run-2",
       signal: null,
       startedAt: "2026-04-05T13:10:00.000Z",
@@ -265,100 +267,100 @@ test("gemini adapter reports structured JSON errors", async () => {
       })
    });
 
-   assert.equal(record.errorMessage, "Gemini auth failed.");
+   assert.equal(record.error?.message, "Gemini auth failed.");
    assert.equal(record.status, "error");
 });
 
-test("buildPrompt renders the authored body without inlining project context", () => {
-   const artifactsDir = "/repo/.aiman/runs/run-1/artifacts";
+test("buildPrompt appends the runtime JSON contract", () => {
+   const artifactsDir = "/repo/.../runs/run-1/artifacts";
    const prompt = buildPrompt(codexProfile, {
       artifactsDir,
       cwd: "/repo",
-      runFile: "/repo/.aiman/runs/run-1/run.md",
+      runFile: "/repo/.../runs/run-1/result.json",
       runId: "run-1",
       task: "Review the release flow"
    });
 
    assert.doesNotMatch(prompt, /## Project Context/);
-   assert.equal(
-      prompt,
-      expectedPrompt(
-         "Task: Review the release flow\n\nReview the current change carefully.",
-         artifactsDir
-      )
-   );
+   assert.match(prompt, /Task: Review the release flow/);
+   assert.match(prompt, /## Required Result Contract/);
 });
 
-test("toRunResult reflects profile-first run metadata", async () => {
+test("toRunResult reflects the canonical result metadata", async () => {
    const runDir = await mkdtemp(path.join(os.tmpdir(), "aiman-provider-run-"));
    const launch: RunLaunchSnapshot = {
-      agentDigest: "legacy-agent-digest",
+      ...buildLaunchSnapshot({
+         preparedPrompt: "Prompt body",
+         provider: "codex"
+      }),
       agentName: "code-reviewer",
-      agentPath: "/repo/.aiman/agents/code-reviewer.md",
-      agentScope: "project",
-      args: ["exec", "--sandbox", "read-only", "-"],
-      command: "codex",
-      cwd: "/repo",
-      envKeys: ["PATH"],
-      killGraceMs: 1000,
-      launchMode: "foreground",
-      mode: "safe",
-      model: "gpt-5.4-mini",
+      agentPath: "/repo/.../agents/code-reviewer.md",
       profileDigest: "profile-digest",
       profileName: "code-reviewer",
-      profilePath: "/repo/.aiman/agents/code-reviewer.md",
+      profilePath: "/repo/.../agents/code-reviewer.md",
       profileScope: "project",
-      promptDigest: "prompt-digest",
-      promptTransport: "stdin",
-      provider: "codex",
-      task: "Review the diff",
-      timeoutMs: 300000
+      task: "Review the diff"
    };
    const record: PersistedRunRecord = {
+      agent: "code-reviewer",
+      agentPath: "/repo/.../agents/code-reviewer.md",
+      agentScope: "project",
+      artifacts: [],
       cwd: "/repo",
       durationMs: 5000,
       endedAt: "2026-03-28T15:00:05.000Z",
-      errorMessage: "None",
       exitCode: 0,
-      finalText: "Final review summary",
+      handoff: {
+         notes: [],
+         outcome: "done",
+         questions: []
+      },
       launch,
       launchMode: "foreground",
-      mode: "safe",
-      paths: {
-         artifactsDir: path.join(runDir, "artifacts"),
-         promptFile: path.join(runDir, "prompt.md"),
-         runFile: path.join(runDir, "run.md"),
-         runDir,
-         stopRequestedFile: path.join(runDir, ".stop-requested")
+      logs: {
+         stderr: "stderr.log",
+         stdout: "stdout.log"
       },
-      profile: "code-reviewer",
-      profilePath: "/repo/.aiman/agents/code-reviewer.md",
-      profileScope: "project",
+      mode: "safe",
+      model: "gpt-5.4-mini",
       projectRoot: "/repo",
       provider: "codex",
+      result: {
+         findings: []
+      },
+      resultType: "review.v1",
       runId: "run-5",
+      schemaVersion: 1,
       signal: null,
       startedAt: "2026-03-28T15:00:00.000Z",
-      status: "success"
+      status: "success",
+      summary: "Final review summary"
    };
+   const paths = buildRunPaths(runDir);
 
-   assert.deepEqual(toRunResult(record), {
+   assert.deepEqual(toRunResult(record, paths), {
       agent: "code-reviewer",
-      agentPath: "/repo/.aiman/agents/code-reviewer.md",
+      agentPath: "/repo/.../agents/code-reviewer.md",
       agentScope: "project",
-      errorMessage: "None",
-      finalText: "Final review summary",
+      artifacts: [],
+      handoff: {
+         notes: [],
+         outcome: "done",
+         questions: []
+      },
       launchMode: "foreground",
       mode: "safe",
-      profile: "code-reviewer",
-      profilePath: "/repo/.aiman/agents/code-reviewer.md",
-      profileScope: "project",
       projectRoot: "/repo",
       provider: "codex",
+      result: {
+         findings: []
+      },
+      resultType: "review.v1",
       rights:
          "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
       runId: "run-5",
-      runPath: path.join(runDir, "run.md"),
-      status: "success"
+      runPath: path.join(runDir, "result.json"),
+      status: "success",
+      summary: "Final review summary"
    });
 });

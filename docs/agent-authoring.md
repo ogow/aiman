@@ -17,6 +17,33 @@ Before writing the file, lock down the runtime contract:
 
 If one of those answers is unknown, ask follow-up questions before creating the agent instead of guessing.
 
+## How To Think About Agents
+
+Create a dedicated agent only when the job deserves a named specialist:
+
+- it owns one repeatable specialty
+- the boundaries are clear enough to explain in a few lines
+- the expected `result` shape is stable enough for another agent to consume
+- the same style of task will likely happen more than once
+
+A strong authored agent owns:
+
+- one clear job
+- one explicit bar for success
+- one compact blocked path when evidence is missing
+- one predictable handoff to the next stage
+
+Good framing questions:
+
+- What exact outcome should this agent own?
+- What should it explicitly not own?
+- What evidence must exist before it decides?
+- What should another agent be able to learn from `result.json` without rereading logs?
+- When should it stop instead of continuing to explore?
+
+The practical rule is: keep the outer transport contract strict and the task-specific `result` flexible.
+`aiman` owns the shared JSON success envelope. The authored body should define the task-specific `resultType`, `result` shape, and stop behavior.
+
 ## Current Frontmatter Contract
 
 New authored agents should use:
@@ -70,7 +97,8 @@ A strong authored agent usually has these sections:
 2. `Task Input`
 3. `Instructions`
 4. `Constraints`
-5. `Expected Output`
+5. `Stop Conditions`
+6. `Expected Output`
 
 That shape helps reliability because the agent can separate:
 
@@ -85,11 +113,29 @@ Good agent bodies usually:
 
 - name the specialty clearly
 - explain the decision standard or bar for quality
-- describe the exact output shape
+- describe the exact structured output shape
 - state what to do when evidence is missing
+- tell the agent when it should stop
 - keep repo-specific guidance small and explicit
 
-`aiman` no longer appends a runtime artifact note automatically. Use `{{artifactsDir}}` only when the body needs to reference the exact run artifact path directly.
+`aiman` appends one runtime-enforced JSON success contract automatically. The authored body should still describe the expected result shape clearly, but it should not rely on free-form prose output. Use `{{artifactsDir}}` only when the body needs to reference the exact run artifact path directly.
+
+Good `Expected Output` guidance usually names:
+
+- the intended `resultType`
+- the fields that should appear inside `result`
+- the meaning of `handoff.outcome` when a few values are especially useful
+- what belongs in `artifacts/` instead of inline JSON
+
+For example, a build-oriented agent can stay flexible without being vague:
+
+- `resultType: "build.v1"`
+- `result.changedFiles`
+- `result.workCompleted`
+- `result.verification`
+- `result.remainingWork`
+- `result.notes`
+- `handoff.outcome: "done" | "blocked" | "needs_followup"`
 
 Avoid bodies that:
 
@@ -98,6 +144,26 @@ Avoid bodies that:
 - bury the required output format in long prose
 - silently assume extra repo-specific rules the caller cannot see
 - ask the model to improvise missing requirements that the caller should supply
+
+## Debug Authored Agents
+
+Use the fastest possible loop:
+
+1. Run `aiman agent check <name>`.
+2. Run one tiny smoke task with `aiman run <name> --task ...`.
+3. Read `aiman runs show <run-id>`.
+4. Read `aiman runs inspect <run-id> --stream prompt`.
+5. Read `aiman runs inspect <run-id> --stream run`.
+6. Read `aiman runs inspect <run-id> --stream stdout|stderr` only when the failure is still unclear.
+
+What to look for:
+
+- vague `result`: tighten `Expected Output`
+- wandering behavior: add `Stop Conditions`
+- guessing: add explicit missing-evidence behavior
+- malformed success JSON: make the body describe the task-specific result more clearly and avoid encouraging extra prose
+
+Use [docs/agent-debugging.md](/Users/ogow/Code/aiman/docs/agent-debugging.md) for the full debugging playbook.
 
 ## Use Runtime Context Deliberately
 
@@ -136,6 +202,7 @@ Before calling the agent done, verify:
 
 - the frontmatter is complete and current
 - the body includes `{{task}}`
+- the body makes the task-specific `result` shape clear enough that another agent can consume it from `result.json`
 - any desired read-only or conservative behavior is stated in the body
 - `reasoningEffort` matches the selected provider
 - `model` is explicit and valid for the selected provider, including `model: auto` only for Gemini agents
@@ -157,6 +224,7 @@ Before calling the agent done, verify:
 
 Start from one of these when you want a reliable narrow shape instead of inventing one from scratch:
 
+- `docs/examples/targeted-build-specialist.md`
 - `docs/examples/project-change-reviewer.md`
 - `docs/examples/standalone-daily-doc-checker.md`
 - `docs/examples/read-only-security-auditor.md`

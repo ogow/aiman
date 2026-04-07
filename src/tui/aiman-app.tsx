@@ -280,7 +280,7 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
     const search = runFilterText.toLowerCase();
     return (
       run.runId.toLowerCase().includes(search) ||
-      (run.profile ?? run.agent ?? "").toLowerCase().includes(search) ||
+      run.agent.toLowerCase().includes(search) ||
       (run.projectRoot ?? "").toLowerCase().includes(search) ||
       run.status.toLowerCase().includes(search) ||
       run.provider.toLowerCase().includes(search)

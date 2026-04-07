@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, writeFile } from "node:fs/promises";
 import * as assert from "node:assert/strict";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -41,7 +41,23 @@ for await (const _ of process.stdin) {}
 
 if (lastMessagePath.length > 0) {
    await mkdir(path.dirname(lastMessagePath), { recursive: true });
-   await writeFile(lastMessagePath, "Fake codex result\\n", "utf8");
+   await writeFile(
+      lastMessagePath,
+      JSON.stringify({
+         artifacts: [],
+         handoff: {
+            notes: [],
+            outcome: "done",
+            questions: []
+         },
+         result: {
+            message: "Fake codex result"
+         },
+         resultType: "review.v1",
+         summary: "Fake codex result"
+      }),
+      "utf8"
+   );
 }
 
 if (useJsonOutput) {
@@ -217,9 +233,9 @@ test("runAgent omits context files when config does not set them", async () => {
       });
 
       assert.equal(result.status, "success");
-      assert.equal(result.profile, "reviewer");
+      assert.equal(result.agent, "reviewer");
       const run = await readRunDetails(result.runId);
-      const prompt = await readFile(run.paths.promptFile, "utf8");
+      const prompt = run.launch.renderedPrompt;
 
       assert.equal(run.launch.contextFiles, undefined);
       assert.equal(run.launch.task, "Review the docs");
@@ -261,9 +277,15 @@ test("runAgent creates distinct run ids for repeated launches", async () => {
          profileName: "reviewer",
          task: "Review the second diff"
       });
-      const runDirs = await readdir(
+      const dayDirs = await readdir(
          path.join(fixture.homeRoot, ".aiman", "runs")
       );
+      const allRunDirs = await Promise.all(
+         dayDirs.map(async (dayDir) =>
+            readdir(path.join(fixture.homeRoot, ".aiman", "runs", dayDir))
+         )
+      );
+      const runDirs = allRunDirs.flat();
 
       assert.notEqual(first.runId, second.runId);
       assert.ok(runDirs.includes(first.runId));
@@ -287,7 +309,7 @@ test("listRuns returns persisted completed runs", async () => {
       assert.ok(runs.some((run) => run.runId === result.runId));
       const persisted = runs.find((run) => run.runId === result.runId);
       assert.equal(persisted?.active, false);
-      assert.equal(persisted?.profile, "reviewer");
+      assert.equal(persisted?.agent, "reviewer");
       assert.equal(persisted?.status, "success");
    } finally {
       restore();
@@ -343,11 +365,11 @@ You are a focused reviewer.
       });
 
       assert.equal(result.status, "error");
-      assert.equal(result.errorMessage, "Execution timed out.");
+      assert.equal(result.error?.message, "Execution timed out.");
 
       const run = await readRunDetails(result.runId);
       assert.equal(run.status, "error");
-      assert.equal(run.errorMessage, "Execution timed out.");
+      assert.equal(run.error?.message, "Execution timed out.");
    } finally {
       restore();
    }

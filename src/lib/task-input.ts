@@ -1,4 +1,4 @@
-import { UserError } from "./errors.js";
+import { UserError } from "../lib/errors.js";
 
 async function readStdin(): Promise<string> {
    if (process.stdin.isTTY) {

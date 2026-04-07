@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 
-import { UserError, hasErrorCode } from "./errors.js";
-import type { ProjectContext } from "./types.js";
+import { UserError, hasErrorCode } from "../lib/errors.js";
+import type { ProjectContext } from "../lib/types.js";
 
 const runtimeSectionHeading = "## Aiman Runtime Context";
 const maxRuntimeContextBytes = 16 * 1024;

@@ -1,11 +1,14 @@
 import type { ArgumentsCamelCase, Argv } from "yargs";
 
-import { createAiman } from "../api/index.js";
-import { formatProfileModel } from "../lib/agents.js";
+import { getProjectPaths } from "../lib/paths.js";
+import {
+   agentScopeChoices,
+   checkAgentDefinition,
+   formatProfileModel
+} from "../lib/agents.js";
 import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
 import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
-import { agentScopeChoices } from "../lib/agents.js";
 import type { ProfileScope, ValidationIssue } from "../lib/types.js";
 
 type AgentCheckArguments = {
@@ -52,9 +55,11 @@ export async function handler(
       throw new UserError("Agent name is required.");
    }
 
-   const report = await (
-      await createAiman()
-   ).agents.check(args.agent, args.scope);
+   const report = await checkAgentDefinition(
+      getProjectPaths(),
+      args.agent,
+      args.scope
+   );
 
    process.exitCode = report.errors.length > 0 ? 1 : 0;
 
@@ -68,22 +73,22 @@ export async function handler(
          "Agent check",
          renderLabelValueBlock([
             { label: "Status", value: report.status },
-            { label: "Name", value: report.agent.name ?? report.agent.id },
-            { label: "Scope", value: report.agent.scope },
-            { label: "Provider", value: report.agent.provider ?? "" },
+            { label: "Name", value: report.profile.name ?? report.profile.id },
+            { label: "Scope", value: report.profile.scope },
+            { label: "Provider", value: report.profile.provider ?? "" },
             {
                label: "Model",
                value: formatProfileModel({
-                  ...(typeof report.agent.model === "string"
-                     ? { model: report.agent.model }
+                  ...(typeof report.profile.model === "string"
+                     ? { model: report.profile.model }
                      : {}),
-                  ...(typeof report.agent.provider === "string"
-                     ? { provider: report.agent.provider }
+                  ...(typeof report.profile.provider === "string"
+                     ? { provider: report.profile.provider }
                      : {})
                })
             },
-            { label: "Reasoning", value: report.agent.reasoningEffort ?? "" },
-            { label: "Path", value: report.agent.path },
+            { label: "Reasoning", value: report.profile.reasoningEffort ?? "" },
+            { label: "Path", value: report.profile.path },
             { label: "Errors", value: String(report.errors.length) },
             { label: "Warnings", value: String(report.warnings.length) }
          ])

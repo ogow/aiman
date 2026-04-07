@@ -1,10 +1,14 @@
 import type { ArgumentsCamelCase, Argv } from "yargs";
 
-import { createAiman } from "../api/index.js";
+import { getProjectPaths } from "../lib/paths.js";
 import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
 import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
-import { agentScopeChoices, formatProfileModel } from "../lib/agents.js";
+import {
+   agentScopeChoices,
+   createAgentFile,
+   formatProfileModel
+} from "../lib/agents.js";
 import type {
    ProfileScope,
    ProviderId,
@@ -141,8 +145,8 @@ export async function handler(
       );
    }
 
-   const aiman = await createAiman();
-   const agent = await aiman.agents.create({
+   const projectPaths = getProjectPaths();
+   const agent = await createAgentFile(projectPaths, {
       description: args.description ?? "",
       ...(args.force === true ? { force: true } : {}),
       instructions,

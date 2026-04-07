@@ -238,7 +238,7 @@ export function getProjectTitle(projectRoot: string): string {
 }
 
 export function getRunShortLabel(run: RunInspection): string {
-   return run.profile ?? run.agent ?? run.runId.replace(/^\d{8}T\d{6}Z-/, "");
+   return run.agent ?? run.runId.replace(/^\d{8}T\d{6}Z-/, "");
 }
 
 export function sortRunsForWorkbench(runs: RunInspection[]): RunInspection[] {
@@ -355,8 +355,8 @@ export function buildRunSummary(run: RunInspection | undefined): string {
          ? `Warning\n\n${run.warning}`
          : "";
    const errorMessage =
-      typeof run.errorMessage === "string" && run.errorMessage.length > 0
-         ? `Error\n\n${run.errorMessage}`
+      typeof run.error?.message === "string" && run.error.message.length > 0
+         ? `Error\n\n${run.error.message}`
          : "";
 
    return [summary, warning, errorMessage]
@@ -373,9 +373,11 @@ export function buildAnswerContent(input: {
    }
 
    const answer =
-      "finalText" in input.run && typeof input.run.finalText === "string"
-         ? input.run.finalText.trim()
-         : "";
+      input.run.result !== undefined
+         ? JSON.stringify(input.run.result, null, 2).trim()
+         : typeof input.run.summary === "string"
+           ? input.run.summary.trim()
+           : "";
 
    if (answer.length > 0) {
       return answer;
@@ -387,7 +389,7 @@ export function buildAnswerContent(input: {
 
    return input.run.status === "running"
       ? "Run is still active. Switch to the logs tab for live output."
-      : "This run did not record a final answer.";
+      : "This run did not record a structured result.";
 }
 
 export function trimLiveOutput(value: string, maxLength = 24 * 1024): string {

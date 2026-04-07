@@ -11,7 +11,6 @@ export type ProjectPaths = {
    projectAgentsDir: string;
    projectProfilesDir: string;
    projectRoot: string;
-   runDbPath: string;
    runsDir: string;
    userAimanDir: string;
    userConfigPath: string;
@@ -109,7 +108,6 @@ export function getProjectPaths(projectRoot = process.cwd()): ProjectPaths {
       projectAgentsDir: path.join(aimanDir, "agents"),
       projectProfilesDir: path.join(aimanDir, "agents"),
       projectRoot: resolvedProjectRoot,
-      runDbPath: path.join(userAimanDir, "aiman.db"),
       runsDir: path.join(userAimanDir, "runs"),
       userAimanDir,
       userConfigPath: path.join(userAimanDir, "config.json"),
@@ -149,4 +147,14 @@ export function resolveRunCwd(projectRoot: string, cwd?: string): string {
    }
 
    return path.resolve(projectRoot, cwd);
+}
+
+export function formatRunDay(isoTimestamp: string): string {
+   const parsed = new Date(isoTimestamp);
+
+   if (Number.isNaN(parsed.getTime())) {
+      throw new Error(`Invalid run timestamp: ${isoTimestamp}`);
+   }
+
+   return parsed.toISOString().slice(0, 10);
 }

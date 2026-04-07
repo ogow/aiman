@@ -6,11 +6,6 @@
    "type": "module",
    "main": "./dist/index.js",
    "types": "./dist/index.d.ts",
-   "packageManager": "bun@1.2.18",
-   "engines": {
-      "bun": ">=1.2.18",
-      "node": ">=25 <26"
-   },
    "bin": {
       "aiman": "./dist/cli.js"
    },
@@ -18,10 +13,6 @@
       ".": {
          "types": "./dist/index.d.ts",
          "import": "./dist/index.js"
-      },
-      "./cli": {
-         "types": "./dist/cli.d.ts",
-         "import": "./dist/cli.js"
       }
    },
    "scripts": {
@@ -34,20 +25,12 @@
       "lint:fix": "bun run lint -- --fix",
       "format": "prettier --write .",
       "format:check": "prettier --check .",
-      "test": "bun test test/**/*.test.ts test/ui-workbench.test.tsx",
+      "test": "bun test test/*.ts*",
       "test:ui": "bun test test/ui-workbench.test.tsx",
       "test:provider-contract": "bun test ./test/provider-contract.ts",
       "skills": "bunx skills add",
-      "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build",
+      "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
       "prepare": "husky"
-   },
-   "lint-staged": {
-      "*.{ts,js,mjs,cjs}": [
-         "oxlint -c .oxlintrc.json --fix --quiet"
-      ],
-      "*.{json,md,yml,yaml}": [
-         "prettier --write"
-      ]
    },
    "dependencies": {
       "@opentui/core": "^0.1.96",

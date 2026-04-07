@@ -42,8 +42,8 @@ function renderStopSummary(stoppedRuns: RunInspection[]): string {
          ["Run ID", "Agent", "Scope", "State"],
          stoppedRuns.map((run) => [
             run.runId,
-            run.profile ?? run.agent ?? "",
-            run.profileScope ?? run.agentScope ?? "",
+            run.agent,
+            run.agentScope,
             describeStopResult(run)
          ])
       )

@@ -40,7 +40,7 @@ New authored `aiman` agents should use required frontmatter only:
 - `name`
 - `provider`
 - `description`
-- `mode`
+- `model`
 - `reasoningEffort`
 
 Rules:
@@ -48,14 +48,31 @@ Rules:
 - `model` is required for every agent.
 - For `gemini`, `model` may be a concrete model id or `auto`.
 - `model: auto` is valid only for `gemini`.
-- `mode` must be `safe` or `yolo`.
-- Use `safe` for read-only or approval-gated work.
-- Use `yolo` only when the agent is expected to edit or write files.
 - `reasoningEffort` is provider-specific.
 - For `codex`, use `none`, `low`, `medium`, or `high`.
 - For `gemini`, use `none`.
 - Runnable agents should include `{{task}}`.
-- Agents that declare legacy fields such as `permissions`, `contextFiles`, `skills`, or `requiredMcps` should be rewritten to the current contract.
+- Agents that declare legacy fields such as `mode`, `permissions`, `contextFiles`, `skills`, or `requiredMcps` should be rewritten to the current contract.
+
+## Orchestration & Loops
+
+Agents can participate in multi-agent flows and loops (like the "Ralph Wiggum" loop) by providing structured handoff suggestions in their output.
+
+Required JSON fields for success:
+- `resultType`: string
+- `summary`: string
+- `result`: any
+- `handoff`: object
+- `artifacts`: array
+
+The `handoff` object should include:
+- `outcome`: status of the task
+- `notes`: findings for the next agent
+- `questions`: unresolved items
+- `nextTask` (optional): task for the next iteration
+- `nextAgent` (optional): suggested specialist for the next task
+
+For more details, see `docs/orchestration.md`.
 
 ## Contract-First Workflow
 

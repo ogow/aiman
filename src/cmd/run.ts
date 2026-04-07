@@ -96,14 +96,14 @@ function renderForegroundFailure(result: RunResult): string {
       renderLabelValueBlock([
          { label: "Run ID", value: result.runId },
          { label: "Status", value: result.status },
-         { label: "Agent", value: result.profile ?? result.agent ?? "" },
+         { label: "Agent", value: result.agent },
          { label: "Provider", value: result.provider },
-         { label: "Launch", value: result.launchMode ?? "foreground" },
+         { label: "Launch", value: result.launchMode },
          {
             label: "Rights",
             value: formatRunRights(result.provider)
          },
-         { label: "Error", value: result.errorMessage ?? "Unknown failure" },
+         { label: "Error", value: result.error?.message ?? "Unknown failure" },
          { label: "Logs", value: `aiman runs logs ${result.runId} -f` },
          { label: "Inspect", value: `aiman runs inspect ${result.runId}` }
       ])
@@ -135,11 +135,11 @@ export async function handler(
 
       process.stderr.write(
          `${renderLaunchSummary({
-            agent: launched.profile ?? launched.agent ?? "",
+            agent: launched.agent,
             ...(typeof launched.pid === "number" ? { pid: launched.pid } : {}),
             provider: launched.provider,
             runId: launched.runId,
-            scope: launched.profileScope ?? launched.agentScope ?? ""
+            scope: launched.agentScope
          })}\n\n`
       );
       return;
@@ -176,8 +176,8 @@ export async function handler(
    }
 
    process.exitCode = result.status === "success" ? 0 : 1;
-   if (result.status === "success" && result.finalText.trim().length > 0) {
-      process.stdout.write(`${result.finalText.trimEnd()}\n`);
+   if (result.status === "success" && typeof result.summary === "string") {
+      process.stdout.write(`${result.summary.trimEnd()}\n`);
       return;
    }
 

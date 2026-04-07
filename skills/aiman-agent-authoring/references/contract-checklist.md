@@ -16,9 +16,14 @@ Lock these answers before drafting or revising an `aiman` agent.
 
 ## Runtime
 
-- Should the agent be `safe` or `yolo`?
 - Which provider and model fit the work best?
 - What `reasoningEffort` matches that provider?
+
+## Orchestration
+
+- What `handoff.outcome` values should this agent use ("done", "blocked", "incomplete")?
+- Does this agent suggest a `nextTask` or `nextAgent` to continue the work?
+- What `notes` does the next specialist need to carry forward?
 
 ## Repo Fit
 

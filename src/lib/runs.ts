@@ -4,21 +4,21 @@ import { createHash } from "node:crypto";
 import type { WriteStream } from "node:fs";
 import { createWriteStream } from "node:fs";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import * as path from "node:path";
 
 import { loadAimanConfig } from "./config.js";
-import { UserError } from "./errors.js";
+import { UserError } from "../lib/errors.js";
 import { resolveCommandLaunch } from "./executables.js";
 import {
    ensureProjectDirectories,
    getProjectPaths,
    resolveRunCwd
-} from "./paths.js";
-import { loadAgentDefinition } from "./agents.js";
-import { formatRunRights } from "./provider-capabilities.js";
+} from "../lib/paths.js";
+import { loadAgentDefinition } from "../lib/agents.js";
+import { formatRunRights } from "../lib/provider-capabilities.js";
 import { buildPrompt } from "./providers/shared.js";
 import {
    buildRunPaths,
+   buildRunDirectory,
    createFailedRunRecord,
    createRunId,
    listRunDetails,
@@ -42,7 +42,7 @@ import type {
    RunListOptions,
    RunResult,
    ScopedProfileDefinition
-} from "./types.js";
+} from "../lib/types.js";
 
 const defaultRunTimeoutMs = 5 * 60 * 1000;
 const defaultKillGraceMs = 1 * 1000;
@@ -63,9 +63,6 @@ type RunAgentInput = {
       agent: string;
       agentPath: string;
       agentScope: ProfileScope;
-      profile: string;
-      profilePath: string;
-      profileScope: ProfileScope;
       provider: ProviderId;
       runId: string;
       startedAt: string;
@@ -139,33 +136,38 @@ async function writeRunningState(input: {
       agent: input.profile.name,
       agentPath: input.profile.path,
       agentScope: input.profile.scope,
+      artifacts: [],
       cwd: input.cwd,
       ...(typeof input.heartbeatAt === "string"
          ? { heartbeatAt: input.heartbeatAt }
          : { heartbeatAt: new Date().toISOString() }),
       launch: input.launch,
       launchMode: input.launchMode,
+      logs: {
+         stderr: "stderr.log",
+         stdout: "stdout.log"
+      },
       ...(typeof input.profile.model === "string"
          ? { model: input.profile.model }
          : {}),
-      paths,
-      profile: input.profile.name,
-      profilePath: input.profile.path,
-      profileScope: input.profile.scope,
       projectRoot: input.projectRoot,
       provider: input.profile.provider,
       runId: input.runId,
+      schemaVersion: 1 as const,
       startedAt: input.startedAt,
       status: "running",
+      ...(typeof input.launch.task === "string"
+         ? { task: input.launch.task }
+         : {}),
       ...(typeof input.pid === "number" ? { pid: input.pid } : {})
    } satisfies Parameters<typeof writeRunState>[1];
 
    if (input.onlyIfRunning === true) {
-      await writeRunStateIfRunning(paths.runFile, nextState);
+      await writeRunStateIfRunning(paths.resultFile, nextState);
       return;
    }
 
-   await writeRunState(paths.runFile, nextState);
+   await writeRunState(paths.resultFile, nextState);
 }
 
 function createLazyLogWriter(filePath: string): {
@@ -241,10 +243,7 @@ async function killWindowsProcessTree(
    });
 }
 
-function killPosixProcessGroup(
-   pid: number,
-   signal: NodeJS.Signals
-): void {
+function killPosixProcessGroup(pid: number, signal: NodeJS.Signals): void {
    try {
       process.kill(-pid, signal);
    } catch {}
@@ -308,15 +307,13 @@ async function persistDetachedLaunchFailure(
       profile: preparedRun.profile.name,
       profilePath: preparedRun.profile.path,
       profileScope: preparedRun.profile.scope,
-      promptFile: paths.promptFile,
       projectRoot: preparedRun.projectRoot,
       provider: preparedRun.profile.provider,
-      runDir: preparedRun.runDir,
       runId: preparedRun.runId,
       startedAt: preparedRun.startedAt
    });
 
-   await persistResult(record, paths.runFile);
+   await persistResult(record, paths.resultFile);
 }
 
 function hashText(value: string): string {
@@ -358,7 +355,7 @@ function buildLaunchEnvironment(input: {
             key === "AIMAN_ARTIFACTS_DIR"
                ? input.paths.artifactsDir
                : key === "AIMAN_RUN_PATH"
-                 ? input.paths.runFile
+                 ? input.paths.resultFile
                  : key === "AIMAN_RUN_DIR"
                    ? input.paths.runDir
                    : key === "AIMAN_RUN_ID"
@@ -409,6 +406,7 @@ async function buildLaunchSnapshot(input: {
       promptDigest: hashText(input.prepared.renderedPrompt),
       promptTransport: input.prepared.promptTransport,
       provider: input.profile.provider,
+      renderedPrompt: input.prepared.renderedPrompt,
       task: input.task,
       timeoutMs: input.timeoutMs
    };
@@ -450,10 +448,10 @@ async function prepareRun(
            ? { profileScope: input.agentScope }
            : {})
    });
-   const runId = createRunId(profile.name);
-   const runDir = path.join(projectPaths.runsDir, runId);
-   const runCwd = resolveRunCwd(projectPaths.projectRoot, input.cwd);
    const startedAt = new Date().toISOString();
+   const runId = createRunId(profile.name, startedAt);
+   const runDir = buildRunDirectory(projectPaths.runsDir, runId, startedAt);
+   const runCwd = resolveRunCwd(projectPaths.projectRoot, input.cwd);
    const timeoutMs = input.timeoutMs ?? defaultRunTimeoutMs;
    const killGraceMs = input.killGraceMs ?? defaultKillGraceMs;
 
@@ -463,7 +461,7 @@ async function prepareRun(
    const renderedPrompt = buildPrompt(profile, {
       artifactsDir: paths.artifactsDir,
       cwd: runCwd,
-      runFile: paths.runFile,
+      runFile: paths.resultFile,
       runId,
       task: input.task
    });
@@ -471,9 +469,8 @@ async function prepareRun(
    const prepared = await adapter.prepare(profile, {
       artifactsDir: paths.artifactsDir,
       cwd: runCwd,
-      promptFile: paths.promptFile,
       renderedPrompt,
-      runFile: paths.runFile,
+      runFile: paths.resultFile,
       runId,
       ...(config.contextFileNames !== undefined
          ? { contextFileNames: config.contextFileNames }
@@ -498,7 +495,6 @@ async function prepareRun(
       }
    }
 
-   await writeFile(paths.promptFile, prepared.renderedPrompt, "utf8");
    await writeRunningState({
       profile,
       launchMode,
@@ -532,7 +528,7 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
       throw new UserError(`Run "${runId}" is already complete.`);
    }
 
-   const renderedPrompt = await readFile(run.paths.promptFile, "utf8");
+   const renderedPrompt = run.launch.renderedPrompt;
 
    if (typeof run.launch.model !== "string" || run.launch.model.length === 0) {
       throw new UserError(
@@ -776,18 +772,14 @@ async function executePreparedRun(
          profile: preparedRun.profile.name,
          profilePath: preparedRun.profile.path,
          profileScope: preparedRun.profile.scope,
-         promptFile: paths.promptFile,
          projectRoot: preparedRun.projectRoot,
          provider: preparedRun.profile.provider,
-         runDir: preparedRun.runDir,
          runId: preparedRun.runId,
-         startedAt: preparedRun.startedAt,
-         ...(stderr.length > 0 ? { stderrLog: paths.stderrLog } : {}),
-         ...(stdout.length > 0 ? { stdoutLog: paths.stdoutLog } : {})
+         startedAt: preparedRun.startedAt
       });
 
-      await persistResult(record, paths.runFile);
-      return toRunResult(record);
+      await persistResult(record, paths.resultFile);
+      return toRunResult(record, paths);
    }
 
    const adapter = getAdapterForProvider(preparedRun.profile.provider);
@@ -798,38 +790,27 @@ async function executePreparedRun(
       launch: preparedRun.launch,
       launchMode: preparedRun.launchMode,
       profile: preparedRun.profile,
-      promptFile: paths.promptFile,
       projectRoot: preparedRun.projectRoot,
       runDir: preparedRun.runDir,
       runId: preparedRun.runId,
       signal: completion.signal ?? (stopRequested ? "SIGTERM" : null),
       startedAt: preparedRun.startedAt,
       stderr,
-      ...(stderr.length > 0 ? { stderrLog: paths.stderrLog } : {}),
-      stdout,
-      ...(stdout.length > 0 ? { stdoutLog: paths.stdoutLog } : {})
+      stdout
    });
    const finalRecord = timedOut
       ? {
            ...record,
-           errorMessage: "Execution timed out.",
-           launchMode: preparedRun.launchMode,
-           profilePath: preparedRun.profile.path,
-           profileScope: preparedRun.profile.scope,
-           projectRoot: preparedRun.projectRoot,
+           error: {
+              message: "Execution timed out."
+           },
            status: "error" as const
         }
-      : {
-           ...record,
-           launchMode: preparedRun.launchMode,
-           profilePath: preparedRun.profile.path,
-           profileScope: preparedRun.profile.scope,
-           projectRoot: preparedRun.projectRoot
-        };
+      : record;
 
-   await persistResult(finalRecord, paths.runFile);
+   await persistResult(finalRecord, paths.resultFile);
 
-   return toRunResult(finalRecord);
+   return toRunResult(finalRecord, paths);
 }
 
 function buildRelaunchArgs(runId: string): string[] {
@@ -855,9 +836,6 @@ function toLaunchResult(input: {
       launchMode: "detached",
       logsCommand: `aiman runs logs ${input.preparedRun.runId} -f`,
       ...(typeof input.pid === "number" ? { pid: input.pid } : {}),
-      profile: input.preparedRun.profile.name,
-      profilePath: input.preparedRun.profile.path,
-      profileScope: input.preparedRun.profile.scope,
       projectRoot: input.preparedRun.projectRoot,
       provider: input.preparedRun.profile.provider,
       rights: formatRunRights(input.preparedRun.profile.provider),
@@ -898,9 +876,6 @@ export async function launchRun(input: RunAgentInput): Promise<LaunchedRun> {
       agent: preparedRun.profile.name,
       agentPath: preparedRun.profile.path,
       agentScope: preparedRun.profile.scope,
-      profile: preparedRun.profile.name,
-      profilePath: preparedRun.profile.path,
-      profileScope: preparedRun.profile.scope,
       provider: preparedRun.profile.provider,
       runId: preparedRun.runId,
       startedAt: preparedRun.startedAt
@@ -933,9 +908,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunResult> {
       agent: preparedRun.profile.name,
       agentPath: preparedRun.profile.path,
       agentScope: preparedRun.profile.scope,
-      profile: preparedRun.profile.name,
-      profilePath: preparedRun.profile.path,
-      profileScope: preparedRun.profile.scope,
       provider: preparedRun.profile.provider,
       runId: preparedRun.runId,
       startedAt: preparedRun.startedAt

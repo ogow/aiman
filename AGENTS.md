@@ -11,7 +11,8 @@ Use this file as a lightweight router. Do not load every document by default. Re
 
 - [ARCHITECTURE.md](/Users/ogow/Code/aiman/ARCHITECTURE.md): current code structure and where behavior lives
 - [docs/agent-authoring.md](/Users/ogow/Code/aiman/docs/agent-authoring.md): requirements checklist and reliability guidance for creating or refining authored `aiman` agents
-- [docs/agent-baseline.md](/Users/ogow/Code/aiman/docs/agent-baseline.md): stable neutral baseline for authored `aiman` agents via explicit `contextFiles`
+- [docs/agent-baseline.md](/Users/ogow/Code/aiman/docs/agent-baseline.md): stable neutral baseline for authored `aiman` agents via shared bootstrap context files
+- [docs/agent-debugging.md](/Users/ogow/Code/aiman/docs/agent-debugging.md): practical workflow for debugging weak, malformed, or failing authored `aiman` agents
 - [docs/cli.md](/Users/ogow/Code/aiman/docs/cli.md): command surface and CLI conventions
 - [docs/memory.md](/Users/ogow/Code/aiman/docs/memory.md): memory workflow and daily-file contract
 - [docs/typescript-style.md](/Users/ogow/Code/aiman/docs/typescript-style.md): repo TypeScript rules adapted from the Google TypeScript Style Guide; read when editing `.ts` files
@@ -21,7 +22,7 @@ Use this file as a lightweight router. Do not load every document by default. Re
 ## Working Rules
 
 - Keep focus on one task at a time.
-- Keep this file lightweight; authored `aiman` agents should prefer explicit `contextFiles` such as `docs/agent-baseline.md` instead of assuming this router is in scope.
+- Keep this file lightweight; authored `aiman` agents should prefer explicit shared bootstrap context such as `docs/agent-baseline.md` instead of assuming this router is in scope.
 - Split larger approved plans into smaller concrete checkbox tasks in the daily memory before implementation starts.
 - Continue to the next unchecked task automatically when safe.
 - Update the daily memory file after each meaningful action and important decision.

@@ -5,9 +5,13 @@ import * as path from "node:path";
 import { hasErrorCode } from "../errors.js";
 import { resolveCommandLaunch, resolveExecutable } from "../executables.js";
 import type {
+   AgentSuccessResult,
+   JsonValue,
    LaunchMode,
    PersistedRunRecord,
    ProfileDefinition,
+   ResultArtifact,
+   ResultError,
    RunLaunchSnapshot,
    ScopedProfileDefinition,
    UsageStats,
@@ -316,64 +320,64 @@ export function buildPrompt(
       /\{\{artifactsDir\}\}|\{\{cwd\}\}|\{\{mode\}\}|\{\{runFile\}\}|\{\{runId\}\}|\{\{task\}\}/g,
       (placeholder) => replacements[placeholder] ?? placeholder
    );
-   return renderedBody;
+   return `${renderedBody.trimEnd()}\n\n${buildRuntimeOutputContract()}`;
 }
 
 export function finalizeRecord(input: {
    profile: ScopedProfileDefinition;
+   artifacts?: ResultArtifact[];
    cwd: string;
    endedAt: string;
-   errorMessage?: string;
+   error?: ResultError;
    exitCode: number | null;
-   finalText: string;
    launchMode: LaunchMode;
    launch: RunLaunchSnapshot;
-   promptFile: string;
    projectRoot: string;
-   runDir: string;
    runId: string;
    signal: string | null;
    startedAt: string;
    status: PersistedRunRecord["status"];
-   stderrLog?: string;
-   stdoutLog?: string;
+   result?: AgentSuccessResult;
    usage?: UsageStats;
 }): PersistedRunRecord {
    return {
+      agent: input.profile.name,
+      agentPath: input.profile.path,
+      agentScope: input.profile.scope,
+      artifacts: input.result?.artifacts ?? input.artifacts ?? [],
       cwd: input.cwd,
       durationMs: Date.parse(input.endedAt) - Date.parse(input.startedAt),
       endedAt: input.endedAt,
+      ...(input.error ? { error: input.error } : {}),
       exitCode: input.exitCode,
-      finalText: input.finalText,
+      ...(input.result?.handoff ? { handoff: input.result.handoff } : {}),
       launch: input.launch,
       launchMode: input.launchMode,
+      logs: {
+         stderr: "stderr.log",
+         stdout: "stdout.log"
+      },
       ...(typeof input.profile.model === "string"
          ? { model: input.profile.model }
          : {}),
-      paths: {
-         artifactsDir: path.join(input.runDir, "artifacts"),
-         promptFile: input.promptFile,
-         runFile: path.join(input.runDir, "run.md"),
-         runDir: input.runDir,
-         stopRequestedFile: path.join(input.runDir, ".stop-requested"),
-         ...(typeof input.stderrLog === "string"
-            ? { stderrLog: input.stderrLog }
-            : {}),
-         ...(typeof input.stdoutLog === "string"
-            ? { stdoutLog: input.stdoutLog }
-            : {})
-      },
-      profile: input.profile.name,
-      profilePath: input.profile.path,
-      profileScope: input.profile.scope,
       projectRoot: input.projectRoot,
       provider: input.profile.provider,
+      ...(input.result?.result !== undefined
+         ? { result: input.result.result }
+         : {}),
+      ...(typeof input.result?.resultType === "string"
+         ? { resultType: input.result.resultType }
+         : {}),
       runId: input.runId,
-      signal: input.signal,
+      schemaVersion: 1,
+      ...(input.signal !== undefined ? { signal: input.signal } : {}),
       startedAt: input.startedAt,
       status: input.status,
-      ...(typeof input.errorMessage === "string"
-         ? { errorMessage: input.errorMessage }
+      ...(typeof input.result?.summary === "string"
+         ? { summary: input.result.summary }
+         : {}),
+      ...(typeof input.launch.task === "string"
+         ? { task: input.launch.task }
          : {}),
       ...(input.usage ? { usage: input.usage } : {})
    };
@@ -393,4 +397,228 @@ export async function readOptionalFile(filePath: string): Promise<string> {
 
 export function deriveCodexLastMessagePath(runDir: string): string {
    return path.join(runDir, ".codex-last-message.txt");
+}
+
+function buildRuntimeOutputContract(): string {
+   return [
+      "## Required Result Contract",
+      'Return only valid JSON with exactly these top-level keys: "resultType", "summary", "result", "handoff", and "artifacts".',
+      'Use "resultType" as a short stable identifier such as "review.v1" or "build.v1".',
+      '"summary" must be a concise human-readable sentence.',
+      '"result" must contain the task-specific structured output.',
+      '"handoff" must be an object with keys "outcome", "nextTask", "nextAgent", "inputs", "notes", and "questions".',
+      '"notes" and "questions" must always be arrays of strings.',
+      '"artifacts" must always be an array. Each artifact object must use relative paths under the run artifacts directory and may include "id", "kind", "path", and "summary".',
+      "Do not wrap the JSON in markdown fences.",
+      "Do not include any text before or after the JSON object."
+   ].join("\n");
+}
+
+function stripJsonCodeFence(value: string): string {
+   return value.trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
+}
+
+function isJsonRecord(
+   value: JsonValue | undefined
+): value is Record<string, JsonValue> {
+   return (
+      value !== undefined &&
+      typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value)
+   );
+}
+
+function normalizeStringArray(
+   value: JsonValue | undefined
+): string[] | undefined {
+   if (!Array.isArray(value)) {
+      return undefined;
+   }
+
+   return value.every((entry) => typeof entry === "string")
+      ? (value as string[])
+      : undefined;
+}
+
+function normalizeArtifact(value: JsonValue): ResultArtifact | undefined {
+   if (!isJsonRecord(value)) {
+      return undefined;
+   }
+
+   if (typeof value.path !== "string" || value.path.trim().length === 0) {
+      return undefined;
+   }
+
+   const normalizedPath = path.normalize(value.path.trim());
+
+   if (normalizedPath.startsWith("..") || path.isAbsolute(normalizedPath)) {
+      return undefined;
+   }
+
+   return {
+      ...(typeof value.id === "string" ? { id: value.id } : {}),
+      ...(typeof value.kind === "string" ? { kind: value.kind } : {}),
+      path: normalizedPath,
+      ...(typeof value.summary === "string" ? { summary: value.summary } : {})
+   };
+}
+
+export function parseAgentSuccessResult(output: string): {
+   error?: ResultError;
+   result?: AgentSuccessResult;
+} {
+   const trimmed = stripJsonCodeFence(output);
+
+   if (trimmed.length === 0) {
+      return {
+         error: {
+            message: "Agent did not return the required JSON result."
+         }
+      };
+   }
+
+   let parsed: JsonValue;
+
+   try {
+      parsed = JSON.parse(trimmed) as JsonValue;
+   } catch {
+      return {
+         error: {
+            message: "Agent did not return valid JSON."
+         }
+      };
+   }
+
+   if (!isJsonRecord(parsed)) {
+      return {
+         error: {
+            message: "Agent JSON output must be an object."
+         }
+      };
+   }
+
+   const { artifacts, handoff, result, resultType, summary, ...rest } = parsed;
+
+   if (Object.keys(rest).length > 0) {
+      return {
+         error: {
+            message: "Agent JSON output included unexpected top-level keys."
+         }
+      };
+   }
+
+   if (typeof resultType !== "string" || resultType.trim().length === 0) {
+      return {
+         error: {
+            message: 'Agent JSON output is missing "resultType".'
+         }
+      };
+   }
+
+   if (typeof summary !== "string" || summary.trim().length === 0) {
+      return {
+         error: {
+            message: 'Agent JSON output is missing "summary".'
+         }
+      };
+   }
+
+   if (!isJsonRecord(handoff)) {
+      return {
+         error: {
+            message: 'Agent JSON output is missing "handoff".'
+         }
+      };
+   }
+
+   const notes = normalizeStringArray(handoff.notes);
+   const questions = normalizeStringArray(handoff.questions);
+
+   if (notes === undefined || questions === undefined) {
+      return {
+         error: {
+            message:
+               'Agent JSON output must use string arrays for "handoff.notes" and "handoff.questions".'
+         }
+      };
+   }
+
+   if (
+      typeof handoff.outcome !== "string" ||
+      handoff.outcome.trim().length === 0
+   ) {
+      return {
+         error: {
+            message: 'Agent JSON output is missing "handoff.outcome".'
+         }
+      };
+   }
+
+   if (!Array.isArray(artifacts)) {
+      return {
+         error: {
+            message: 'Agent JSON output must use an array for "artifacts".'
+         }
+      };
+   }
+
+   const normalizedArtifacts = artifacts.flatMap((artifact) => {
+      const normalizedArtifact = normalizeArtifact(artifact);
+      return normalizedArtifact ? [normalizedArtifact] : [];
+   });
+
+   if (normalizedArtifacts.length !== artifacts.length) {
+      return {
+         error: {
+            message:
+               "Agent JSON output contained an invalid artifact entry or path."
+         }
+      };
+   }
+
+   const inputs =
+      handoff.inputs !== undefined && isJsonRecord(handoff.inputs)
+         ? handoff.inputs
+         : handoff.inputs === undefined
+           ? undefined
+           : null;
+
+   if (inputs === null) {
+      return {
+         error: {
+            message:
+               'Agent JSON output must use an object for "handoff.inputs" when present.'
+         }
+      };
+   }
+
+   if (result === undefined) {
+      return {
+         error: {
+            message: 'Agent JSON output is missing "result".'
+         }
+      };
+   }
+
+   return {
+      result: {
+         artifacts: normalizedArtifacts,
+         handoff: {
+            ...(typeof handoff.nextAgent === "string"
+               ? { nextAgent: handoff.nextAgent }
+               : {}),
+            ...(typeof handoff.nextTask === "string"
+               ? { nextTask: handoff.nextTask }
+               : {}),
+            ...(inputs ? { inputs } : {}),
+            notes,
+            outcome: handoff.outcome.trim(),
+            questions
+         },
+         result,
+         resultType: resultType.trim(),
+         summary: summary.trim()
+      }
+   };
 }

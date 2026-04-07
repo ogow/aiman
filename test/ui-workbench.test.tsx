@@ -46,18 +46,19 @@ afterEach(async () => {
 function createRun(input?: Record<string, unknown>): RunInspection {
   return {
     active: false,
+    agent: "reviewer",
+    agentPath: "/tmp/reviewer.md",
+    agentScope: "project",
+    artifacts: [],
     cwd: "/tmp/demo",
-    document: {
-      artifacts: [],
-      body: "Run body",
-      exists: true,
-      frontmatter: {},
-      path: "/tmp/demo/run.md"
-    },
     durationMs: 1_000,
     endedAt: "2026-04-03T10:01:00.000Z",
     exitCode: 0,
-    finalText: "Final answer",
+    handoff: {
+      notes: [],
+      outcome: "done",
+      questions: []
+    },
     launch: {
       agentDigest: "agent-digest",
       agentName: "reviewer",
@@ -78,28 +79,35 @@ function createRun(input?: Record<string, unknown>): RunInspection {
       promptTransport: "stdin",
       provider: "codex",
       reasoningEffort: "medium",
+      renderedPrompt: "Prompt body",
       task: "Audit the repo",
       timeoutMs: 300_000
     },
     launchMode: "foreground",
+    logs: {
+      stderr: "stderr.log",
+      stdout: "stdout.log"
+    },
     paths: {
       artifactsDir: "/tmp/demo/artifacts",
-      promptFile: "/tmp/demo/prompt.md",
+      resultFile: "/tmp/demo/result.json",
       runDir: "/tmp/demo",
-      runFile: "/tmp/demo/run.md",
       stopRequestedFile: "/tmp/demo/.stop-requested",
       stderrLog: "/tmp/demo/stderr.log",
       stdoutLog: "/tmp/demo/stdout.log"
     },
-    profile: "reviewer",
-    profilePath: "/tmp/reviewer.md",
-    profileScope: "project",
     projectRoot: "/tmp/demo",
     provider: "codex",
+    result: {
+      message: "Final answer"
+    },
+    resultType: "review.v1",
     runId: "run-001",
+    schemaVersion: 1,
     signal: null,
     startedAt: "2026-04-03T10:00:00.000Z",
     status: "success",
+    summary: "Final answer",
     ...input
   } as RunInspection;
 }
@@ -224,9 +232,6 @@ describe("AimanWorkbench", () => {
           agent: "reviewer",
           agentPath: sampleProfile.path,
           agentScope: sampleProfile.scope,
-          profile: "reviewer",
-          profilePath: sampleProfile.path,
-          profileScope: sampleProfile.scope,
           provider: sampleProfile.provider,
           runId: "run-001",
           startedAt: "2026-04-03T10:00:00.000Z"
@@ -238,13 +243,28 @@ describe("AimanWorkbench", () => {
         runs = [createRun()];
 
         return {
-          finalText: "Final answer",
-          profile: "reviewer",
-          profilePath: sampleProfile.path,
-          profileScope: sampleProfile.scope,
+          agent: "reviewer",
+          agentPath: sampleProfile.path,
+          agentScope: sampleProfile.scope,
+          artifacts: [],
+          handoff: {
+            notes: [],
+            outcome: "done",
+            questions: []
+          },
+          launchMode: "foreground",
           provider: sampleProfile.provider,
+          projectRoot: "/tmp/demo",
+          result: {
+            message: "Final answer"
+          },
+          resultType: "review.v1",
+          rights:
+            "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
           runId: "run-001",
-          status: "success"
+          runPath: "/tmp/demo/result.json",
+          status: "success",
+          summary: "Final answer"
         };
       }
     });
@@ -283,7 +303,7 @@ describe("AimanWorkbench", () => {
             active: true,
             durationMs: undefined,
             endedAt: undefined,
-            finalText: "",
+            result: undefined,
             runId: "run-active",
             status: "running"
           })
@@ -303,7 +323,7 @@ describe("AimanWorkbench", () => {
 
         return createRun({
           active: false,
-          finalText: "",
+          result: undefined,
           runId,
           status: "cancelled"
         });
@@ -334,7 +354,7 @@ describe("AimanWorkbench", () => {
             active: true,
             durationMs: undefined,
             endedAt: undefined,
-            finalText: "",
+            result: undefined,
             runId: "run-active",
             startedAt: "2026-04-04T09:59:00.000Z",
             status: "running"

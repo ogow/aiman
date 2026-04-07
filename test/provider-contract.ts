@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import * as assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import * as os from "node:os";
@@ -42,7 +42,11 @@ function createContractProfile(input: {
          "{{task}}",
          "",
          "## Instructions",
-         'Return only compact JSON with keys "ambientAgents", "ambientGemini", and "profilePrompt".',
+         'Set "resultType" to "provider-contract.v1".',
+         'Set "summary" to "provider contract".',
+         'Set "result" to an object with keys "ambientAgents", "ambientGemini", and "profilePrompt".',
+         'Set "handoff" to {"outcome":"done","notes":[],"questions":[]}.',
+         'Set "artifacts" to [].',
          "Inspect only the text already present in your instructions and any native bootstrap context the CLI applied automatically.",
          "Do not use tools and do not read workspace files.",
          'If you can see a line `AGENTS_ROUTER_SENTINEL: <value>`, set `ambientAgents` to that exact `<value>`; otherwise return `"NONE"`.',
@@ -68,7 +72,6 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
    ambientGeminiSentinel: string;
    cwd: string;
    profilePromptSentinel: string;
-   promptFile: string;
    projectRoot: string;
    runDir: string;
    runFile: string;
@@ -89,8 +92,7 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
       "profiles",
       `provider-contract-${provider}.md`
    );
-   const promptFile = path.join(runDir, "prompt.md");
-   const runFile = path.join(runDir, "run.md");
+   const runFile = path.join(runDir, "result.json");
    const ambientAgentsSentinel = `ambient-agents-${provider}-sentinel`;
    const ambientGeminiSentinel = `ambient-gemini-${provider}-sentinel`;
    const profilePromptSentinel = `profile-prompt-${provider}-sentinel`;
@@ -152,7 +154,6 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
       cwd: projectRoot,
       profilePromptSentinel,
       projectRoot,
-      promptFile,
       runDir,
       runFile,
       runId: `provider-contract-${provider}`
@@ -252,6 +253,7 @@ async function executePreparedInvocation(input: {
 function buildLaunchSnapshot(input: {
    profile: ScopedProfileDefinition;
    prepared: PreparedInvocation;
+   renderedPrompt: string;
    runId: string;
    timeoutMs: number;
 }): RunLaunchSnapshot {
@@ -274,6 +276,7 @@ function buildLaunchSnapshot(input: {
       promptTransport: input.prepared.promptTransport,
       provider: input.profile.provider,
       reasoningEffort: input.profile.reasoningEffort,
+      renderedPrompt: input.renderedPrompt,
       timeoutMs: input.timeoutMs
    };
 }
@@ -319,7 +322,7 @@ function parseJsonObject(rawText: string): {
 }
 
 async function runProviderContract(
-   t: Parameters<typeof test>[1] extends (ctx: infer T) => unknown ? T : never,
+   t: any,
    input: {
       adapter: ProviderAdapter;
       provider: "codex" | "gemini";
@@ -341,13 +344,10 @@ async function runProviderContract(
       task: `PROFILE_PROMPT_SENTINEL: ${fixture.profilePromptSentinel}`
    });
 
-   await writeFile(fixture.promptFile, renderedPrompt, "utf8");
-
    const prepared = await input.adapter.prepare(fixture.profile, {
       artifactsDir: path.join(fixture.runDir, "artifacts"),
       contextFileNames: ["AGENTS.md"],
       cwd: fixture.cwd,
-      promptFile: fixture.promptFile,
       renderedPrompt,
       runFile: fixture.runFile,
       runId: fixture.runId,
@@ -389,11 +389,11 @@ async function runProviderContract(
       launch: buildLaunchSnapshot({
          profile: fixture.profile,
          prepared,
+         renderedPrompt,
          runId: fixture.runId,
          timeoutMs: providerContractTimeoutMs
       }),
       launchMode: "foreground",
-      promptFile: fixture.promptFile,
       projectRoot: fixture.projectRoot,
       runDir: fixture.runDir,
       runId: fixture.runId,
@@ -402,7 +402,7 @@ async function runProviderContract(
       stderr: completed.stderr,
       stdout: completed.stdout
    });
-   const parsed = parseJsonObject(record.finalText);
+   const parsed = parseJsonObject(JSON.stringify(record.result));
 
    assert.equal(
       parsed.ambientAgents,
@@ -420,7 +420,7 @@ async function runProviderContract(
       `${input.provider} did not preserve the authored profile prompt.`
    );
 
-   const persistedPrompt = await readFile(fixture.promptFile, "utf8");
+   const persistedPrompt = renderedPrompt;
 
    assert.match(
       persistedPrompt,

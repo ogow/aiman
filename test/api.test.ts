@@ -54,7 +54,23 @@ for await (const chunk of process.stdin) {
 
 if (lastMessagePath.length > 0) {
    await mkdir(path.dirname(lastMessagePath), { recursive: true });
-   await writeFile(lastMessagePath, "API result\\n", "utf8");
+   await writeFile(
+      lastMessagePath,
+      JSON.stringify({
+         artifacts: [],
+         handoff: {
+            notes: [],
+            outcome: "done",
+            questions: []
+         },
+         result: {
+            message: "API result"
+         },
+         resultType: "review.v1",
+         summary: "API result"
+      }),
+      "utf8"
+   );
 }
 
 if (useJsonOutput) {
@@ -136,8 +152,8 @@ You are a focused reviewer.
 
       expect(agents.some((entry) => entry.name === "reviewer")).toBe(true);
       expect(result.status).toBe("success");
-      expect(result.finalText).toBe("API result");
-      expect("finalText" in run ? run.finalText : "").toBe("API result");
+      expect(result.summary).toBe("API result");
+      expect(run.summary).toBe("API result");
    } finally {
       process.env.HOME = originalHome;
       process.env.USERPROFILE = originalUserProfile;

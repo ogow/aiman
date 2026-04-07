@@ -25,8 +25,15 @@ If the supplied task is missing scope, say what path or document area needs to b
 - Prefer concrete drift or contradiction findings over stylistic rewrites.
 - Do not assume extra repo guidance beyond the task itself.
 
+## Stop Conditions
+
+- Stop when you have checked the supplied docs scope and can summarize whether drift exists.
+- Stop with a blocked handoff if the task does not identify what docs area should be checked.
+- Do not expand into unrelated documentation areas.
+
 ## Expected Output
 
-- Start with a one-line status: clean or issues found.
+- Use `resultType: "doc-check.v1"`.
+- In `result`, return `status`, `issues`, and `recommendedNextStep`.
+- Set `handoff.outcome` to `clean`, `needs_updates`, or `blocked`.
 - List each issue with the affected file or section when available.
-- End with the smallest reasonable next step.

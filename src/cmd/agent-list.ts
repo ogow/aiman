@@ -1,7 +1,7 @@
 import type { ArgumentsCamelCase, Argv } from "yargs";
 
-import { createAiman } from "../api/index.js";
-import { agentScopeChoices } from "../lib/agents.js";
+import { getProjectPaths } from "../lib/paths.js";
+import { agentScopeChoices, listAgents } from "../lib/agents.js";
 import { writeJson } from "../lib/output.js";
 import { renderSection, renderTable } from "../lib/pretty.js";
 import type { ProfileScope } from "../lib/types.js";
@@ -31,7 +31,7 @@ export function builder(yargs: Argv): Argv {
 export async function handler(
    args: ArgumentsCamelCase<AgentListArguments>
 ): Promise<void> {
-   const agents = await (await createAiman()).agents.list(args.scope);
+   const agents = await listAgents(getProjectPaths(), args.scope);
 
    if (args.json) {
       writeJson({ agents });

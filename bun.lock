@@ -6,6 +6,7 @@
       "dependencies": {
         "@opentui/core": "^0.1.96",
         "@opentui/react": "^0.1.96",
+        "chalk": "^5.6.2",
         "gray-matter": "^4.0.3",
         "react": "^19.2.4",
         "yargs": "^18.0.0",
@@ -21,6 +22,33 @@
         "prettier": "^3.8.1",
         "tsx": "^4.21.0",
         "typescript": "^6.0.2",
+      },
+    },
+    "packages/ai-harness": {
+      "name": "ai-harness",
+      "version": "0.1.0",
+      "bin": {
+        "ai-harness": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@opentui/core": "^0.1.96",
+        "@opentui/react": "^0.1.96",
+        "aiman": "workspace:*",
+        "chalk": "^5.6.2",
+        "react": "^19.2.4",
+        "yargs": "^18.0.0",
+      },
+    },
+    "packages/aiman": {
+      "name": "aiman",
+      "version": "0.1.0",
+      "bin": {
+        "aiman": "./dist/cli.js",
+      },
+      "dependencies": {
+        "chalk": "^5.6.2",
+        "gray-matter": "^4.0.3",
+        "yargs": "^18.0.0",
       },
     },
   },
@@ -205,6 +233,10 @@
 
     "abort-controller": ["abort-controller@3.0.0", "", { "dependencies": { "event-target-shim": "^5.0.0" } }, "sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg=="],
 
+    "ai-harness": ["ai-harness@workspace:packages/ai-harness"],
+
+    "aiman": ["aiman@workspace:packages/aiman"],
+
     "ansi-escapes": ["ansi-escapes@7.3.0", "", { "dependencies": { "environment": "^1.0.0" } }, "sha512-BvU8nYgGQBxcmMuEeUEmNTvrMVjJNSH7RgW24vXexN4Ven6qCvy4TntnvlnwnMLTVlcRQQdbRY8NKnaIoeWDNg=="],
 
     "ansi-regex": ["ansi-regex@6.2.2", "", {}, "sha512-Bq3SmSpyFHaWjPk8If9yc6svM8c56dB5BAtW4Qbw5jHTwwXXcTLoRMkpDJp6VL0XzlWaCHTXrkFURMYmD0sLqg=="],
@@ -236,6 +268,8 @@
     "bun-webgpu-linux-x64": ["bun-webgpu-linux-x64@0.1.6", "", { "os": "linux", "cpu": "x64" }, "sha512-Y/f15j9r8ba0xUz+3lATtS74OE+PPzQXO7Do/1eCluJcuOlfa77kMjvBK/ShWnem3Y9xqi59pebTPOGRB+CaJA=="],
 
     "bun-webgpu-win32-x64": ["bun-webgpu-win32-x64@0.1.6", "", { "os": "win32", "cpu": "x64" }, "sha512-MHSFAKqizISb+C5NfDrFe3g0Al5Njnu0j/A+oO2Q+bIWX+fUYjBSowiYE1ZXJx65KuryuB+tiM7Qh6cQbVvkEg=="],
+
+    "chalk": ["chalk@5.6.2", "", {}, "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA=="],
 
     "cli-cursor": ["cli-cursor@5.0.0", "", { "dependencies": { "restore-cursor": "^5.0.0" } }, "sha512-aCj4O5wKyszjMmDT4tZj93kxyydN/K5zPWSCe6/0AV/AA1pqe5ZBIw0a2ZfPQV7lL5/yb5HsUreJ6UFAF1tEQw=="],
 
