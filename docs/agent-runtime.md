@@ -38,11 +38,10 @@ Current flow:
 
 Each agent is a Markdown file with frontmatter plus a provider-native body.
 
-The body is the full authored prompt contract. `aiman` does not append a hidden runtime footer. Instead, it substitutes explicit placeholders when present. Supported runtime placeholders today are:
+The body remains the authored task contract. `aiman` does not append extra runtime prose; it only substitutes explicit placeholders when present. Supported runtime placeholders today are:
 
 - `{{task}}`
 - `{{cwd}}`
-- `{{mode}}`
 - `{{runId}}`
 - `{{runFile}}`
 - `{{artifactsDir}}`
@@ -54,8 +53,7 @@ Supported frontmatter for new authoring work:
 - required `name`
 - required `provider`
 - required `description`
-- required `mode`
-- required `reasoningEffort`
+- required `reasoningEffort` for Codex; optional for Gemini
 
 `model` is provider-specific:
 
@@ -89,15 +87,13 @@ For authoring guidance on turning that contract into a reliable reusable special
 
 Current provider behavior:
 
-- Codex `safe` runs use `codex exec --sandbox read-only`.
-- Codex `yolo` runs use `codex exec --sandbox workspace-write`.
-- Gemini `safe` runs use `gemini --approval-mode plan`.
-- Gemini `yolo` runs use `gemini --approval-mode auto_edit`.
+- Codex runs use `codex exec --sandbox workspace-write`.
+- Gemini runs use `gemini --approval-mode yolo`.
 - Codex launches pin non-interactive approval behavior to `approval_policy="never"` so `codex exec` does not inherit interactive approval defaults from local config.
 - Codex launches preserve native `AGENTS.md` handling, pass additional configured bootstrap file names through `project_doc_fallback_filenames`, blank other Codex prompt-shaping inputs such as `developer_instructions`, `instructions`, and `agents`, and grant the run `artifacts/` directory as an explicit extra writable root via `--add-dir`.
-- Gemini launches use a child-local settings overlay so Gemini sees the shared configured bootstrap file names through its native `context.fileName` setting.
+- Gemini launches use a child-local settings overlay so Gemini sees the shared configured bootstrap file names through its native `context.fileName` setting, and include the run `artifacts/` directory in Gemini's workspace via `--include-directories`.
 
-Operator-facing surfaces should describe those rights explicitly so the caller can tell whether a run is safe, yolo, read-only, or write-enabled.
+Operator-facing surfaces should describe those provider rights explicitly instead of projecting a separate `safe` / `yolo` harness mode.
 
 ## Run Storage
 
@@ -147,7 +143,6 @@ For operator-facing reads, the runtime also derives whether the run is still act
 - `provider`
 - `launchMode`
 - `model`
-- `mode`
 - `cwd`
 - `projectRoot`
 - `startedAt`
@@ -162,7 +157,7 @@ For operator-facing reads, the runtime also derives whether the run is still act
 The `launch` object is the immutable evidence record for the run. It freezes:
 
 - resolved agent identity and path
-- provider, model, and effective mode
+- provider and model
 - working directory, launch mode, timeout, and kill grace period
 - provider command, argv summary, prompt transport, and allowlisted environment key names
 - agent-file digest and prompt digest
@@ -204,7 +199,7 @@ Current adapter behavior:
 - both run with an allowlisted environment
 - both should make provider-specific rights legible to the operator instead of forcing them to reverse-engineer adapter flags
 - both can reuse an already-rendered `prompt.md` during hidden-worker execution so detached runs do not have to reconstruct prompt state differently
-- both rely on the authored agent body as the full prompt and only substitute explicit runtime placeholders
+- both rely on the authored agent body for the task contract and substitute explicit runtime placeholders when present
 - both normalize final output into the shared `run.md` contract
 - Codex requires the persisted last-message file for a successful run; if the provider exits successfully without writing it, `aiman` records an error instead of silently switching to stdout parsing, even though stdout is available as structured JSONL events
 - Gemini requires valid structured stdout from `--output-format json`; `aiman` parses the final response from the JSON object's `response` field and surfaces the structured `error.message` when the CLI exits non-zero
@@ -218,6 +213,7 @@ Current runtime rules:
 - drain stdout and stderr continuously
 - prefer the run directory over side-channel IPC; `logs` and the default workbench observe the same persisted files that `inspect` reads
 - enforce per-run timeout and kill escalation
+- on Unix, supervise provider runs as their own process group so timeout and stop handling can terminate MCP helper descendants that inherited stdio
 - persist failures as normal run results
 - keep human activity indicators indeterminate and TTY-only instead of inventing percent-complete progress
 - keep the CLI thin and the filesystem layout explicit

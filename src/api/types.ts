@@ -10,7 +10,6 @@ import type {
    ReasoningEffort,
    RunInspection,
    RunListOptions,
-   RunMode,
    RunResult,
    ScopedProfileDefinition as ScopedAgentDefinition
 } from "../lib/types.js";
@@ -33,7 +32,6 @@ export type {
    ReasoningEffort,
    RunInspection,
    RunListOptions,
-   RunMode,
    RunResult,
    ScopedAgentDefinition
 };
@@ -43,10 +41,9 @@ export type CreateAgentInput = {
    force?: boolean;
    instructions: string;
    model: string;
-   mode: RunMode;
    name: string;
    provider: ProviderId;
-   reasoningEffort: ReasoningEffort;
+   reasoningEffort?: ReasoningEffort;
    scope: AgentScope;
 };
 

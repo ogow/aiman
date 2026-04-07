@@ -2,9 +2,7 @@
 name: standalone-daily-doc-checker
 provider: gemini
 description: Checks one documentation area for drift or stale instructions in a cron-friendly way
-mode: safe
 model: gemini-2.5-flash-lite
-reasoningEffort: none
 ---
 
 ## Role

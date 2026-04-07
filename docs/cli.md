@@ -12,13 +12,29 @@ Project-scoped commands resolve the nearest ancestor directory with project mark
 - `aiman agent list [--scope project|user] [--json]`
 - `aiman agent show <agent> [--scope project|user] [--json]`
 - `aiman agent check <agent> [--scope project|user] [--json]`
-- `aiman agent create <name> --scope project|user --provider codex|gemini --mode safe|yolo --model <id|auto> --reasoning-effort <value> --description <text> [--instructions <text>] [--force] [--json]`
+- `aiman agent create <name> --scope project|user --provider codex|gemini --model <id|auto> --reasoning-effort <value> --description <text> [--instructions <text>] [--force] [--json]`
 - `aiman run <agent> [--task <text>] [--cwd <path>] [--scope project|user] [--detach] [--json]`
 - `aiman runs list [--all] [--limit <n>] [--json]`
 - `aiman runs show <run-id> [--json]`
 - `aiman runs logs <run-id> [--stream all|stdout|stderr] [--tail <n>] [-f|--follow] [--json]`
 - `aiman runs inspect <run-id> [--json] [--stream run|prompt|stdout|stderr]`
 - `aiman runs stop <run-id> [--json]`
+
+## Skills
+
+`aiman` does not provide native skill management. Instead, it supports skills discovered by the downstream provider from `.agents/skills/` (project scope) or `~/.gemini/skills/` (user scope).
+
+Use the `skills` tool to install new skills from GitHub:
+
+```bash
+# Install to the local project (.agents/skills/)
+bun run skills @skills/some-skill
+
+# Install to the user home directory (~/.gemini/skills/)
+bun run skills @skills/some-skill -g
+```
+
+The `bun run skills` script is a thin wrapper for `bunx skills add`.
 
 Agents can exist in two scopes:
 
@@ -47,20 +63,18 @@ Default keyboard flow stays compact:
 
 The `tasks` workspace now uses a controlled task draft buffer instead of relying on an embedded textarea component for launch-critical input, so task entry stays deterministic under both the live TTY and the OpenTUI test harness.
 
-For `aiman agent create`, `--scope`, `--provider`, `--mode`, `--model`, `--reasoning-effort`, and `--description` are required. For Gemini agents, `--model auto` means "let the `gemini` CLI choose its automatic default model." `auto` is invalid for non-Gemini providers. Instructions can come from `--instructions` or from stdin, which keeps multiline authoring scriptable and avoids hidden interactive prompts that could block parent agents.
+For `aiman agent create`, `--scope`, `--provider`, `--model`, and `--description` are required. `--reasoning-effort` is required for Codex and optional for Gemini (defaults to `none`). For Gemini agents, `--model auto` means "let the `gemini` CLI choose its automatic default model." `auto` is invalid for non-Gemini providers. Instructions can come from `--instructions` or from stdin, which keeps multiline authoring scriptable and avoids hidden interactive prompts that could block parent agents.
 
 `aiman agent check` is the public static agent validator. It reads one agent, reports blocking `errors` separately from non-blocking `warnings`, exits `1` only when blocking errors exist, and supports `--json` for wrappers or parent agents. It does not launch the provider, probe MCPs, or require auth.
 
 For stronger authoring guidance, use `docs/agent-authoring.md` as the checklist for prompt shape and reliability before you finalize an agent.
 
-Agent bodies are explicit prompt templates. `aiman` does not append a hidden footer at run time; instead it substitutes runtime values only where the body asks for them. New agents created by `aiman agent create` include `{{task}}` by default, and runnable agents should include that placeholder somewhere in the body.
+Agent bodies are explicit prompt templates. `aiman` substitutes runtime values where the body asks for them, but it does not append extra runtime prompt text. New agents created by `aiman agent create` include `{{task}}` by default, and runnable agents should include that placeholder somewhere in the body. Use `{{artifactsDir}}` only when the body needs the exact per-run artifact path.
 
-Agent frontmatter must declare `mode: safe | yolo`. `aiman run` uses that declared mode as the agent's execution mode.
+Agent frontmatter must also declare `reasoningEffort` (optional for Gemini, defaults to `none` if omitted), and the allowed values depend on the selected provider:
 
-Agent frontmatter must also declare `reasoningEffort`, and the allowed values depend on the selected provider:
-
-- `codex`: `none`, `low`, `medium`, or `high`
-- `gemini`: `none`
+- `codex`: required; use `none`, `low`, `medium`, or `high`
+- `gemini`: optional; defaults to `none`
 
 Use `none` when the selected provider or model does not support configurable reasoning effort.
 
@@ -87,12 +101,10 @@ Provider isolation details:
 - Codex-backed runs preserve native `AGENTS.md` handling, pass any additional configured bootstrap file names through `project_doc_fallback_filenames`, and still blank other Codex prompt-shaping inputs such as `developer_instructions`, `instructions`, and `agents`, while project `.codex` MCP definitions still load.
 - Gemini-backed runs preserve native context discovery by passing the shared configured file names through a child-local settings overlay via `GEMINI_CLI_SYSTEM_SETTINGS_PATH`, while project `.gemini/settings.json` MCP definitions still load.
 
-Execution rights depend on both provider and `--mode`:
+Execution rights are provider-specific:
 
-- Codex `read-only`: `aiman` launches `codex exec --sandbox read-only`
-- Codex `workspace-write`: `aiman` launches `codex exec --sandbox workspace-write`
-- Gemini `read-only`: `aiman` launches `gemini --approval-mode plan`
-- Gemini `workspace-write`: `aiman` launches `gemini --approval-mode auto_edit`
+- Codex: `aiman` launches `codex exec --sandbox workspace-write` and grants the per-run `artifacts/` directory through `--add-dir`
+- Gemini: `aiman` launches `gemini --approval-mode yolo` and includes the per-run `artifacts/` directory through `--include-directories`
 
 Across providers, `aiman` forwards only an allowlisted runtime environment rather than the full parent process environment.
 
@@ -103,7 +115,7 @@ Across providers, `aiman` forwards only an allowlisted runtime environment rathe
 - `aiman` with no args is the default OpenTUI workbench for humans working in a real TTY.
 - `aiman agent create <name>` is the authoring path for creating structured agent files without hand-writing raw frontmatter.
 - `aiman agent show <agent>` and `aiman agent check <agent>` are the operator paths for inspecting one agent's contract before a run.
-- Authored agent bodies are the full prompt contract. `aiman` no longer appends hidden task/cwd/run-path footer text at execution time.
+- Authored agent bodies own the task-specific prompt; `aiman` only substitutes explicit runtime placeholders.
 - `aiman run <agent>` is the default synchronous worker path. It runs in the foreground, persists the run, and returns the final result when complete.
 - `aiman run <agent> --detach` is the explicit background path. It starts a managed worker and returns immediately with the live run id.
 - `aiman runs stop <id>` is the quick operator path for stopping one active run by run id without opening the interactive workbench, including Windows runs launched through npm-style `.cmd` wrappers.
@@ -122,7 +134,7 @@ Across providers, `aiman` forwards only an allowlisted runtime environment rathe
 - `aiman runs logs <run-id>` and `aiman runs inspect <run-id> --stream stdout` show raw provider stdout; for Codex runs that means JSONL events, and for Gemini runs that means the final structured JSON object from `--output-format json`.
 - `aiman run <agent> --detach` prints a short launch summary to stderr so operators can see the run id, show command, and live logs command immediately.
 - `aiman runs show <run-id>` and `aiman runs inspect <run-id>` both derive whether the run is still active from the stored supervising `pid` plus a fresh persisted heartbeat; when a run never reaches a terminal record they show a concise warning instead of inventing a new persisted state.
-- `aiman agent show`, `aiman run`, `aiman runs show`, and `aiman runs inspect` surface run rights explicitly so operators can see whether the provider is in safe, yolo, read-only, write-enabled, or plan/no-edit mode.
+- `aiman agent show`, `aiman run`, `aiman runs show`, and `aiman runs inspect` surface run rights explicitly so operators can see the effective provider launch contract.
 
 ## Run Layout
 
@@ -136,7 +148,7 @@ Default files:
 - `stderr.log`: created only when stderr is produced
 - `artifacts/`: optional directory for run-authored handoff files
 
-`run.md` stores structured execution fields such as `runId`, `status`, `agent`, `agentScope`, `agentPath`, `provider`, `launchMode`, `model`, `mode`, `projectRoot`, timestamps, exit state, and optional `usage`, plus any authored frontmatter like `kind`, `summary`, `artifacts`, or task-specific metadata.
+`run.md` stores structured execution fields such as `runId`, `status`, `agent`, `agentScope`, `agentPath`, `provider`, `launchMode`, `model`, `projectRoot`, timestamps, exit state, and optional `usage`, plus any authored frontmatter like `kind`, `summary`, `artifacts`, or task-specific metadata.
 
 `run.md` also stores a required immutable `launch` object. That launch snapshot freezes the resolved agent identity, provider invocation (`command`, `args`, `promptTransport`), cwd, timeout settings, allowlisted environment key names, and digests for the authored agent file and rendered prompt.
 When the repo config defines bootstrap context files, the launch snapshot records the effective `contextFileNames` used for that run.

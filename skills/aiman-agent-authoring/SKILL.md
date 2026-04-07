@@ -95,7 +95,7 @@ Use [references/prompt-template.md](references/prompt-template.md) when drafting
 ## Strong Defaults
 
 - Start with one agent owning one concrete specialty.
-- Start with `provider: codex`, `model: gpt-5.4-mini`, `mode: safe`, and `reasoningEffort: medium` unless the job clearly needs something else.
+- Start with `provider: codex`, `model: gpt-5.4-mini`, and `reasoningEffort: medium` unless the job clearly needs something else.
 - For `gemini`, use `reasoningEffort: none` and set `model: auto` unless you need to pin one explicitly.
 - Prefer direct instructions over persona-heavy prose.
 - Tell the agent what to do when evidence is missing instead of letting it improvise.
@@ -106,7 +106,6 @@ Use [references/prompt-template.md](references/prompt-template.md) when drafting
 
 - A generic "help with anything" agent.
 - One agent trying to own several unrelated jobs.
-- `mode: yolo` by default instead of because the job requires edits.
 - Output requirements buried in long prose.
 - Large copies of repo rules pasted into every agent.
 - Hidden assumptions about repo context, tools, or write access.

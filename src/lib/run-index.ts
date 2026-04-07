@@ -17,7 +17,7 @@ type IndexedRunRecord = {
    endedAt?: string;
    heartbeatAt?: string;
    launchMode: LaunchMode;
-   mode: RunMode;
+   mode?: RunMode;
    pid?: number;
    profile: string;
    profilePath: string;
@@ -171,7 +171,7 @@ function toIndexedRunRecord(
          ? { heartbeatAt: record.heartbeatAt }
          : {}),
       launchMode: record.launchMode,
-      mode: record.mode,
+      ...(typeof record.mode === "string" ? { mode: record.mode } : {}),
       ...("pid" in record && typeof record.pid === "number"
          ? { pid: record.pid }
          : {}),
@@ -240,7 +240,7 @@ export async function upsertRunIndexEntry(
       entry.profilePath,
       entry.profileScope,
       entry.provider,
-      entry.mode,
+      entry.mode ?? "legacy",
       entry.launchMode,
       entry.status,
       entry.pid ?? null,
@@ -288,7 +288,7 @@ export async function readRunIndexEntry(
            ended_at: string | null;
            heartbeat_at: string | null;
            launch_mode: LaunchMode;
-           mode: RunMode;
+           mode: string;
            pid: number | null;
            project_root: string;
            provider: ProviderId;
@@ -310,7 +310,7 @@ export async function readRunIndexEntry(
          ? { heartbeatAt: row.heartbeat_at }
          : {}),
       launchMode: row.launch_mode,
-      mode: row.mode,
+      ...(row.mode === "safe" || row.mode === "yolo" ? { mode: row.mode } : {}),
       ...(typeof row.pid === "number" ? { pid: row.pid } : {}),
       profile: row.agent,
       profilePath: row.agent_path,
@@ -357,7 +357,7 @@ export async function listRunIndexEntries(): Promise<RunIndexEntry[]> {
       ended_at: string | null;
       heartbeat_at: string | null;
       launch_mode: LaunchMode;
-      mode: RunMode;
+      mode: string;
       pid: number | null;
       project_root: string;
       provider: ProviderId;
@@ -374,7 +374,7 @@ export async function listRunIndexEntries(): Promise<RunIndexEntry[]> {
          ? { heartbeatAt: row.heartbeat_at }
          : {}),
       launchMode: row.launch_mode,
-      mode: row.mode,
+      ...(row.mode === "safe" || row.mode === "yolo" ? { mode: row.mode } : {}),
       ...(typeof row.pid === "number" ? { pid: row.pid } : {}),
       profile: row.agent,
       profilePath: row.agent_path,

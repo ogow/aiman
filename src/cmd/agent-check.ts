@@ -71,7 +71,6 @@ export async function handler(
             { label: "Name", value: report.agent.name ?? report.agent.id },
             { label: "Scope", value: report.agent.scope },
             { label: "Provider", value: report.agent.provider ?? "" },
-            { label: "Mode", value: report.agent.mode ?? "" },
             {
                label: "Model",
                value: formatProfileModel({

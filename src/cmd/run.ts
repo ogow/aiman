@@ -7,12 +7,7 @@ import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
 import { formatRunRights } from "../lib/provider-capabilities.js";
 import { agentScopeChoices } from "../lib/agents.js";
 import { readTaskInput } from "../lib/task-input.js";
-import type {
-   ProviderId,
-   ProfileScope,
-   RunMode,
-   RunResult
-} from "../lib/types.js";
+import type { ProviderId, ProfileScope, RunResult } from "../lib/types.js";
 
 type RunArguments = {
    agent?: string;
@@ -67,7 +62,6 @@ export function builder(yargs: Argv): Argv {
 
 function renderLaunchSummary(input: {
    agent: string;
-   mode: RunMode;
    pid?: number;
    provider: ProviderId;
    runId: string;
@@ -80,10 +74,9 @@ function renderLaunchSummary(input: {
          { label: "Scope", value: input.scope },
          { label: "Launch", value: "detached" },
          { label: "Provider", value: input.provider },
-         { label: "Mode", value: input.mode },
          {
             label: "Rights",
-            value: formatRunRights(input.provider, input.mode)
+            value: formatRunRights(input.provider)
          },
          { label: "Run ID", value: input.runId },
          {
@@ -108,10 +101,7 @@ function renderForegroundFailure(result: RunResult): string {
          { label: "Launch", value: result.launchMode ?? "foreground" },
          {
             label: "Rights",
-            value:
-               typeof result.mode === "string"
-                  ? formatRunRights(result.provider, result.mode)
-                  : ""
+            value: formatRunRights(result.provider)
          },
          { label: "Error", value: result.errorMessage ?? "Unknown failure" },
          { label: "Logs", value: `aiman runs logs ${result.runId} -f` },
@@ -146,7 +136,6 @@ export async function handler(
       process.stderr.write(
          `${renderLaunchSummary({
             agent: launched.profile ?? launched.agent ?? "",
-            mode: launched.mode,
             ...(typeof launched.pid === "number" ? { pid: launched.pid } : {}),
             provider: launched.provider,
             runId: launched.runId,

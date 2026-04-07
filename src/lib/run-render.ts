@@ -75,7 +75,6 @@ export function renderRunTable(runs: RunInspection[]): string {
       chalk.bold("Status"),
       chalk.bold("Agent"),
       chalk.bold("Provider"),
-      chalk.bold("Mode"),
       chalk.bold("Started"),
       chalk.bold("Time"),
       chalk.bold("Run ID")
@@ -91,7 +90,6 @@ export function renderRunTable(runs: RunInspection[]): string {
             color(status),
             chalk.cyan(getRunShortLabel(run)),
             run.provider,
-            run.mode,
             chalk.dim(formatCompactTimestamp(run.startedAt)),
             formatRunDurationSummary(run),
             chalk.dim(run.runId)
@@ -113,11 +111,10 @@ export function renderStatusView(input: {
       { label: "Scope", value: getRunScopeLabel(input.run) },
       { label: "Provider", value: input.run.provider },
       { label: "Launch", value: input.run.launchMode },
-      { label: "Mode", value: input.run.mode },
       { label: "Project", value: input.run.projectRoot },
       {
          label: "Rights",
-         value: formatRunRights(input.run.provider, input.run.mode)
+         value: formatRunRights(input.run.provider)
       },
       { label: "Cwd", value: input.run.cwd },
       { label: "Started", value: input.run.startedAt },
@@ -197,11 +194,10 @@ export function renderInspectView(
       { label: "Scope", value: getRunScopeLabel(run) },
       { label: "Provider", value: run.provider },
       { label: "Launch", value: run.launchMode },
-      { label: "Mode", value: run.mode },
       { label: "Project", value: run.projectRoot },
       {
          label: "Rights",
-         value: formatRunRights(run.provider, run.mode)
+         value: formatRunRights(run.provider)
       },
       { label: "Cwd", value: run.cwd },
       { label: "Started", value: run.startedAt },
@@ -280,7 +276,7 @@ export function renderInspectView(
             { label: "Cwd", value: run.launch.cwd },
             {
                label: "Rights",
-               value: formatRunRights(run.launch.provider, run.launch.mode)
+               value: formatRunRights(run.launch.provider)
             },
             { label: "Timeout", value: formatDuration(run.launch.timeoutMs) },
             {

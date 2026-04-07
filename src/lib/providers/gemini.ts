@@ -61,6 +61,12 @@ function getGeminiOutputFormatArgs(): string[] {
    return ["--output-format", "json"];
 }
 
+function getGeminiWorkspaceArgs(artifactsDir: string): string[] {
+   return artifactsDir.length > 0
+      ? ["--include-directories", artifactsDir]
+      : [];
+}
+
 function parseGeminiJsonOutput(stdout: string): {
    errorMessage?: string;
    finalText: string;
@@ -170,7 +176,6 @@ export function createGeminiAdapter(): ProviderAdapter {
             finalText: parsedOutput.finalText,
             launchMode: input.launchMode,
             launch: input.launch,
-            mode: input.mode,
             profile,
             promptFile: input.promptFile,
             projectRoot: input.projectRoot,
@@ -203,8 +208,9 @@ export function createGeminiAdapter(): ProviderAdapter {
                "--prompt",
                "",
                ...getGeminiOutputFormatArgs(),
+               ...getGeminiWorkspaceArgs(input.artifactsDir),
                "--approval-mode",
-               input.mode === "yolo" ? "auto_edit" : "plan",
+               "yolo",
                ...(agent.model !== "auto" ? ["--model", agent.model] : [])
             ],
             command: "gemini",

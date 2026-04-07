@@ -5,10 +5,7 @@ import { agentScopeChoices, formatProfileModel } from "../lib/agents.js";
 import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
 import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
-import {
-   getProviderCapabilities,
-   summarizeProviderModes
-} from "../lib/provider-capabilities.js";
+import { getProviderCapabilities } from "../lib/provider-capabilities.js";
 import type { ProfileScope } from "../lib/types.js";
 
 type AgentShowArguments = {
@@ -63,11 +60,6 @@ export async function handler(
                value: agent.isBuiltIn === true ? "builtin" : agent.scope
             },
             { label: "Provider", value: agent.provider },
-            { label: "Mode", value: agent.mode },
-            {
-               label: "Run modes",
-               value: summarizeProviderModes(agent.provider)
-            },
             { label: "Model", value: formatProfileModel(agent) },
             { label: "Reasoning", value: agent.reasoningEffort },
             { label: "Description", value: agent.description },
@@ -76,10 +68,14 @@ export async function handler(
       )}\n\n${renderSection(
          "Rights",
          renderLabelValueBlock([
-            ...capabilities.modes.map((capability) => ({
-               label: capability.mode,
-               value: capability.details
-            })),
+            {
+               label: "Launch",
+               value: capabilities.launchSummary
+            },
+            {
+               label: "Details",
+               value: capabilities.details
+            },
             {
                label: "Environment",
                value: capabilities.environmentSummary

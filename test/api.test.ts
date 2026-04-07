@@ -104,7 +104,6 @@ name: reviewer
 description: Reviews changes carefully
 provider: codex
 model: gpt-5.4-mini
-mode: safe
 reasoningEffort: medium
 ---
 

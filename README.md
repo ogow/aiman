@@ -67,7 +67,6 @@ bun run uninstall:global
 aiman agent create reviewer \
   --scope project \
   --provider codex \
-  --mode safe \
   --model gpt-5.4-mini \
   --reasoning-effort medium \
   --description "Reviews diffs" \
@@ -111,7 +110,7 @@ Use these to create and inspect authored agents.
 | Command                                        | Purpose                                     |
 | ---------------------------------------------- | ------------------------------------------- |
 | `aiman agent list [--scope project&#124;user]` | List available agents                       |
-| `aiman agent show <agent> [--scope ...]`       | Show one agent's provider, mode, and prompt |
+| `aiman agent show <agent> [--scope ...]`       | Show one agent's provider, rights, and prompt |
 | `aiman agent check <agent> [--scope ...]`      | Statically validate one agent               |
 | `aiman agent create <name> ...`                | Create a new agent file                     |
 
@@ -178,7 +177,6 @@ An `aiman` agent is a Markdown file with YAML frontmatter plus a provider-native
 name: hello
 provider: gemini
 description: Respond with a short, friendly greeting
-mode: safe
 model: gemini-2.5-flash-lite
 reasoningEffort: none
 ---
@@ -201,7 +199,6 @@ Respond briefly and warmly.
 - `name`
 - `provider`
 - `description`
-- `mode`
 - `model`
 - `reasoningEffort`
 
@@ -211,7 +208,6 @@ When creating an agent through the CLI, these flags are required:
 
 - `--scope`
 - `--provider`
-- `--mode`
 - `--model`
 - `--reasoning-effort`
 - `--description`
@@ -244,6 +240,23 @@ Before first use, run `aiman agent check <name>`. It is a static validation pass
 - `gemini`: `none`
 
 Use `none` when the selected provider or model does not support configurable reasoning effort.
+
+## Managing Skills
+
+`aiman` does not have a native skill-management CLI, but it supports skills discovered by the downstream provider from `.agents/skills/` (project scope) or `~/.gemini/skills/` (user scope).
+
+To install new skills from GitHub using the [skills](https://github.com/vercel-labs/skills) tool:
+
+```bash
+# Install to project scope (.agents/skills/)
+bun run skills @skills/some-skill
+
+# Install to user scope (~/.gemini/skills/)
+bun run skills @skills/some-skill -g
+```
+
+The `bun run skills` command is a wrapper for `bunx skills add`.
+It automatically detects the correct destination based on your working directory and the provider you use.
 
 Agents that use old fields such as `permissions`, `contextFiles`, `skills`, or `requiredMcps` are invalid and should be rewritten to the current contract instead of migrated in place.
 
@@ -335,7 +348,7 @@ Provider behavior stays explicit:
 - Codex `safe`: `codex exec --sandbox read-only`
 - Codex `yolo`: `codex exec --sandbox workspace-write`
 - Gemini `safe`: `gemini --approval-mode plan`
-- Gemini `yolo`: `gemini --approval-mode auto_edit`
+- Gemini `yolo`: `gemini --approval-mode yolo`
 - Codex also uses per-command `--config` overrides so repo `AGENTS.md`, prompt-shaping project Codex instructions, and repo-defined Codex agent roles do not leak into authored `aiman` agents.
 - Gemini also uses a child-local settings overlay passed only to the spawned run so `context.fileName` uses the shared configured bootstrap file names for the repo.
 

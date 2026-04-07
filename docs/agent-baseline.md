@@ -37,6 +37,6 @@ Use this file as a drafting reference for a shared repo bootstrap context file s
 
 ## Safety
 
-- Respect the agent's declared mode and effective run rights.
+- Make read-only or conservative behavior explicit in the agent body when it matters.
 - Prefer deterministic, inspectable output over hidden side effects.
 - Put only shared repo guidance into the shared bootstrap context file; keep task strategy inside the authored agent body.

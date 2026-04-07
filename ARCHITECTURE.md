@@ -16,12 +16,13 @@
 - [src/lib/agents.ts](/Users/ogow/Code/aiman/src/lib/agents.ts) owns the strict agent catalog, validation, and agent-file creation.
 - [src/lib/project-context.ts](/Users/ogow/Code/aiman/src/lib/project-context.ts) remains the helper for operator-facing inspection of repo guidance, but run launches now rely on provider-native context discovery instead of injecting that content into prompts.
 - [src/lib/runs.ts](/Users/ogow/Code/aiman/src/lib/runs.ts) owns run preparation, detached launch, hidden-worker execution, foreground execution, and stop behavior.
+- [src/lib/runs.ts](/Users/ogow/Code/aiman/src/lib/runs.ts) also owns provider subtree supervision on timeout or stop, including Unix process-group termination for provider descendants such as MCP helpers.
 - [src/lib/run-store.ts](/Users/ogow/Code/aiman/src/lib/run-store.ts) owns persisted run files under `~/.aiman/runs/`, including the canonical `run.md` record and operator-facing derived read state.
 - [src/lib/run-index.ts](/Users/ogow/Code/aiman/src/lib/run-index.ts) keeps the global SQLite run index in sync with `run.md`.
 - [src/lib/run-doc.ts](/Users/ogow/Code/aiman/src/lib/run-doc.ts) reads and writes Markdown run documents with `gray-matter`.
 - [src/lib/run-output.ts](/Users/ogow/Code/aiman/src/lib/run-output.ts) reads and follows persisted stdout/stderr without a daemon layer.
 - [src/lib/run-render.ts](/Users/ogow/Code/aiman/src/lib/run-render.ts) centralizes the human-readable plain-text views used by the non-TTY CLI.
-- [src/lib/providers/](/Users/ogow/Code/aiman/src/lib/providers) contains the provider adapters and shared prompt assembly helpers.
+- [src/lib/providers/](/Users/ogow/Code/aiman/src/lib/providers) contains the provider adapters and shared prompt assembly helpers. Prompt rendering now stays close to the authored body and only substitutes explicit runtime placeholders.
 - [src/lib/paths.ts](/Users/ogow/Code/aiman/src/lib/paths.ts) centralizes project-root discovery, scoped agent roots, the global run layout, and the run-index location.
 - [src/tui/aiman-app.tsx](/Users/ogow/Code/aiman/src/tui/aiman-app.tsx) is the OpenTUI workbench controller. It manages workspace state, keyboard routing, async refresh, launching, and stop actions.
 - [src/tui/workbench-shell.tsx](/Users/ogow/Code/aiman/src/tui/workbench-shell.tsx) contains the shared workbench chrome.

@@ -130,7 +130,6 @@ name: reviewer
 description: Reviews changes carefully
 provider: codex
 model: gpt-5.4-mini
-mode: safe
 reasoningEffort: medium
 ---
 
@@ -224,8 +223,6 @@ test("agent create writes a project-scope agent", async () => {
          "project",
          "--provider",
          "codex",
-         "--mode",
-         "safe",
          "--model",
          "gpt-5.4-mini",
          "--reasoning-effort",
@@ -245,7 +242,6 @@ test("agent create writes a project-scope agent", async () => {
    const createdPath = path.join(projectRoot, ".aiman", "agents", "auditor.md");
    const created = await readFile(createdPath, "utf8");
    assert.match(created, /name: auditor/);
-   assert.match(created, /mode: safe/);
    assert.match(created, /reasoningEffort: medium/);
 });
 
@@ -262,8 +258,6 @@ test("agent create rejects unsupported provider reasoning effort", async () => {
          "project",
          "--provider",
          "gemini",
-         "--mode",
-         "safe",
          "--model",
          "gemini-2.5-flash-lite",
          "--reasoning-effort",
@@ -287,6 +281,38 @@ test("agent create rejects unsupported provider reasoning effort", async () => {
    await assert.rejects(readFile(createdPath, "utf8"), { code: "ENOENT" });
 });
 
+test("agent create rejects missing reasoning-effort for Codex", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   const result = runCli(
+      [
+         "agent",
+         "create",
+         "codex-agent",
+         "--scope",
+         "project",
+         "--provider",
+         "codex",
+         "--model",
+         "gpt-5.4-mini",
+         "--description",
+         "Test codex agent",
+         "--instructions",
+         "Do something."
+      ],
+      {
+         cwd: projectRoot,
+         env: createCliEnv({ homeRoot })
+      }
+   );
+
+   assert.notEqual(result.status, 0);
+   assert.match(
+      result.stderr,
+      /Reasoning effort is required for provider "codex"/
+   );
+});
+
 test('agent create allows Gemini with "auto" model selection', async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
@@ -299,12 +325,8 @@ test('agent create allows Gemini with "auto" model selection', async () => {
          "project",
          "--provider",
          "gemini",
-         "--mode",
-         "safe",
          "--model",
          "auto",
-         "--reasoning-effort",
-         "none",
          "--description",
          "Checks docs for drift",
          "--instructions",
@@ -328,7 +350,10 @@ test('agent create allows Gemini with "auto" model selection', async () => {
    const created = await readFile(createdPath, "utf8");
    assert.match(created, /provider: gemini/);
    assert.match(created, /^model: auto$/m);
-   assert.match(created, /reasoningEffort: none/);
+   assert.ok(
+      !created.includes("reasoningEffort:"),
+      "Should omit reasoningEffort for Gemini"
+   );
 });
 
 test('agent create rejects "auto" model selection for Codex', async () => {
@@ -344,8 +369,6 @@ test('agent create rejects "auto" model selection for Codex', async () => {
          "project",
          "--provider",
          "codex",
-         "--mode",
-         "safe",
          "--model",
          "auto",
          "--reasoning-effort",
@@ -367,6 +390,33 @@ test('agent create rejects "auto" model selection for Codex', async () => {
       /Only Gemini supports automatic model selection via "model: auto"/
    );
    await assert.rejects(readFile(createdPath, "utf8"), { code: "ENOENT" });
+});
+
+test("agent check allows Gemini to omit reasoningEffort", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "no-reasoning.md"),
+      `---
+name: no-reasoning
+description: No reasoning agent
+provider: gemini
+model: auto
+---
+
+Body {{task}}
+`,
+      "utf8"
+   );
+
+   const result = runCli(["agent", "check", "no-reasoning", "--json"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+
+   assert.equal(result.status, 0);
+   const report = JSON.parse(result.stdout);
+   assert.equal(report.agent.reasoningEffort, "none");
 });
 
 test("agent check rejects unsupported legacy frontmatter", async () => {

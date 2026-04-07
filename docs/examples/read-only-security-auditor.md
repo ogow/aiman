@@ -2,7 +2,6 @@
 name: read-only-security-auditor
 provider: codex
 description: Audits a scoped area for security risks without making changes
-mode: safe
 model: gpt-5.4-mini
 reasoningEffort: medium
 ---

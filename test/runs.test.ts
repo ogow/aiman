@@ -74,6 +74,44 @@ if (useJsonOutput) {
    );
 }
 
+async function createHangingCodexBinary(binDir: string): Promise<void> {
+   const scriptPath = path.join(binDir, "codex.mjs");
+   const launcherPath = path.join(
+      binDir,
+      process.platform === "win32" ? "codex.cmd" : "codex"
+   );
+
+   await mkdir(binDir, { recursive: true });
+   await writeFile(
+      scriptPath,
+      `import { spawn } from "node:child_process";
+
+for await (const _ of process.stdin) {}
+
+spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+   stdio: "inherit"
+});
+
+setInterval(() => {}, 1000);
+`,
+      "utf8"
+   );
+   await writeFile(
+      launcherPath,
+      process.platform === "win32"
+         ? `@echo off\r
+"${process.execPath}" "%~dp0\\codex.mjs" %*\r
+`
+         : `#!/usr/bin/env sh
+"${process.execPath}" "$(dirname "$0")/codex.mjs" "$@"
+`,
+      {
+         encoding: "utf8",
+         mode: 0o755
+      }
+   );
+}
+
 async function createRunnableFixture(): Promise<{
    binDir: string;
    homeRoot: string;
@@ -94,7 +132,6 @@ name: reviewer
 description: Reviews code for risks
 provider: codex
 model: gpt-5.4-mini
-mode: safe
 reasoningEffort: medium
 ---
 
@@ -181,8 +218,6 @@ test("runAgent omits context files when config does not set them", async () => {
 
       assert.equal(result.status, "success");
       assert.equal(result.profile, "reviewer");
-      assert.equal(result.mode, "safe");
-
       const run = await readRunDetails(result.runId);
       const prompt = await readFile(run.paths.promptFile, "utf8");
 
@@ -190,6 +225,24 @@ test("runAgent omits context files when config does not set them", async () => {
       assert.equal(run.launch.task, "Review the docs");
       assert.doesNotMatch(prompt, /## Project Context/);
       assert.doesNotMatch(prompt, /## Active Skills/);
+   } finally {
+      restore();
+   }
+});
+
+test("runAgent creates the per-run artifacts directory before provider launch", async () => {
+   const fixture = await createRunnableFixture();
+   const restore = useProjectFixture(fixture);
+
+   try {
+      const result = await runAgent({
+         profileName: "reviewer",
+         task: "Review artifact setup"
+      });
+      const run = await readRunDetails(result.runId);
+      const runEntries = await readdir(run.paths.runDir);
+
+      assert.ok(runEntries.includes("artifacts"));
    } finally {
       restore();
    }
@@ -236,6 +289,65 @@ test("listRuns returns persisted completed runs", async () => {
       assert.equal(persisted?.active, false);
       assert.equal(persisted?.profile, "reviewer");
       assert.equal(persisted?.status, "success");
+   } finally {
+      restore();
+   }
+});
+
+test("runAgent timeout kills the full provider process group on unix", async () => {
+   if (process.platform === "win32") {
+      return;
+   }
+
+   const projectRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-timeout-"));
+   const homeRoot = await createHomeFixture();
+   const binDir = path.join(projectRoot, "bin");
+
+   await mkdir(path.join(projectRoot, ".aiman", "agents"), {
+      recursive: true
+   });
+   await createHangingCodexBinary(binDir);
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "reviewer.md"),
+      `---
+name: reviewer
+description: Reviews code for risks
+provider: codex
+model: gpt-5.4-mini
+reasoningEffort: medium
+---
+
+## Role
+You are a focused reviewer.
+
+## Task Input
+{{task}}
+
+## Instructions
+- Review the current change carefully.
+
+## Expected Output
+- Return a concise result.
+`,
+      "utf8"
+   );
+
+   const restore = useProjectFixture({ binDir, homeRoot, projectRoot });
+
+   try {
+      const result = await runAgent({
+         killGraceMs: 50,
+         profileName: "reviewer",
+         task: "Review the timeout behavior",
+         timeoutMs: 100
+      });
+
+      assert.equal(result.status, "error");
+      assert.equal(result.errorMessage, "Execution timed out.");
+
+      const run = await readRunDetails(result.runId);
+      assert.equal(run.status, "error");
+      assert.equal(run.errorMessage, "Execution timed out.");
    } finally {
       restore();
    }

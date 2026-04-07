@@ -37,6 +37,7 @@
       "test": "bun test test/**/*.test.ts test/ui-workbench.test.tsx",
       "test:ui": "bun test test/ui-workbench.test.tsx",
       "test:provider-contract": "bun test ./test/provider-contract.ts",
+      "skills": "bunx skills add",
       "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build",
       "prepare": "husky"
    },

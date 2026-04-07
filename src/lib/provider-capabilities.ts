@@ -1,59 +1,26 @@
-import type {
-   ProviderCapabilities,
-   ProviderId,
-   RunMode,
-   RunModeCapability
-} from "./types.js";
+import type { ProviderCapabilities, ProviderId } from "./types.js";
 
 const environmentSummary =
    "Allowlisted runtime environment only: common shell vars, relevant API keys, and AIMAN_* run paths when present.";
 
 const providerCapabilities: Record<ProviderId, ProviderCapabilities> = {
    codex: {
+      details:
+         "Runs with `codex exec --sandbox workspace-write` rooted at the selected project and grants the external run artifacts directory as an extra writable root via `--add-dir`.",
       environmentSummary,
-      modes: [
-         {
-            details:
-               "Safe mode reads the workspace without writing; aiman launches Codex with `--sandbox read-only`.",
-            mode: "safe",
-            providerControl: "--sandbox read-only",
-            summary: "safe read-only workspace access"
-         },
-         {
-            details:
-               "Yolo mode can read and modify files in the selected working directory; aiman launches Codex with `--sandbox workspace-write`.",
-            mode: "yolo",
-            providerControl: "--sandbox workspace-write",
-            summary: "yolo read/write workspace access"
-         }
-      ],
+      launchSummary:
+         "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
       provider: "codex"
    },
    gemini: {
+      details:
+         "Runs with `gemini --approval-mode yolo` in the selected project and includes the external run artifacts directory in Gemini's workspace via `--include-directories`.",
       environmentSummary,
-      modes: [
-         {
-            details:
-               "Safe mode keeps Gemini in planning/no-edit behavior via `--approval-mode plan`.",
-            mode: "safe",
-            providerControl: "--approval-mode plan",
-            summary: "plan/no-edit mode"
-         },
-         {
-            details:
-               "Yolo mode launches Gemini with `--approval-mode auto_edit`, so it may modify files in the selected working directory.",
-            mode: "yolo",
-            providerControl: "--approval-mode auto_edit",
-            summary: "auto-edit workspace access"
-         }
-      ],
+      launchSummary:
+         "write-enabled project workspace via --approval-mode yolo; artifacts dir included via --include-directories",
       provider: "gemini"
    }
 };
-
-function normalizeMode(mode: RunMode): "safe" | "yolo" {
-   return mode === "workspace-write" || mode === "yolo" ? "yolo" : "safe";
-}
 
 export function getProviderCapabilities(
    provider: ProviderId
@@ -61,30 +28,6 @@ export function getProviderCapabilities(
    return providerCapabilities[provider];
 }
 
-export function getRunModeCapability(
-   provider: ProviderId,
-   mode: RunMode
-): RunModeCapability {
-   const capability = getProviderCapabilities(provider).modes.find(
-      (currentCapability) => currentCapability.mode === normalizeMode(mode)
-   );
-
-   if (capability === undefined) {
-      throw new Error(
-         `Provider "${provider}" does not define capabilities for mode "${mode}".`
-      );
-   }
-
-   return capability;
-}
-
-export function summarizeProviderModes(provider: ProviderId): string {
-   return getProviderCapabilities(provider)
-      .modes.map((capability) => capability.mode)
-      .join(", ");
-}
-
-export function formatRunRights(provider: ProviderId, mode: RunMode): string {
-   const capability = getRunModeCapability(provider, mode);
-   return `${capability.summary} via ${capability.providerControl}`;
+export function formatRunRights(provider: ProviderId): string {
+   return getProviderCapabilities(provider).launchSummary;
 }

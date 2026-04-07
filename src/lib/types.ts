@@ -20,16 +20,10 @@ export type RunStatus = "cancelled" | "error" | "success";
 
 export type RunListFilter = "active" | "all" | "historic";
 
-export type RunModeCapability = {
-   details: string;
-   mode: RunMode;
-   providerControl: string;
-   summary: string;
-};
-
 export type ProviderCapabilities = {
+   details: string;
    environmentSummary: string;
-   modes: RunModeCapability[];
+   launchSummary: string;
    provider: ProviderId;
 };
 
@@ -37,7 +31,6 @@ export type ProfileDefinition = {
    body: string;
    description: string;
    model: string;
-   mode: RunMode;
    name: string;
    provider: ProviderId;
    reasoningEffort: ReasoningEffort;
@@ -60,7 +53,6 @@ export type ProfileCheckStatus = "invalid" | "ok" | "warnings";
 export type CheckedProfileDefinition = {
    id: string;
    model?: string;
-   mode?: string;
    name?: string;
    path: string;
    provider?: string;
@@ -153,7 +145,6 @@ export type PreparedRunInput = {
    contextFileNames?: string[];
    contextFiles?: PromptContextFile[];
    cwd: string;
-   mode: RunMode;
    promptFile: string;
    projectContext?: ProjectContext;
    renderedPrompt?: string;
@@ -169,7 +160,6 @@ export type CompletedRunInput = {
    exitCode: number | null;
    launch: RunLaunchSnapshot;
    launchMode: LaunchMode;
-   mode: RunMode;
    profile?: ScopedProfileDefinition;
    projectRoot: string;
    promptFile: string;
@@ -195,8 +185,8 @@ export type RunLaunchSnapshot = {
    envKeys: string[];
    killGraceMs: number;
    launchMode: LaunchMode;
-   mode: RunMode;
    model?: string;
+   mode?: RunMode;
    permissions?: RunMode;
    profileDigest?: string;
    profileName?: string;
@@ -224,7 +214,7 @@ export type PersistedRunRecord = {
    launch: RunLaunchSnapshot;
    launchMode: LaunchMode;
    model?: string;
-   mode: RunMode;
+   mode?: RunMode;
    paths: RunPaths;
    profile?: string;
    profilePath?: string;
@@ -265,7 +255,6 @@ export type LaunchedRun = {
    inspectCommand: string;
    launchMode: "detached";
    logsCommand: string;
-   mode: RunMode;
    pid?: number;
    profile?: string;
    profilePath?: string;
@@ -290,7 +279,7 @@ export type StoredRunState = {
    launch: RunLaunchSnapshot;
    launchMode: LaunchMode;
    model?: string;
-   mode: RunMode;
+   mode?: RunMode;
    paths: RunPaths;
    pid?: number;
    profile?: string;

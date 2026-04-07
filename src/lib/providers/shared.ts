@@ -9,7 +9,6 @@ import type {
    PersistedRunRecord,
    ProfileDefinition,
    RunLaunchSnapshot,
-   RunMode,
    ScopedProfileDefinition,
    UsageStats,
    ValidationIssue
@@ -295,7 +294,6 @@ export function buildPrompt(
    input: {
       artifactsDir: string;
       cwd: string;
-      mode: RunMode;
       runFile: string;
       runId: string;
       task?: string;
@@ -308,7 +306,7 @@ export function buildPrompt(
    const replacements: Record<string, string> = {
       "{{artifactsDir}}": input.artifactsDir,
       "{{cwd}}": input.cwd,
-      "{{mode}}": input.mode,
+      "{{mode}}": "",
       "{{runFile}}": input.runFile,
       "{{runId}}": input.runId,
       "{{task}}": input.task
@@ -318,9 +316,7 @@ export function buildPrompt(
       /\{\{artifactsDir\}\}|\{\{cwd\}\}|\{\{mode\}\}|\{\{runFile\}\}|\{\{runId\}\}|\{\{task\}\}/g,
       (placeholder) => replacements[placeholder] ?? placeholder
    );
-   const sections = [renderedBody];
-
-   return sections.join("\n\n");
+   return renderedBody;
 }
 
 export function finalizeRecord(input: {
@@ -332,7 +328,6 @@ export function finalizeRecord(input: {
    finalText: string;
    launchMode: LaunchMode;
    launch: RunLaunchSnapshot;
-   mode: RunMode;
    promptFile: string;
    projectRoot: string;
    runDir: string;
@@ -355,7 +350,6 @@ export function finalizeRecord(input: {
       ...(typeof input.profile.model === "string"
          ? { model: input.profile.model }
          : {}),
-      mode: input.mode,
       paths: {
          artifactsDir: path.join(input.runDir, "artifacts"),
          promptFile: input.promptFile,

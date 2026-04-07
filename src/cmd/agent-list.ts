@@ -47,12 +47,11 @@ export async function handler(
       `${renderSection(
          "Agents",
          renderTable(
-            ["Name", "Scope", "Provider", "Mode", "Description"],
+            ["Name", "Scope", "Provider", "Description"],
             agents.map((agent) => [
                agent.name,
                agent.isBuiltIn === true ? "builtin" : agent.scope,
                agent.provider,
-               agent.mode,
                agent.description
             ])
          )

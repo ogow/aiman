@@ -54,7 +54,6 @@ function createContractProfile(input: {
          "Reports which sentinels are visible in the authored prompt contract",
       id: `provider-contract-${input.provider}`,
       model: input.model,
-      mode: "safe",
       name: `provider-contract-${input.provider}`,
       path: input.profilePath,
       provider: input.provider,
@@ -105,7 +104,6 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
       `name: ${profile.name}`,
       `provider: ${profile.provider}`,
       `description: ${profile.description}`,
-      `mode: ${profile.mode}`,
       `model: ${profile.model}`,
       `reasoningEffort: ${profile.reasoningEffort}`,
       "---",
@@ -270,7 +268,6 @@ function buildLaunchSnapshot(input: {
       ),
       killGraceMs: 1000,
       launchMode: "foreground",
-      mode: input.profile.mode ?? "safe",
       model: input.profile.model,
       contextFiles: ["AGENTS.md"],
       promptDigest: `provider-contract-prompt-${input.runId}`,
@@ -339,7 +336,6 @@ async function runProviderContract(
    const renderedPrompt = buildPrompt(fixture.profile, {
       artifactsDir: path.join(fixture.runDir, "artifacts"),
       cwd: fixture.cwd,
-      mode: fixture.profile.mode ?? "safe",
       runFile: fixture.runFile,
       runId: fixture.runId,
       task: `PROFILE_PROMPT_SENTINEL: ${fixture.profilePromptSentinel}`
@@ -351,7 +347,6 @@ async function runProviderContract(
       artifactsDir: path.join(fixture.runDir, "artifacts"),
       contextFileNames: ["AGENTS.md"],
       cwd: fixture.cwd,
-      mode: fixture.profile.mode ?? "safe",
       promptFile: fixture.promptFile,
       renderedPrompt,
       runFile: fixture.runFile,
@@ -398,7 +393,6 @@ async function runProviderContract(
          timeoutMs: providerContractTimeoutMs
       }),
       launchMode: "foreground",
-      mode: fixture.profile.mode ?? "safe",
       promptFile: fixture.promptFile,
       projectRoot: fixture.projectRoot,
       runDir: fixture.runDir,

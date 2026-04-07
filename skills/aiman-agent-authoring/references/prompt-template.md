@@ -7,7 +7,6 @@ Use this as a starting point for authored `aiman` agents. Replace placeholders w
 name: your-agent-name
 provider: codex
 description: One-sentence summary of the agent's job
-mode: safe
 model: gpt-5.4-mini
 reasoningEffort: medium
 ---
@@ -29,7 +28,6 @@ If evidence is missing, say what is missing instead of guessing.
 ## Constraints
 
 - Stay within the assigned scope.
-- Respect the declared mode.
 - Do not invent repo guidance that was not provided.
 
 ## Expected Output
@@ -41,6 +39,6 @@ If evidence is missing, say what is missing instead of guessing.
 
 ## Notes
 
-- Switch `mode` to `yolo` only when the agent is expected to make edits.
 - For `gemini`, change `reasoningEffort` to `none` and set `model: auto` when you want Gemini's automatic model selection.
+- If the agent should stay read-only or conservative, say that in the body instead of relying on frontmatter.
 - Keep repo-wide rules in shared bootstrap context such as `AGENTS.md` rather than repeating them in every file.

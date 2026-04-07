@@ -2,7 +2,6 @@
 name: project-change-reviewer
 provider: codex
 description: Reviews one project change for correctness and maintainability risks
-mode: safe
 model: gpt-5.4-mini
 reasoningEffort: medium
 ---

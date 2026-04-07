@@ -46,16 +46,16 @@ Open only the smallest relevant files:
 
 ## Strong Defaults
 
-- Start with `provider: codex`, `model: gpt-5.4-mini`, `mode: safe`, and `reasoningEffort: medium` unless the task clearly needs something else.
+- Start with `provider: codex`, `model: gpt-5.4-mini`, and `reasoningEffort: medium` unless the task clearly needs something else.
 - For `gemini`, use `reasoningEffort: none`.
-- Switch to `mode: yolo` only for profiles that are expected to edit or write files.
+- If the profile should stay read-only or conservative, say that in the body instead of relying on frontmatter.
 - Prefer plain, direct instructions over clever framing.
 - Keep profile frontmatter minimal; repo context belongs in shared context files, not extra profile fields.
 
 ## Bad Smells
 
 - Generic "help with anything" prompts.
-- Implicit write access or a mode that does not match the job.
+- Implicit write access expectations or hidden behavior rules that are not stated in the body.
 - New profiles authored with legacy `permissions:`.
 - Repeating large repo instructions in every profile instead of keeping them in shared repo bootstrap context such as `AGENTS.md`.
 - Inventing per-profile `contextFiles` or `skills` settings instead of using the repo's shared `contextFileNames` configuration.

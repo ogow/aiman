@@ -289,7 +289,7 @@ export function buildProfileOptions(
    value: string;
 }> {
    return profiles.map((profile) => ({
-      description: `${profile.provider} · ${profile.mode} · ${formatScope(profile.scope)}`,
+      description: `${profile.provider} · ${formatScope(profile.scope)}`,
       name: profile.name,
       value: profile.id
    }));
@@ -309,12 +309,11 @@ export function buildProfileSummary(input: {
       { label: "Agent", value: profile.name },
       { label: "Provider", value: profile.provider },
       { label: "Model", value: formatProfileModel(profile) },
-      { label: "Mode", value: profile.mode },
       { label: "Reasoning", value: profile.reasoningEffort },
       { label: "Scope", value: formatScope(profile.scope) },
       {
          label: "Rights",
-         value: formatRunRights(profile.provider, profile.mode)
+         value: formatRunRights(profile.provider)
       },
       { label: "Project", value: input.projectTitle },
       {
@@ -338,8 +337,7 @@ export function buildRunSummary(run: RunInspection | undefined): string {
       { label: "Run", value: run.runId },
       { label: "Agent", value: getRunShortLabel(run) },
       { label: "Provider", value: run.provider },
-      { label: "Mode", value: run.mode },
-      { label: "Rights", value: formatRunRights(run.provider, run.mode) },
+      { label: "Rights", value: formatRunRights(run.provider) },
       { label: "Launch", value: run.launchMode },
       {
          label: "Status",

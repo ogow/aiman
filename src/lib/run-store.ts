@@ -48,6 +48,7 @@ const reservedRunFrontmatterKeys = new Set([
    "launch",
    "model",
    "mode",
+   "permissions",
    "pid",
    "profile",
    "profilePath",
@@ -216,7 +217,10 @@ function getLaunchSnapshot(
    const killGraceMs = launch.killGraceMs;
    const launchMode = launch.launchMode;
    const model = launch.model;
-   const mode = launch.mode;
+   const mode = isRunMode(launch.mode) ? launch.mode : undefined;
+   const permissions = isRunMode(launch.permissions)
+      ? launch.permissions
+      : undefined;
    const profileDigest = launch.profileDigest;
    const profileName = launch.profileName;
    const profilePath = launch.profilePath;
@@ -237,7 +241,6 @@ function getLaunchSnapshot(
       envKeys.some((value) => typeof value !== "string") ||
       typeof killGraceMs !== "number" ||
       !isLaunchMode(launchMode) ||
-      !isRunMode(mode) ||
       typeof profileDigest !== "string" ||
       typeof profileName !== "string" ||
       typeof profilePath !== "string" ||
@@ -285,7 +288,8 @@ function getLaunchSnapshot(
       killGraceMs,
       launchMode,
       ...(typeof model === "string" ? { model } : {}),
-      mode,
+      ...(mode !== undefined ? { mode } : {}),
+      ...(permissions !== undefined ? { permissions } : {}),
       profileDigest,
       profileName,
       profilePath,
@@ -339,8 +343,6 @@ function buildRunFrontmatter(
       ...(typeof value.launch.reasoningEffort === "string"
          ? { reasoningEffort: value.launch.reasoningEffort }
          : {}),
-      mode: value.mode,
-      permissions: value.mode,
       ...(typeof value.profile === "string" ? { profile: value.profile } : {}),
       ...(typeof value.profilePath === "string"
          ? { profilePath: value.profilePath }
@@ -483,7 +485,7 @@ function parseStoredStateFromDocument(
    const provider = frontmatter.provider;
    const launchMode = frontmatter.launchMode;
    const model = getStringValue(frontmatter, "model");
-   const mode = frontmatter.mode;
+   const mode = isRunMode(frontmatter.mode) ? frontmatter.mode : undefined;
    const cwd = getStringValue(frontmatter, "cwd");
    const launch = getLaunchSnapshot(frontmatter);
    const heartbeatAt = getStringValue(frontmatter, "heartbeatAt");
@@ -498,7 +500,6 @@ function parseStoredStateFromDocument(
       typeof profilePath !== "string" ||
       !isProviderId(provider) ||
       !isLaunchMode(launchMode) ||
-      !isRunMode(mode) ||
       typeof cwd !== "string" ||
       typeof projectRoot !== "string" ||
       launch === undefined ||
@@ -521,7 +522,7 @@ function parseStoredStateFromDocument(
          launch,
          launchMode,
          ...(typeof model === "string" ? { model } : {}),
-         mode,
+         ...(mode !== undefined ? { mode } : {}),
          ...(typeof pid === "number" ? { pid } : {}),
          paths,
          profile,
@@ -565,7 +566,7 @@ function parseStoredStateFromDocument(
       launch,
       launchMode,
       ...(typeof model === "string" ? { model } : {}),
-      mode,
+      ...(mode !== undefined ? { mode } : {}),
       paths,
       profile,
       profilePath,
@@ -587,7 +588,6 @@ export function createFailedRunRecord(input: {
    launch: RunLaunchSnapshot;
    launchMode: LaunchMode;
    model?: string;
-   mode: RunMode;
    profile: string;
    profilePath: string;
    profileScope: "project" | "user";
@@ -613,7 +613,6 @@ export function createFailedRunRecord(input: {
       launch: input.launch,
       launchMode: input.launchMode,
       ...(typeof input.model === "string" ? { model: input.model } : {}),
-      mode: input.mode,
       paths: {
          artifactsDir: path.join(input.runDir, "artifacts"),
          promptFile: input.promptFile,
@@ -650,7 +649,7 @@ export function toRunResult(record: PersistedRunRecord): RunResult {
          : {}),
       finalText: record.finalText,
       launchMode: record.launchMode,
-      mode: record.mode,
+      ...(typeof record.mode === "string" ? { mode: record.mode } : {}),
       ...(typeof record.profile === "string"
          ? { profile: record.profile }
          : {}),
@@ -662,7 +661,7 @@ export function toRunResult(record: PersistedRunRecord): RunResult {
          : {}),
       projectRoot: record.projectRoot,
       provider: record.provider,
-      rights: formatRunRights(record.provider, record.mode),
+      rights: formatRunRights(record.provider),
       runId: record.runId,
       runPath: record.paths.runFile,
       status: record.status,

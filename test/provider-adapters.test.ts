@@ -19,7 +19,6 @@ const codexProfile: ScopedProfileDefinition = {
    description: "Reviews code for risks and quality",
    id: "code-reviewer",
    model: "gpt-5.4-mini",
-   mode: "safe",
    name: "code-reviewer",
    path: "/repo/.aiman/agents/code-reviewer.md",
    provider: "codex",
@@ -32,7 +31,6 @@ const geminiProfile: ScopedProfileDefinition = {
    description: "Hands-on build profile",
    id: "builder",
    model: "gemini-2.5-flash-lite",
-   mode: "yolo",
    name: "builder",
    path: "/repo/.aiman/agents/builder.md",
    provider: "gemini",
@@ -45,7 +43,6 @@ const geminiAutoModelProfile: ScopedProfileDefinition = {
    description: geminiProfile.description,
    id: "builder-auto",
    model: "auto",
-   mode: geminiProfile.mode,
    name: "builder-auto",
    path: "/repo/.aiman/agents/builder-auto.md",
    provider: "gemini",
@@ -53,14 +50,18 @@ const geminiAutoModelProfile: ScopedProfileDefinition = {
    scope: "project"
 };
 
-test("codex adapter prepares a safe invocation with native context files", async () => {
+function expectedPrompt(body: string, artifactsDir: string): string {
+   void artifactsDir;
+   return body;
+}
+
+test("codex adapter prepares a write-enabled invocation with native context files", async () => {
    const adapter = createCodexAdapter();
    const artifactsDir = "/repo/.aiman/runs/run-1/artifacts";
    const prepared = await adapter.prepare(codexProfile, {
       artifactsDir,
       contextFileNames: ["AGENTS.md", "CONTEXT.md"],
       cwd: "/repo",
-      mode: "safe",
       promptFile: "/repo/.aiman/runs/run-1/prompt.md",
       runFile: "/repo/.aiman/runs/run-1/run.md",
       runId: "run-1",
@@ -71,7 +72,7 @@ test("codex adapter prepares a safe invocation with native context files", async
    assert.deepEqual(prepared.args.slice(0, 6), [
       "exec",
       "--sandbox",
-      "read-only",
+      "workspace-write",
       "--cd",
       "/repo",
       "--output-last-message"
@@ -94,7 +95,10 @@ test("codex adapter prepares a safe invocation with native context files", async
    assert.match(prepared.args.join(" "), /model_reasoning_effort=medium/);
    assert.equal(
       prepared.renderedPrompt,
-      "Task: Review the diff\n\nReview the current change carefully."
+      expectedPrompt(
+         "Task: Review the diff\n\nReview the current change carefully.",
+         artifactsDir
+      )
    );
    assert.equal(prepared.promptTransport, "stdin");
 });
@@ -114,13 +118,13 @@ test("gemini adapter rejects non-none reasoning effort", () => {
    ]);
 });
 
-test("gemini adapter prepares a yolo invocation with auto_edit", async () => {
+test("gemini adapter prepares a yolo invocation with yolo approval mode", async () => {
    const adapter = createGeminiAdapter();
+   const artifactsDir = "/repo/.aiman/runs/run-2/artifacts";
    const prepared = await adapter.prepare(geminiProfile, {
-      artifactsDir: "/repo/.aiman/runs/run-2/artifacts",
+      artifactsDir,
       contextFileNames: ["AGENTS.md", "CONTEXT.md"],
       cwd: "/repo",
-      mode: "yolo",
       promptFile: "/repo/.aiman/runs/run-2/prompt.md",
       runFile: "/repo/.aiman/runs/run-2/run.md",
       runId: "run-2",
@@ -128,13 +132,15 @@ test("gemini adapter prepares a yolo invocation with auto_edit", async () => {
    });
 
    assert.equal(prepared.command, "gemini");
-   assert.deepEqual(prepared.args.slice(0, 6), [
+   assert.deepEqual(prepared.args.slice(0, 8), [
       "--prompt",
       "",
       "--output-format",
       "json",
+      "--include-directories",
+      artifactsDir,
       "--approval-mode",
-      "auto_edit"
+      "yolo"
    ]);
    assert.equal(
       prepared.env.GEMINI_CLI_SYSTEM_SETTINGS_PATH,
@@ -152,7 +158,10 @@ test("gemini adapter prepares a yolo invocation with auto_edit", async () => {
    ]);
    assert.equal(
       prepared.renderedPrompt,
-      "Task: Implement the fix\n\nBuild the requested change directly."
+      expectedPrompt(
+         "Task: Implement the fix\n\nBuild the requested change directly.",
+         artifactsDir
+      )
    );
 });
 
@@ -161,7 +170,6 @@ test("gemini adapter omits --model when the agent uses automatic selection", asy
    const prepared = await adapter.prepare(geminiAutoModelProfile, {
       artifactsDir: "/repo/.aiman/runs/run-2/artifacts",
       cwd: "/repo",
-      mode: "safe",
       promptFile: "/repo/.aiman/runs/run-2/prompt.md",
       runFile: "/repo/.aiman/runs/run-2/run.md",
       runId: "run-2",
@@ -188,9 +196,7 @@ test("gemini adapter parses structured JSON output", async () => {
          envKeys: ["PATH"],
          killGraceMs: 1000,
          launchMode: "foreground",
-         mode: "yolo",
          model: "gemini-2.5-flash-lite",
-         permissions: "yolo",
          promptDigest: "prompt-digest",
          promptTransport: "stdin",
          provider: "gemini",
@@ -198,7 +204,6 @@ test("gemini adapter parses structured JSON output", async () => {
          timeoutMs: 300000
       },
       launchMode: "foreground",
-      mode: "yolo",
       profile: geminiProfile,
       projectRoot: "/repo",
       promptFile: "/repo/.aiman/runs/run-2/prompt.md",
@@ -235,9 +240,7 @@ test("gemini adapter reports structured JSON errors", async () => {
          envKeys: ["PATH"],
          killGraceMs: 1000,
          launchMode: "foreground",
-         mode: "yolo",
          model: "gemini-2.5-flash-lite",
-         permissions: "yolo",
          promptDigest: "prompt-digest",
          promptTransport: "stdin",
          provider: "gemini",
@@ -245,7 +248,6 @@ test("gemini adapter reports structured JSON errors", async () => {
          timeoutMs: 300000
       },
       launchMode: "foreground",
-      mode: "yolo",
       profile: geminiProfile,
       projectRoot: "/repo",
       promptFile: "/repo/.aiman/runs/run-2/prompt.md",
@@ -268,10 +270,10 @@ test("gemini adapter reports structured JSON errors", async () => {
 });
 
 test("buildPrompt renders the authored body without inlining project context", () => {
+   const artifactsDir = "/repo/.aiman/runs/run-1/artifacts";
    const prompt = buildPrompt(codexProfile, {
-      artifactsDir: "/repo/.aiman/runs/run-1/artifacts",
+      artifactsDir,
       cwd: "/repo",
-      mode: "safe",
       runFile: "/repo/.aiman/runs/run-1/run.md",
       runId: "run-1",
       task: "Review the release flow"
@@ -280,7 +282,10 @@ test("buildPrompt renders the authored body without inlining project context", (
    assert.doesNotMatch(prompt, /## Project Context/);
    assert.equal(
       prompt,
-      "Task: Review the release flow\n\nReview the current change carefully."
+      expectedPrompt(
+         "Task: Review the release flow\n\nReview the current change carefully.",
+         artifactsDir
+      )
    );
 });
 
@@ -299,7 +304,6 @@ test("toRunResult reflects profile-first run metadata", async () => {
       launchMode: "foreground",
       mode: "safe",
       model: "gpt-5.4-mini",
-      permissions: "safe",
       profileDigest: "profile-digest",
       profileName: "code-reviewer",
       profilePath: "/repo/.aiman/agents/code-reviewer.md",
@@ -351,7 +355,8 @@ test("toRunResult reflects profile-first run metadata", async () => {
       profileScope: "project",
       projectRoot: "/repo",
       provider: "codex",
-      rights: "safe read-only workspace access via --sandbox read-only",
+      rights:
+         "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
       runId: "run-5",
       runPath: path.join(runDir, "run.md"),
       status: "success"

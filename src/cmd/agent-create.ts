@@ -8,8 +8,7 @@ import { agentScopeChoices, formatProfileModel } from "../lib/agents.js";
 import type {
    ProfileScope,
    ProviderId,
-   ReasoningEffort,
-   RunMode
+   ReasoningEffort
 } from "../lib/types.js";
 
 type AgentCreateArguments = {
@@ -17,7 +16,6 @@ type AgentCreateArguments = {
    force?: boolean;
    instructions?: string;
    json?: boolean;
-   mode?: RunMode;
    model?: string;
    name?: string;
    provider?: ProviderId;
@@ -26,7 +24,6 @@ type AgentCreateArguments = {
 };
 
 const providerChoices = ["codex", "gemini"] as const;
-const modeChoices = ["safe", "yolo"] as const;
 const reasoningEffortChoices = ["none", "low", "medium", "high"] as const;
 
 export const command = "create <name>";
@@ -68,12 +65,6 @@ export function builder(yargs: Argv): Argv {
          describe: "Provider backend for this agent",
          type: "string"
       })
-      .option("mode", {
-         choices: modeChoices,
-         demandOption: true,
-         describe: "Default mode for this agent",
-         type: "string"
-      })
       .option("description", {
          demandOption: true,
          describe: "Short description for listings",
@@ -91,9 +82,8 @@ export function builder(yargs: Argv): Argv {
       })
       .option("reasoning-effort", {
          choices: reasoningEffortChoices,
-         demandOption: true,
          describe:
-            'Required reasoning effort for this agent. Use "none" when the selected provider/model does not support reasoning effort.',
+            'Reasoning effort for this agent. Required for Codex. Use "none" for Gemini.',
          type: "string"
       })
       .option("force", {
@@ -138,16 +128,17 @@ export async function handler(
       throw new UserError("Provider is required.");
    }
 
-   if (typeof args.mode !== "string") {
-      throw new UserError("Mode is required.");
-   }
-
    if (typeof args.model !== "string" || args.model.trim().length === 0) {
       throw new UserError("Model is required.");
    }
 
-   if (typeof args.reasoningEffort !== "string") {
-      throw new UserError("Reasoning effort is required.");
+   const reasoningEffort =
+      args.reasoningEffort ?? (args.provider === "gemini" ? "none" : undefined);
+
+   if (reasoningEffort === undefined) {
+      throw new UserError(
+         `Reasoning effort is required for provider "${args.provider}".`
+      );
    }
 
    const aiman = await createAiman();
@@ -156,10 +147,9 @@ export async function handler(
       ...(args.force === true ? { force: true } : {}),
       instructions,
       model: args.model,
-      mode: args.mode,
       name: args.name,
       provider: args.provider,
-      reasoningEffort: args.reasoningEffort,
+      reasoningEffort,
       scope: args.scope ?? "project"
    });
 
@@ -175,7 +165,6 @@ export async function handler(
             { label: "Name", value: agent.name },
             { label: "Scope", value: agent.scope },
             { label: "Provider", value: agent.provider },
-            { label: "Mode", value: agent.mode },
             {
                label: "Model",
                value: formatProfileModel(agent)

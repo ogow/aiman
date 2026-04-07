@@ -40,7 +40,6 @@ import type {
    RunLaunchSnapshot,
    RunInspection,
    RunListOptions,
-   RunMode,
    RunResult,
    ScopedProfileDefinition
 } from "./types.js";
@@ -55,7 +54,6 @@ const stopWaitSlackMs = 2 * 1000;
 type RunAgentInput = {
    agentName?: string;
    agentScope?: ProfileScope;
-   mode?: RunMode;
    profileName?: string;
    profileScope?: ProfileScope;
    projectRoot?: string;
@@ -81,7 +79,6 @@ type PreparedRun = {
    profile: ScopedProfileDefinition;
    launch: RunLaunchSnapshot;
    launchMode: LaunchMode;
-   mode: RunMode;
    prepared: PreparedInvocation;
    projectRoot: string;
    runCwd: string;
@@ -130,7 +127,6 @@ async function writeRunningState(input: {
    heartbeatAt?: string;
    launch: RunLaunchSnapshot;
    launchMode: LaunchMode;
-   mode: RunMode;
    onlyIfRunning?: boolean;
    pid?: number;
    projectRoot: string;
@@ -152,7 +148,6 @@ async function writeRunningState(input: {
       ...(typeof input.profile.model === "string"
          ? { model: input.profile.model }
          : {}),
-      mode: input.mode,
       paths,
       profile: input.profile.name,
       profilePath: input.profile.path,
@@ -246,6 +241,15 @@ async function killWindowsProcessTree(
    });
 }
 
+function killPosixProcessGroup(
+   pid: number,
+   signal: NodeJS.Signals
+): void {
+   try {
+      process.kill(-pid, signal);
+   } catch {}
+}
+
 function startRunHeartbeat(input: {
    preparedRun: PreparedRun;
    pid?: number;
@@ -267,7 +271,6 @@ function startRunHeartbeat(input: {
                heartbeatAt: new Date().toISOString(),
                launch: input.preparedRun.launch,
                launchMode: input.preparedRun.launchMode,
-               mode: input.preparedRun.mode,
                ...(typeof input.pid === "number" ? { pid: input.pid } : {}),
                projectRoot: input.preparedRun.projectRoot,
                runDir: input.preparedRun.runDir,
@@ -302,7 +305,6 @@ async function persistDetachedLaunchFailure(
       ...(typeof preparedRun.profile.model === "string"
          ? { model: preparedRun.profile.model }
          : {}),
-      mode: preparedRun.mode,
       profile: preparedRun.profile.name,
       profilePath: preparedRun.profile.path,
       profileScope: preparedRun.profile.scope,
@@ -373,7 +375,6 @@ async function buildLaunchSnapshot(input: {
    profile: ScopedProfileDefinition;
    killGraceMs: number;
    launchMode: LaunchMode;
-   mode: RunMode;
    prepared: PreparedInvocation;
    task: string;
    timeoutMs: number;
@@ -400,8 +401,6 @@ async function buildLaunchSnapshot(input: {
       ...(typeof input.profile.model === "string"
          ? { model: input.profile.model }
          : {}),
-      mode: input.mode,
-      permissions: input.mode,
       reasoningEffort: input.profile.reasoningEffort,
       profileDigest: hashText(profileSource),
       profileName: input.profile.name,
@@ -457,14 +456,13 @@ async function prepareRun(
    const startedAt = new Date().toISOString();
    const timeoutMs = input.timeoutMs ?? defaultRunTimeoutMs;
    const killGraceMs = input.killGraceMs ?? defaultKillGraceMs;
-   const mode = input.mode ?? profile.mode;
 
    await mkdir(runDir, { recursive: true });
    const paths = buildRunPaths(runDir);
+   await mkdir(paths.artifactsDir, { recursive: true });
    const renderedPrompt = buildPrompt(profile, {
       artifactsDir: paths.artifactsDir,
       cwd: runCwd,
-      mode,
       runFile: paths.runFile,
       runId,
       task: input.task
@@ -473,7 +471,6 @@ async function prepareRun(
    const prepared = await adapter.prepare(profile, {
       artifactsDir: paths.artifactsDir,
       cwd: runCwd,
-      mode,
       promptFile: paths.promptFile,
       renderedPrompt,
       runFile: paths.runFile,
@@ -486,7 +483,6 @@ async function prepareRun(
    const launch = await buildLaunchSnapshot({
       killGraceMs,
       launchMode,
-      mode,
       prepared,
       profile,
       task: input.task,
@@ -508,7 +504,6 @@ async function prepareRun(
       launchMode,
       cwd: runCwd,
       launch,
-      mode,
       projectRoot: projectPaths.projectRoot,
       runDir,
       runId,
@@ -519,7 +514,6 @@ async function prepareRun(
       killGraceMs,
       launch,
       launchMode,
-      mode,
       prepared,
       profile,
       projectRoot: projectPaths.projectRoot,
@@ -566,7 +560,6 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
       id: profileName,
       ...(profilePath.startsWith("<builtin>/") ? { isBuiltIn: true } : {}),
       model: run.launch.model,
-      mode: run.mode,
       name: profileName,
       path: profilePath,
       provider: run.launch.provider,
@@ -597,7 +590,6 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
             ? { stdin: renderedPrompt }
             : {})
       },
-      mode: run.mode,
       profile,
       projectRoot: run.projectRoot,
       runCwd: run.launch.cwd,
@@ -626,6 +618,7 @@ async function executePreparedRun(
    );
    const child = spawn(launch.command, launch.args, {
       cwd: preparedRun.prepared.cwd,
+      detached: process.platform !== "win32",
       env: preparedRun.prepared.env,
       shell: launch.needsShell,
       windowsVerbatimArguments: launch.windowsVerbatimArguments,
@@ -644,7 +637,6 @@ async function executePreparedRun(
       cwd: preparedRun.runCwd,
       launch: preparedRun.launch,
       launchMode: preparedRun.launchMode,
-      mode: preparedRun.mode,
       ...(typeof heartbeatPid === "number" ? { pid: heartbeatPid } : {}),
       projectRoot: preparedRun.projectRoot,
       runDir: preparedRun.runDir,
@@ -675,6 +667,10 @@ async function executePreparedRun(
          if (typeof child.pid === "number") {
             void killWindowsProcessTree(child.pid, false);
          }
+      } else if (process.platform !== "win32") {
+         if (typeof child.pid === "number") {
+            killPosixProcessGroup(child.pid, "SIGTERM");
+         }
       } else {
          child.kill("SIGTERM");
       }
@@ -688,6 +684,10 @@ async function executePreparedRun(
             if (launch.usesCommandProcessor && process.platform === "win32") {
                if (typeof child.pid === "number") {
                   void killWindowsProcessTree(child.pid, true);
+               }
+            } else if (process.platform !== "win32") {
+               if (typeof child.pid === "number") {
+                  killPosixProcessGroup(child.pid, "SIGKILL");
                }
             } else {
                child.kill("SIGKILL");
@@ -773,7 +773,6 @@ async function executePreparedRun(
          ...(typeof preparedRun.profile.model === "string"
             ? { model: preparedRun.profile.model }
             : {}),
-         mode: preparedRun.mode,
          profile: preparedRun.profile.name,
          profilePath: preparedRun.profile.path,
          profileScope: preparedRun.profile.scope,
@@ -798,7 +797,6 @@ async function executePreparedRun(
       exitCode: completion.exitCode,
       launch: preparedRun.launch,
       launchMode: preparedRun.launchMode,
-      mode: preparedRun.mode,
       profile: preparedRun.profile,
       promptFile: paths.promptFile,
       projectRoot: preparedRun.projectRoot,
@@ -856,17 +854,13 @@ function toLaunchResult(input: {
       inspectCommand: `aiman runs inspect ${input.preparedRun.runId}`,
       launchMode: "detached",
       logsCommand: `aiman runs logs ${input.preparedRun.runId} -f`,
-      mode: input.preparedRun.mode,
       ...(typeof input.pid === "number" ? { pid: input.pid } : {}),
       profile: input.preparedRun.profile.name,
       profilePath: input.preparedRun.profile.path,
       profileScope: input.preparedRun.profile.scope,
       projectRoot: input.preparedRun.projectRoot,
       provider: input.preparedRun.profile.provider,
-      rights: formatRunRights(
-         input.preparedRun.profile.provider,
-         input.preparedRun.mode
-      ),
+      rights: formatRunRights(input.preparedRun.profile.provider),
       runId: input.preparedRun.runId,
       showCommand: `aiman runs show ${input.preparedRun.runId}`,
       startedAt: input.preparedRun.startedAt,
@@ -918,7 +912,6 @@ export async function launchRun(input: RunAgentInput): Promise<LaunchedRun> {
       heartbeatAt: new Date().toISOString(),
       launch: preparedRun.launch,
       launchMode: preparedRun.launchMode,
-      mode: preparedRun.mode,
       onlyIfRunning: true,
       ...(typeof pid === "number" ? { pid } : {}),
       projectRoot: preparedRun.projectRoot,

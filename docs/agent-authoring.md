@@ -11,7 +11,6 @@ Before writing the file, lock down the runtime contract:
 - What job should the agent own, and what should it explicitly not own?
 - Who will call it: a human, a parent agent, or automation?
 - What should a successful answer look like: short text, structured findings, a patch, artifacts, or a report?
-- Should it be `safe` or `yolo`?
 - Which provider and model are the best fit for that job?
 - What stable repo guidance belongs in the repo's shared bootstrap context files such as `AGENTS.md`?
 - What small smoke task can verify that the authored contract works?
@@ -25,20 +24,17 @@ New authored agents should use:
 - required `name`
 - required `provider`
 - required `description`
-- required `mode`
-- required `reasoningEffort`
+- required `reasoningEffort` (optional for Gemini)
 
 `model` is provider-specific:
 
 - `codex`: required and must name an explicit model
 - `gemini`: required; use an explicit model id or `auto` to let Gemini choose its automatic default model
 
-Use `mode: safe` for read-only or approval-gated work and `mode: yolo` only when the agent is expected to edit or write files.
-
 `reasoningEffort` is provider-specific:
 
-- `codex`: `none`, `low`, `medium`, or `high`
-- `gemini`: `none`
+- `codex`: required; use `none`, `low`, `medium`, or `high`
+- `gemini`: optional; defaults to `none` if omitted
 
 Use `none` when the selected provider or model does not support configurable reasoning effort.
 
@@ -48,9 +44,8 @@ Agents that use `permissions`, `contextFiles`, or `requiredMcps` are invalid. Re
 
 Use these defaults unless there is a clear reason not to:
 
-- Start with `mode: safe`.
 - For `codex`, start with `reasoningEffort: medium` unless the task clearly needs less or more depth.
-- For `gemini`, use `reasoningEffort: none`.
+- For `gemini`, `reasoningEffort` is optional and defaults to `none`.
 - For `gemini`, use `model: auto` when you want Gemini's automatic model selection instead of pinning one explicitly.
 - Make one agent own one concrete specialty.
 - Keep the body explicit and direct instead of clever or generic.
@@ -94,12 +89,14 @@ Good agent bodies usually:
 - state what to do when evidence is missing
 - keep repo-specific guidance small and explicit
 
+`aiman` no longer appends a runtime artifact note automatically. Use `{{artifactsDir}}` only when the body needs to reference the exact run artifact path directly.
+
 Avoid bodies that:
 
 - try to cover many unrelated jobs
 - depend on hidden repo context
 - bury the required output format in long prose
-- silently assume write access
+- silently assume extra repo-specific rules the caller cannot see
 - ask the model to improvise missing requirements that the caller should supply
 
 ## Use Runtime Context Deliberately
@@ -126,7 +123,6 @@ If the extra context is task-specific rather than repo-wide, keep it in `{{task}
 When a parent agent is asked to create an `aiman` agent and the contract is still fuzzy, it should ask focused follow-up questions like:
 
 - What exact outcome should this agent own?
-- Should it be `safe` or `yolo`?
 - Which provider or model do you want, if any?
 - What should the output look like on a good run?
 - Does the repo need anything added to the repo's shared context files such as `AGENTS.md`?
@@ -140,7 +136,7 @@ Before calling the agent done, verify:
 
 - the frontmatter is complete and current
 - the body includes `{{task}}`
-- `mode` is no broader than necessary
+- any desired read-only or conservative behavior is stated in the body
 - `reasoningEffort` matches the selected provider
 - `model` is explicit and valid for the selected provider, including `model: auto` only for Gemini agents
 - `aiman agent show <name>` matches the intended contract

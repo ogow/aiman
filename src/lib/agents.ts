@@ -14,13 +14,12 @@ import type {
    ProfileScope,
    ProviderId,
    ReasoningEffort,
-   RunMode,
    ScopedProfileDefinition,
    ValidationIssue
 } from "./types.js";
 
 const providers = new Set<ProviderId>(["codex", "gemini"]);
-const runModes = new Set<RunMode>(["safe", "yolo"]);
+const legacyRunModes = new Set(["safe", "yolo"]);
 const codexReasoningEfforts = new Set<ReasoningEffort>([
    "none",
    "low",
@@ -71,7 +70,6 @@ export const builtinProfiles: ScopedProfileDefinition[] = [
       id: "build",
       isBuiltIn: true,
       model: "gpt-5.4-mini",
-      mode: "yolo",
       name: "build",
       path: "<builtin>/build",
       provider: "codex",
@@ -101,11 +99,10 @@ export const builtinProfiles: ScopedProfileDefinition[] = [
          "- Highlight key risks or unknowns.",
          "- Suggest the next concrete action."
       ].join("\n"),
-      description: "Default safe profile for analysis and planning",
+      description: "Default planning profile for analysis and review",
       id: "plan",
       isBuiltIn: true,
       model: "gpt-5.4-mini",
-      mode: "safe",
       name: "plan",
       path: "<builtin>/plan",
       provider: "codex",
@@ -209,7 +206,7 @@ function validateFrontmatterAttributes(
 
    if (attributes.permissions !== undefined) {
       throw new UserError(
-         `Agent "${name}" uses unsupported field "permissions". Use "mode: safe" or "mode: yolo".`
+         `Agent "${name}" uses unsupported field "permissions". The agent contract no longer supports mode or permissions fields.`
       );
    }
 
@@ -241,11 +238,16 @@ function validateFrontmatterAttributes(
       );
    }
 
-   if (typeof mode !== "string" || mode.length === 0) {
-      throw new UserError(`Agent "${name}" is missing a mode.`);
+   let effectiveReasoningEffort = reasoningEffort;
+
+   if (effectiveReasoningEffort === undefined && provider === "gemini") {
+      effectiveReasoningEffort = "none";
    }
 
-   if (typeof reasoningEffort !== "string" || reasoningEffort.length === 0) {
+   if (
+      typeof effectiveReasoningEffort !== "string" ||
+      effectiveReasoningEffort.length === 0
+   ) {
       throw new UserError(
          `Agent "${name}" is missing a reasoningEffort. Use one of "${renderReasoningEffortList(provider as ProviderId)}" for provider "${provider ?? "missing"}".`
       );
@@ -254,15 +256,15 @@ function validateFrontmatterAttributes(
    if (
       providers.has(provider as ProviderId) &&
       !getAllowedReasoningEfforts(provider as ProviderId).has(
-         reasoningEffort as ReasoningEffort
+         effectiveReasoningEffort as ReasoningEffort
       )
    ) {
       throw new UserError(
-         `Agent "${name}" has invalid reasoningEffort "${reasoningEffort}" for provider "${provider}". Use one of "${renderReasoningEffortList(provider as ProviderId)}".`
+         `Agent "${name}" has invalid reasoningEffort "${effectiveReasoningEffort}" for provider "${provider}". Use one of "${renderReasoningEffortList(provider as ProviderId)}".`
       );
    }
 
-   if (!runModes.has(mode as RunMode)) {
+   if (mode !== undefined && !legacyRunModes.has(mode)) {
       throw new UserError(`Agent "${name}" has invalid mode: ${mode}.`);
    }
 
@@ -274,10 +276,9 @@ function validateFrontmatterAttributes(
       body,
       description,
       model,
-      mode: mode as RunMode,
       name,
       provider: provider as ProviderId,
-      reasoningEffort: reasoningEffort as ReasoningEffort
+      reasoningEffort: effectiveReasoningEffort as ReasoningEffort
    };
 }
 
@@ -465,7 +466,6 @@ function renderProfileMarkdown(input: {
    description: string;
    instructions: string;
    model: string;
-   mode: RunMode;
    name: string;
    provider: ProviderId;
    reasoningEffort: ReasoningEffort;
@@ -476,8 +476,9 @@ function renderProfileMarkdown(input: {
       `provider: ${input.provider}`,
       `description: ${input.description}`,
       `model: ${input.model}`,
-      `mode: ${input.mode}`,
-      `reasoningEffort: ${input.reasoningEffort}`,
+      ...(input.provider === "gemini" && input.reasoningEffort === "none"
+         ? []
+         : [`reasoningEffort: ${input.reasoningEffort}`]),
       "---",
       "",
       "## Role",
@@ -562,10 +563,9 @@ export async function createProfileFile(
       force?: boolean;
       instructions: string;
       model: string;
-      mode: RunMode;
       name: string;
       provider: ProviderId;
-      reasoningEffort: ReasoningEffort;
+      reasoningEffort?: ReasoningEffort;
       scope: ProfileScope;
    }
 ): Promise<ScopedProfileDefinition> {
@@ -574,8 +574,14 @@ export async function createProfileFile(
    const trimmedInstructions = input.instructions.trim();
    const provider = input.provider;
    const model = input.model.trim();
-   const mode = input.mode;
-   const reasoningEffort = input.reasoningEffort;
+   const reasoningEffort =
+      input.reasoningEffort ?? (provider === "gemini" ? "none" : undefined);
+
+   if (reasoningEffort === undefined) {
+      throw new UserError(
+         `Reasoning effort is required for provider "${provider}".`
+      );
+   }
 
    const fileId = normalizeName(trimmedName);
 
@@ -617,7 +623,6 @@ export async function createProfileFile(
       description: trimmedDescription,
       instructions: trimmedInstructions,
       model,
-      mode,
       name: trimmedName,
       provider,
       reasoningEffort
@@ -678,7 +683,6 @@ export async function checkProfileDefinition(
       profile: {
          id: profile.id,
          ...(typeof profile.model === "string" ? { model: profile.model } : {}),
-         ...(typeof profile.mode === "string" ? { mode: profile.mode } : {}),
          name: profile.name,
          path: profile.path,
          provider: profile.provider,

@@ -23,7 +23,6 @@ const sampleProfile: ScopedProfileDefinition = {
   description: "Reviews a project task",
   id: "reviewer",
   model: "gpt-5.4-mini",
-  mode: "safe",
   name: "reviewer",
   path: "/tmp/reviewer.md",
   provider: "codex",
@@ -70,7 +69,6 @@ function createRun(input?: Record<string, unknown>): RunInspection {
       envKeys: [],
       killGraceMs: 1_000,
       launchMode: "foreground",
-      mode: "safe",
       model: "gpt-5.4-mini",
       profileDigest: "profile-digest",
       profileName: "reviewer",
@@ -84,7 +82,6 @@ function createRun(input?: Record<string, unknown>): RunInspection {
       timeoutMs: 300_000
     },
     launchMode: "foreground",
-    mode: "safe",
     paths: {
       artifactsDir: "/tmp/demo/artifacts",
       promptFile: "/tmp/demo/prompt.md",

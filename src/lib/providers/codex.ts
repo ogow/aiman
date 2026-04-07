@@ -110,7 +110,6 @@ export function createCodexAdapter(): ProviderAdapter {
             finalText: lastMessage,
             launchMode: input.launchMode,
             launch: input.launch,
-            mode: input.mode,
             profile,
             promptFile: input.promptFile,
             projectRoot: input.projectRoot,
@@ -147,7 +146,7 @@ export function createCodexAdapter(): ProviderAdapter {
             args: [
                "exec",
                "--sandbox",
-               input.mode === "yolo" ? "workspace-write" : "read-only",
+               "workspace-write",
                "--cd",
                input.cwd,
                "--output-last-message",

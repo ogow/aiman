@@ -16,7 +16,6 @@ export type {
    ReasoningEffort,
    RunInspection,
    RunListOptions,
-   RunMode,
    RunResult,
    ScopedAgentDefinition
 } from "./types.js";
