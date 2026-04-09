@@ -1,68 +1,98 @@
-# Creating Agents
+# Creating and Using Agents
 
-Agents in `aiman` are specialized Markdown files that define a specific identity, model, and instructions for a task. They are the core building blocks of your workflow.
+Agents in `aiman` are specialized Markdown files that define a specific identity, model, and instructions for a task. This guide covers how to choose the right agent for your task, how to use them, and how to structure them for maximum reliability using XML.
 
-## What is an Agent?
+---
 
-An agent is an authored specialist. Instead of writing a long prompt every time, you define a reusable specialist that "owns" a specific job, such as reviewing code, explaining an implementation, or running a build.
+## 1. When to Use What: The Decision Matrix
 
-### Core Philosophy
-1.  **One Agent, One Job**: A good agent has a narrow specialty and a clear bar for success.
-2.  **Explicit Instructions**: Use direct, prescriptive language. Avoid "be helpful" or vague personas.
-3.  **Structured Boundaries**: Use XML tags (like `<task>`, `<instructions>`) to keep instructions separate from variable data.
-4.  **Defined Stopping Points**: Explicitly tell the agent when to stop so it doesn't over-research or wander.
+Before creating or running an agent, use this matrix to decide on your approach:
 
-## Common Use Cases
+| Scenario | Use Case | Agent Type | Result Mode |
+| :--- | :--- | :--- | :--- |
+| **Exploring a new task** | You need an implementation plan or an explanation of how code works. | **Architect** | `text` |
+| **Checking for errors** | You want a second pair of eyes on your latest PR or commit. | **Reviewer** | `text` or `schema` |
+| **Running tests/linting** | You want to automate your build and get a machine-readable failure report. | **Builder** | `schema` |
+| **Auditing security** | You need to scan a file or diff specifically for sensitive leaks or secrets. | **Auditor** | `schema` |
+| **Maintaining documentation** | You need to keep `README.md` or `MEMORY.md` in sync with the latest code. | **Maintainer** | `schema` |
 
-| Specialty | Job | Result Mode |
-| :--- | :--- | :--- |
-| **Reviewer** | Inspects a change for bugs or style issues. | `schema` or `text` |
-| **Architect** | Explains an implementation approach for a task. | `text` |
-| **Auditor** | Scans a file for security risks or leaks. | `schema` |
-| **Maintainer** | Checks documentation or memory for consistency. | `schema` |
-| **Builder** | Runs a build/test suite and reports failures. | `schema` |
+### Choosing a Result Mode
+*   **Use `text`** when the final reader is a **human**. You want a clear, formatted report or a short answer.
+*   **Use `schema`** when the final reader is **another tool** (like an automated build script) or a "parent" agent. This ensures the output is always valid JSON.
 
-## How to Create an Agent
+---
 
-### 1. The Scaffold
-Use the CLI to create a structured starting point:
+## 2. Practical XML: Why and How to Use It
 
-```bash
-aiman agent create reviewer \
-  --description "Reviews project diffs" \
-  --provider codex \
-  --model gpt-5.4-mini \
-  --reasoning-effort medium
-```
+XML tags are the most reliable way to separate **instructions** from **data**. Because LLMs can sometimes confuse the task they are doing with the data they are processing, XML provides a hard boundary.
 
-### 2. Define the Body
-Open the created file (e.g., `.aiman/agents/reviewer.md`) and refine the body using these recommended sections:
+### When to use XML:
+1.  **Always wrap `{{task}}`**: If your task input contains Markdown headers (like `## Fix this`), the model might think those are instructions for the agent. Wrapping them in `<task>` tags prevents this.
+2.  **When instructions are complex**: If you have multiple sections of rules, use `<instructions>` and `<constraints>` to tell the model exactly what to focus on.
+3.  **When reading multiple files**: Wrap file contents in `<context>` or `<documents>` tags so the model knows exactly where each file starts and ends.
 
-*   **Role**: Define who the agent is (e.g., "You are the project change reviewer").
-*   **Task Input**: Wrap the `{{task}}` placeholder in XML tags.
-*   **Instructions**: Provide sequential steps for the task.
-*   **Constraints**: List what the agent should *not* do.
-*   **Stop Conditions**: Define when the agent is finished.
-*   **Expected Output**: Describe the final deliverable (Text or JSON).
-
-### 3. Choose the Result Mode
-*   **`text` (Default)**: Use this for human-readable reports, briefs, and explanations.
-*   **`schema`**: Use this when you need a stable JSON output for automation or chaining.
-
-## Best Practice: Structural XML
-Always wrap your task input and complex instructions in XML tags. This is the most reliable way to prevent the model from confusing its instructions with the data it is processing.
-
+### Example XML Structure:
 ```md
 ## Task Input
 <task>
 {{task}}
 </task>
+
+## Instructions
+<instructions>
+1. Analyze the input provided in the <task> tags.
+2. Cross-reference it with the <context> provided below.
+3. Stop immediately if the task is finished.
+</instructions>
+
+<context>
+[File: src/cli.ts]
+... code content ...
+</context>
 ```
 
-## Testing Your Agent
-Before putting an agent into regular use:
-1.  **Check**: Run `aiman agent check <name>` to catch structural errors.
-2.  **Smoke Test**: Run a small task with `aiman run <name> --task "..."`.
-3.  **Inspect**: Use `aiman runs inspect <run-id> --stream prompt` to see exactly what the model received.
+---
 
-For a deeper dive into reliable authoring, see [Agent Authoring Reference](./agent-authoring.md).
+## 3. How to Use Your Agents
+
+There are two primary ways to run your agents: through the CLI (for automation and quick tasks) or through the interactive TUI (for deep inspection).
+
+### A. Via the CLI (Quick & Automation)
+Use the `run` command to launch an agent directly. This is best for one-off tasks or if you are calling an agent from a script.
+
+```bash
+# Basic run
+aiman run reviewer --task "Review the changes in src/api.ts"
+
+# Detached run (background)
+# Use this for long-running tasks like full project audits.
+aiman run auditor --task "Scan the entire project for secrets" --detach
+```
+
+### B. Via the Workbench (TUI)
+Run `aiman` with no arguments to enter the interactive workbench. This is best when you need to:
+1.  **Browse your agents**: Quickly see what specialists are available.
+2.  **Inspect active runs**: Follow logs and see artifacts in real-time.
+3.  **Review history**: Browse previous runs and their outcomes.
+
+**TUI Shortcuts:**
+*   `a`: Go to the **Agents** workspace.
+*   `t`: Go to the **Tasks** workspace (to write your prompt).
+*   `Ctrl+L`: **Launch** the selected agent with your task.
+*   `r`: Go to the **Runs** workspace to see results.
+
+---
+
+## 4. The Creation Workflow
+
+If you need a new specialist, follow these four steps:
+
+1.  **Scaffold**: Use `aiman agent create <name>` to generate the file with the correct frontmatter.
+2.  **Role & XML**: Define the agent's role clearly and wrap the task input in `<task>` tags.
+3.  **Stopping Points**: Add explicit "Stop Conditions." (e.g., "Stop once you have identified the primary bug.")
+4.  **Verification**:
+    *   Run `aiman agent check <name>` to ensure the Markdown is valid.
+    *   Run a small "smoke task" using `aiman run <name> --task "Test task"`.
+    *   Inspect the rendered prompt with `aiman runs inspect <run-id> --stream prompt` to ensure the XML boundaries look correct.
+
+For the full technical reference, see [Agent Authoring Reference](./agent-authoring.md).
