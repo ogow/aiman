@@ -33,7 +33,7 @@ Use this file as a drafting reference for a shared repo bootstrap context file s
 
 - agent: an authored Markdown specialist file under `.aiman/agents/`
 - run: one persisted execution of one authored agent
-- launch snapshot: the immutable provider invocation metadata frozen into `result.json`
+- launch snapshot: the immutable provider invocation metadata frozen into `run.json`
 - run commands: `aiman runs ...` commands that inspect saved runs
 
 ## Safety

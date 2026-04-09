@@ -1,0 +1,4 @@
+interface:
+   display_name: "Aiman"
+   short_description: "Create strong authored aiman agents"
+   default_prompt: "Use $aiman to create or refine an `aiman` agent that fits this repo and has a reliable contract."

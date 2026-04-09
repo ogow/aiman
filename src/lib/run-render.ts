@@ -217,16 +217,22 @@ export function renderInspectView(
       sections.push(renderSection("Summary", run.summary));
    }
 
-   if (typeof run.resultType === "string") {
-      sections.push(renderSection("Result type", run.resultType));
+   if (typeof run.outcome === "string" && run.outcome.length > 0) {
+      sections.push(renderSection("Outcome", run.outcome));
    }
 
-   if (run.result !== undefined) {
-      sections.push(renderSection("Result", stringifyJson(run.result)));
+   if (typeof run.finalText === "string" && run.finalText.length > 0) {
+      sections.push(renderSection("Final text", run.finalText));
    }
 
-   if (run.handoff !== undefined) {
-      sections.push(renderSection("Handoff", stringifyJson(run.handoff)));
+   if (run.structuredResult !== undefined) {
+      sections.push(
+         renderSection("Structured result", stringifyJson(run.structuredResult))
+      );
+   }
+
+   if (run.next !== undefined) {
+      sections.push(renderSection("Next", stringifyJson(run.next)));
    }
 
    sections.push(
@@ -261,6 +267,10 @@ export function renderInspectView(
                value: formatDuration(run.launch.killGraceMs)
             },
             {
+               label: `Capabilities (${run.launch.capabilities?.length ?? 0})`,
+               value: formatStringList(run.launch.capabilities ?? [])
+            },
+            {
                label: `Context files (${run.launch.contextFiles?.length ?? 0})`,
                value: formatStringList(run.launch.contextFiles ?? [])
             }
@@ -271,8 +281,8 @@ export function renderInspectView(
    sections.push(
       renderSection(
          "Files",
-         renderLabelValueBlock([
-            { label: "Result", value: run.paths.resultFile },
+        renderLabelValueBlock([
+            { label: "Run", value: run.paths.runFile },
             { label: "Stdout", value: run.paths.stdoutLog },
             { label: "Stderr", value: run.paths.stderrLog },
             { label: "Artifacts", value: run.paths.artifactsDir }

@@ -77,19 +77,7 @@ if (lastMessagePath.length > 0) {
    await mkdir(path.dirname(lastMessagePath), { recursive: true });
    await writeFile(
       lastMessagePath,
-      JSON.stringify({
-         artifacts: [],
-         handoff: {
-            notes: [],
-            outcome: "done",
-            questions: []
-         },
-         result: {
-            message: "Fake codex result"
-         },
-         resultType: "review.v1",
-         summary: "Fake codex result"
-      }),
+      "Fake codex result",
       "utf8"
    );
 }
@@ -97,7 +85,7 @@ if (lastMessagePath.length > 0) {
 const runDir = process.env.AIMAN_RUN_DIR;
 if (typeof runDir === "string" && runDir.length > 0) {
    await writeFile(
-      path.join(runDir, "result.json"),
+      path.join(runDir, "run.json"),
       JSON.stringify({
          agent: "fake",
          agentPath: "/fake/path",
@@ -110,10 +98,11 @@ if (typeof runDir === "string" && runDir.length > 0) {
          launch: {},
          launchMode: "foreground",
          logs: { stderr: "", stdout: "" },
+         finalText: "Fake result",
+         outcome: "done",
          projectRoot: process.cwd(),
          provider: "codex",
-         result: { message: "Fake result" },
-         resultType: "review.v1",
+         resultMode: "text",
          runId: "fake-id",
          schemaVersion: 1,
          startedAt: new Date().toISOString(),
@@ -164,6 +153,9 @@ description: Reviews things
 provider: codex
 model: gpt-5.4-mini
 reasoningEffort: medium
+capabilities:
+  - repo-grounded
+  - read-only
 ---
 Review this: {{task}}
 `,
@@ -249,6 +241,49 @@ test("agent create writes a project-scope agent", async () => {
    const content = await readFile(agentPath, "utf8");
    assert.match(content, /name: tester/);
    assert.match(content, /description: Runs tests/);
+   assert.match(content, /## Stop Conditions/);
+});
+
+test("agent create writes informational capabilities when requested", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+
+   const result = runCli(
+      [
+         "agent",
+         "create",
+         "cap-tester",
+         "--description",
+         "Runs tests",
+         "--capability",
+         "human-facing",
+         "--capability",
+         "repo-grounded",
+         "--instructions",
+         "Run them",
+         "--model",
+         "gpt-5.4-mini",
+         "--provider",
+         "codex",
+         "--reasoning-effort",
+         "medium",
+         "--scope",
+         "project"
+      ],
+      {
+         cwd: projectRoot,
+         env: createCliEnv({ homeRoot })
+      }
+   );
+
+   assert.equal(result.status, 0);
+   const content = await readFile(
+      path.join(projectRoot, ".aiman", "agents", "cap-tester.md"),
+      "utf8"
+   );
+   assert.match(content, /capabilities:/);
+   assert.match(content, /- "human-facing"/);
+   assert.match(content, /- "repo-grounded"/);
 });
 
 test("agent create rejects unsupported provider reasoning effort", async () => {
@@ -411,6 +446,53 @@ model: gemini-2.0-flash
    assert.equal(report.profile.reasoningEffort, "none");
 });
 
+test("agent check warns when Stop Conditions are missing", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "missing-stop.md"),
+      `---
+name: missing-stop
+description: x
+provider: codex
+model: gpt-5.4-mini
+reasoningEffort: medium
+---
+
+## Role
+You are a reviewer.
+
+## Task Input
+{{task}}
+
+## Instructions
+- Review the task.
+
+## Constraints
+- Stay focused.
+
+## Expected Output
+- Deliver the result.
+`,
+      "utf8"
+   );
+
+   const result = runCli(["agent", "check", "missing-stop", "--json"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+
+   assert.equal(result.status, 0);
+   const report = JSON.parse(result.stdout) as {
+      status: string;
+      warnings: Array<{ code: string }>;
+   };
+   assert.equal(report.status, "warnings");
+   assert.ok(
+      report.warnings.some((warning) => warning.code === "missing-stop-conditions-section")
+   );
+});
+
 test("agent check rejects unsupported legacy frontmatter", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
@@ -438,7 +520,124 @@ Legacy body {{task}}
    });
 
    assert.notEqual(result.status, 0);
-   assert.match(result.stderr, /unsupported field "contextFiles"/);
+   assert.match(result.stderr, /unsupported field "mode"/);
+});
+
+test('agent check rejects legacy "mode" frontmatter even without other legacy fields', async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "legacy-mode.md"),
+      `---
+name: legacy-mode
+description: Legacy mode agent
+provider: codex
+model: gpt-5.4-mini
+mode: safe
+reasoningEffort: medium
+---
+
+Legacy body {{task}}
+`,
+      "utf8"
+   );
+
+   const result = runCli(["agent", "check", "legacy-mode"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+
+   assert.notEqual(result.status, 0);
+   assert.match(result.stderr, /unsupported field "mode"/);
+});
+
+test("agent check rejects invalid capabilities frontmatter", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "bad-capabilities.md"),
+      `---
+name: bad-capabilities
+description: x
+provider: codex
+model: gpt-5.4-mini
+reasoningEffort: medium
+capabilities: repo-grounded
+---
+
+## Task Input
+{{task}}
+`,
+      "utf8"
+   );
+
+   const result = runCli(["agent", "check", "bad-capabilities"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+
+   assert.notEqual(result.status, 0);
+   assert.match(result.stderr, /invalid capabilities/);
+});
+
+test("agent show surfaces declared capabilities", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "cap-show.md"),
+      `---
+name: cap-show
+description: x
+provider: codex
+model: gpt-5.4-mini
+reasoningEffort: medium
+capabilities:
+  - human-facing
+  - repo-grounded
+---
+
+## Role
+You are a reviewer.
+
+## Task Input
+{{task}}
+
+## Instructions
+- Review the task.
+
+## Constraints
+- Stay focused.
+
+## Stop Conditions
+- Stop when you can answer clearly.
+
+## Expected Output
+- Deliver the result.
+`,
+      "utf8"
+   );
+
+   const humanResult = runCli(["agent", "show", "cap-show"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+   assert.equal(humanResult.status, 0);
+   assert.match(humanResult.stdout, /Capabilities/);
+   assert.match(humanResult.stdout, /human-facing/);
+   assert.match(humanResult.stdout, /repo-grounded/);
+
+   const jsonResult = runCli(["agent", "show", "cap-show", "--json"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+   assert.equal(jsonResult.status, 0);
+   const payload = JSON.parse(jsonResult.stdout) as {
+      agent: { capabilities?: string[] };
+   };
+   assert.deepEqual(payload.agent.capabilities, [
+      "human-facing",
+      "repo-grounded"
+   ]);
 });
 
 test("run prompt keeps native context out of the persisted prompt stream without implicit context files", async () => {
@@ -488,10 +687,15 @@ test("run prompt keeps native context out of the persisted prompt stream without
    assert.equal(inspectResult.status, 0);
    const inspectPayload = JSON.parse(inspectResult.stdout) as {
       launch: {
+         capabilities?: string[];
          contextFiles?: string[];
          task?: string;
       };
    };
+   assert.deepEqual(inspectPayload.launch.capabilities, [
+      "repo-grounded",
+      "read-only"
+   ]);
    assert.equal(inspectPayload.launch.contextFiles, undefined);
    assert.equal(inspectPayload.launch.task, "Review the docs");
 });

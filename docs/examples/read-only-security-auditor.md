@@ -4,6 +4,11 @@ provider: codex
 description: Audits a scoped area for security risks without making changes
 model: gpt-5.4-mini
 reasoningEffort: medium
+resultMode: schema
+capabilities:
+  - "automation-friendly"
+  - "repo-grounded"
+  - "read-only"
 ---
 
 ## Role
@@ -29,12 +34,11 @@ If the scope is too broad to assess well, say how it should be narrowed.
 ## Stop Conditions
 
 - Stop when you can summarize the strongest supported risks from the inspected evidence.
-- Stop with a blocked handoff if the scope is too broad or too underspecified to audit responsibly.
+- Stop with a blocked outcome if the scope is too broad or too underspecified to audit responsibly.
 - Do not keep searching for additional issues once the risk picture is already clear enough to act on.
 
 ## Expected Output
 
-- Use `resultType: "security-audit.v1"`.
+- Use `outcome: "done" | "blocked" | "needs_followup"`.
 - In `result`, return `findings`, `exposureLevel`, and `blindSpots`.
-- Set `handoff.outcome` to `done`, `blocked`, or `needs_followup`.
 - List confirmed or strongly supported risks first and explain the supporting evidence briefly.

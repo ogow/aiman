@@ -6,8 +6,11 @@ import { test } from "node:test";
 
 import { createCodexAdapter } from "../src/lib/providers/codex.js";
 import { createGeminiAdapter } from "../src/lib/providers/gemini.js";
-import { buildPrompt } from "../src/lib/providers/shared.js";
-import { buildRunPaths, toRunResult } from "../src/lib/run-store.js";
+import {
+   finalizeRunRecord,
+   renderAgentPrompt
+} from "../src/lib/providers/runtime.js";
+import { buildRunPaths, toRunResult } from "../src/lib/run-records.js";
 import type {
    PersistedRunRecord,
    RunLaunchSnapshot,
@@ -23,6 +26,7 @@ const codexProfile: ScopedProfileDefinition = {
    path: "/repo/.../agents/code-reviewer.md",
    provider: "codex",
    reasoningEffort: "medium",
+   resultMode: "schema",
    scope: "project"
 };
 
@@ -35,6 +39,7 @@ const geminiProfile: ScopedProfileDefinition = {
    path: "/repo/.../agents/builder.md",
    provider: "gemini",
    reasoningEffort: "none",
+   resultMode: "schema",
    scope: "project"
 };
 
@@ -47,21 +52,23 @@ const geminiAutoModelProfile: ScopedProfileDefinition = {
    path: "/repo/.../agents/builder-auto.md",
    provider: "gemini",
    reasoningEffort: "none",
+   resultMode: "schema",
    scope: "project"
+};
+
+const codexTextProfile: ScopedProfileDefinition = {
+   ...codexProfile,
+   id: "code-reviewer-text",
+   name: "code-reviewer-text",
+   resultMode: "text"
 };
 
 function buildAgentEnvelope(summary: string): string {
    return JSON.stringify({
-      artifacts: [],
-      handoff: {
-         notes: [],
-         outcome: "done",
-         questions: []
-      },
+      outcome: "done",
       result: {
          summary
       },
-      resultType: "review.v1",
       summary
    });
 }
@@ -69,6 +76,7 @@ function buildAgentEnvelope(summary: string): string {
 function buildLaunchSnapshot(input: {
    preparedPrompt: string;
    provider: "codex" | "gemini";
+   resultMode?: "schema" | "text";
 }): RunLaunchSnapshot {
    return {
       agentDigest: "digest",
@@ -93,6 +101,7 @@ function buildLaunchSnapshot(input: {
       promptTransport: "stdin",
       provider: input.provider,
       reasoningEffort: input.provider === "codex" ? "medium" : "none",
+      resultMode: input.resultMode ?? "schema",
       renderedPrompt: input.preparedPrompt,
       task: "Implement the fix",
       timeoutMs: 300000
@@ -106,7 +115,7 @@ test("codex adapter prepares a write-enabled invocation with native context file
       artifactsDir,
       contextFileNames: ["AGENTS.md", "CONTEXT.md"],
       cwd: "/repo",
-      runFile: "/repo/.../runs/run-1/result.json",
+      runFile: "/repo/.../runs/run-1/run.json",
       runId: "run-1",
       task: "Review the diff"
    });
@@ -159,7 +168,7 @@ test("gemini adapter prepares a yolo invocation with yolo approval mode", async 
       artifactsDir,
       contextFileNames: ["AGENTS.md", "CONTEXT.md"],
       cwd: "/repo",
-      runFile: "/repo/.../runs/run-2/result.json",
+      runFile: "/repo/.../runs/run-2/run.json",
       runId: "run-2",
       task: "Implement the fix"
    });
@@ -188,7 +197,7 @@ test("gemini adapter omits --model when the agent uses automatic selection", asy
    const prepared = await adapter.prepare(geminiAutoModelProfile, {
       artifactsDir: "/repo/.../runs/run-2/artifacts",
       cwd: "/repo",
-      runFile: "/repo/.../runs/run-2/result.json",
+      runFile: "/repo/.../runs/run-2/run.json",
       runId: "run-2",
       task: "Check the docs"
    });
@@ -199,16 +208,16 @@ test("gemini adapter omits --model when the agent uses automatic selection", asy
 test("gemini adapter parses structured JSON output", async () => {
    const adapter = createGeminiAdapter();
    const launch = buildLaunchSnapshot({
-      preparedPrompt: buildPrompt(geminiProfile, {
+      preparedPrompt: renderAgentPrompt(geminiProfile, {
          artifactsDir: "/repo/.../runs/run-2/artifacts",
          cwd: "/repo",
-         runFile: "/repo/.../runs/run-2/result.json",
+         runFile: "/repo/.../runs/run-2/run.json",
          runId: "run-2",
          task: "Implement the fix"
       }),
       provider: "gemini"
    });
-   const record = await adapter.parseCompletedRun({
+   const completion = await adapter.parseCompletion({
       cwd: "/repo",
       endedAt: "2026-04-05T13:10:05.000Z",
       exitCode: 0,
@@ -227,25 +236,40 @@ test("gemini adapter parses structured JSON output", async () => {
          stats: {}
       })
    });
+   const record = finalizeRunRecord({
+      artifacts: [],
+      completion,
+      cwd: "/repo",
+      endedAt: "2026-04-05T13:10:05.000Z",
+      exitCode: 0,
+      launch,
+      launchMode: "foreground",
+      profile: geminiProfile,
+      projectRoot: "/repo",
+      runId: "run-2",
+      signal: null,
+      startedAt: "2026-04-05T13:10:00.000Z",
+      stderr: ""
+   });
 
    assert.equal(record.summary, "Implemented the fix.");
-   assert.equal(record.resultType, "review.v1");
+   assert.equal(record.outcome, "done");
    assert.equal(record.status, "success");
 });
 
 test("gemini adapter reports structured JSON errors", async () => {
    const adapter = createGeminiAdapter();
    const launch = buildLaunchSnapshot({
-      preparedPrompt: buildPrompt(geminiProfile, {
+      preparedPrompt: renderAgentPrompt(geminiProfile, {
          artifactsDir: "/repo/.../runs/run-2/artifacts",
          cwd: "/repo",
-         runFile: "/repo/.../runs/run-2/result.json",
+         runFile: "/repo/.../runs/run-2/run.json",
          runId: "run-2",
          task: "Implement the fix"
       }),
       provider: "gemini"
    });
-   const record = await adapter.parseCompletedRun({
+   const completion = await adapter.parseCompletion({
       cwd: "/repo",
       endedAt: "2026-04-05T13:10:05.000Z",
       exitCode: 1,
@@ -266,17 +290,32 @@ test("gemini adapter reports structured JSON errors", async () => {
          session_id: "session-1"
       })
    });
+   const record = finalizeRunRecord({
+      artifacts: [],
+      completion,
+      cwd: "/repo",
+      endedAt: "2026-04-05T13:10:05.000Z",
+      exitCode: 1,
+      launch,
+      launchMode: "foreground",
+      profile: geminiProfile,
+      projectRoot: "/repo",
+      runId: "run-2",
+      signal: null,
+      startedAt: "2026-04-05T13:10:00.000Z",
+      stderr: ""
+   });
 
    assert.equal(record.error?.message, "Gemini auth failed.");
    assert.equal(record.status, "error");
 });
 
-test("buildPrompt appends the runtime JSON contract", () => {
+test("renderAgentPrompt appends the runtime JSON contract for schema agents", () => {
    const artifactsDir = "/repo/.../runs/run-1/artifacts";
-   const prompt = buildPrompt(codexProfile, {
+   const prompt = renderAgentPrompt(codexProfile, {
       artifactsDir,
       cwd: "/repo",
-      runFile: "/repo/.../runs/run-1/result.json",
+      runFile: "/repo/.../runs/run-1/run.json",
       runId: "run-1",
       task: "Review the release flow"
    });
@@ -284,6 +323,19 @@ test("buildPrompt appends the runtime JSON contract", () => {
    assert.doesNotMatch(prompt, /## Project Context/);
    assert.match(prompt, /Task: Review the release flow/);
    assert.match(prompt, /## Required Result Contract/);
+});
+
+test("renderAgentPrompt leaves text-mode agents unconstrained by the schema contract", () => {
+   const prompt = renderAgentPrompt(codexTextProfile, {
+      artifactsDir: "/repo/.../runs/run-1/artifacts",
+      cwd: "/repo",
+      runFile: "/repo/.../runs/run-1/run.json",
+      runId: "run-1",
+      task: "Review the release flow"
+   });
+
+   assert.match(prompt, /Task: Review the release flow/);
+   assert.doesNotMatch(prompt, /## Required Result Contract/);
 });
 
 test("toRunResult reflects the canonical result metadata", async () => {
@@ -310,25 +362,20 @@ test("toRunResult reflects the canonical result metadata", async () => {
       durationMs: 5000,
       endedAt: "2026-03-28T15:00:05.000Z",
       exitCode: 0,
-      handoff: {
-         notes: [],
-         outcome: "done",
-         questions: []
-      },
       launch,
       launchMode: "foreground",
       logs: {
          stderr: "stderr.log",
          stdout: "stdout.log"
       },
-      mode: "safe",
       model: "gpt-5.4-mini",
+      outcome: "done",
       projectRoot: "/repo",
       provider: "codex",
-      result: {
+      resultMode: "schema",
+      structuredResult: {
          findings: []
       },
-      resultType: "review.v1",
       runId: "run-5",
       schemaVersion: 1,
       signal: null,
@@ -343,23 +390,18 @@ test("toRunResult reflects the canonical result metadata", async () => {
       agentPath: "/repo/.../agents/code-reviewer.md",
       agentScope: "project",
       artifacts: [],
-      handoff: {
-         notes: [],
-         outcome: "done",
-         questions: []
-      },
       launchMode: "foreground",
-      mode: "safe",
+      outcome: "done",
       projectRoot: "/repo",
       provider: "codex",
-      result: {
+      resultMode: "schema",
+      structuredResult: {
          findings: []
       },
-      resultType: "review.v1",
       rights:
          "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
       runId: "run-5",
-      runPath: path.join(runDir, "result.json"),
+      runFile: path.join(runDir, "run.json"),
       status: "success",
       summary: "Final review summary"
    });

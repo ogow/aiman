@@ -58,6 +58,14 @@ export async function handler(
       return;
    }
 
+   const declaredCapabilities =
+      agent.capabilities !== undefined && agent.capabilities.length > 0
+         ? renderSection(
+              "Capabilities",
+              agent.capabilities.map((capability) => `- ${capability}`).join("\n")
+           )
+         : "";
+
    process.stdout.write(
       `${renderSection(
          "Agent",
@@ -70,10 +78,11 @@ export async function handler(
             { label: "Provider", value: agent.provider },
             { label: "Model", value: formatProfileModel(agent) },
             { label: "Reasoning", value: agent.reasoningEffort },
+            { label: "Result", value: agent.resultMode },
             { label: "Description", value: agent.description },
             { label: "Path", value: agent.path }
          ])
-      )}\n\n${renderSection(
+      )}${declaredCapabilities.length > 0 ? `\n\n${declaredCapabilities}` : ""}\n\n${renderSection(
          "Rights",
          renderLabelValueBlock([
             {

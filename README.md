@@ -2,7 +2,7 @@
 
 > **The human-first agent workbench.** AUTHOR agents as simple Markdown files, RUN them with a reliable engine, and INSPECT everything through a dedicated TUI.
 
-`aiman` is a lightweight terminal engine for running one agent at a time. It focuses on keeping a trustworthy, structured record of every run, making it the perfect "engine" for project-specific orchestration and loops.
+`aiman` is a lightweight terminal engine for running one agent at a time. It focuses on keeping a trustworthy, structured record of every run, making it the perfect workbench for developers.
 
 ---
 
@@ -44,9 +44,9 @@ bun run dev
 ## 🧠 Core Concepts
 
 - **Agent**: A Markdown file (`.md`) with YAML frontmatter. It defines a specialist's identity, model, and instructions.
-- **Run**: A single execution of an agent. `aiman` records the prompt, logs, artifacts, and a canonical `result.json`.
+- **Run**: A single execution of an agent. `aiman` records the prompt, logs, artifacts, and a canonical `run.json`.
 - **Harness**: The project-level environment (context files and safety rules) where agents operate.
-- **Orchestration**: Coordination logic (like loops) handled by project-local scripts that call the `aiman` API.
+- **Contract-First**: Agents are defined by their desired outcome and capabilities, similar to Claude Managed Agents, keeping the core engine small and reliable.
 
 ---
 
@@ -73,16 +73,6 @@ aiman --help
 
 ---
 
-## 🔄 Orchestration & Flows
-
-`aiman` is designed to be consumed programmatically. You can build autonomous loops by importing the `aiman` API into your own scripts.
-
-- **[Ralph Wiggum Loop](./examples/ralph-loop.ts)**: The simplest autonomous pattern—an agent suggests its own next tasks until the job is done.
-- **[The Blueprint Loop](./examples/blueprint-loop.ts)**: A more structured example using specialized roles (Planner/Generator) and deterministic test checks.
-- **[Orchestration Guide](./docs/orchestration.md)**: Detailed guidance on building loops, harnesses, and flows.
-
----
-
 ## 🧑‍💻 Development
 
 ```bash
@@ -95,6 +85,6 @@ bun run test       # Run the test suite
 ### Internal Documentation
 
 - [**Architecture**](./ARCHITECTURE.md) - How the engine is built.
+- [**Creating Agents**](./docs/creating-agents.md) - How to write effective specialists.
 - [**Agent Runtime**](./docs/agent-runtime.md) - Details on execution and results.
-- [**Agent Authoring**](./docs/agent-authoring.md) - How to write effective specialists.
 - [**Memory**](./MEMORY.md) - Project truths and daily logs.

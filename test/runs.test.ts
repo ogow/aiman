@@ -43,19 +43,7 @@ if (lastMessagePath.length > 0) {
    await mkdir(path.dirname(lastMessagePath), { recursive: true });
    await writeFile(
       lastMessagePath,
-      JSON.stringify({
-         artifacts: [],
-         handoff: {
-            notes: [],
-            outcome: "done",
-            questions: []
-         },
-         result: {
-            message: "Fake codex result"
-         },
-         resultType: "review.v1",
-         summary: "Fake codex result"
-      }),
+      "Fake codex result",
       "utf8"
    );
 }

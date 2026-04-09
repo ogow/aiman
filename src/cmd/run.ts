@@ -176,6 +176,11 @@ export async function handler(
    }
 
    process.exitCode = result.status === "success" ? 0 : 1;
+   if (result.status === "success" && typeof result.finalText === "string") {
+      process.stdout.write(`${result.finalText.trimEnd()}\n`);
+      return;
+   }
+
    if (result.status === "success" && typeof result.summary === "string") {
       process.stdout.write(`${result.summary.trimEnd()}\n`);
       return;

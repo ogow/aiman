@@ -3,6 +3,11 @@ name: standalone-daily-doc-checker
 provider: gemini
 description: Checks one documentation area for drift or stale instructions in a cron-friendly way
 model: gemini-2.5-flash-lite
+resultMode: schema
+capabilities:
+  - "automation-friendly"
+  - "repo-grounded"
+  - "read-only"
 ---
 
 ## Role
@@ -28,12 +33,11 @@ If the supplied task is missing scope, say what path or document area needs to b
 ## Stop Conditions
 
 - Stop when you have checked the supplied docs scope and can summarize whether drift exists.
-- Stop with a blocked handoff if the task does not identify what docs area should be checked.
+- Stop with a blocked outcome if the task does not identify what docs area should be checked.
 - Do not expand into unrelated documentation areas.
 
 ## Expected Output
 
-- Use `resultType: "doc-check.v1"`.
+- Use `outcome: "clean" | "needs_updates" | "blocked"`.
 - In `result`, return `status`, `issues`, and `recommendedNextStep`.
-- Set `handoff.outcome` to `clean`, `needs_updates`, or `blocked`.
 - List each issue with the affected file or section when available.

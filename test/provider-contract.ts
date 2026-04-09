@@ -11,7 +11,10 @@ import {
 } from "../src/lib/executables.js";
 import { createCodexAdapter } from "../src/lib/providers/codex.js";
 import { createGeminiAdapter } from "../src/lib/providers/gemini.js";
-import { buildPrompt } from "../src/lib/providers/shared.js";
+import {
+   finalizeRunRecord,
+   renderAgentPrompt
+} from "../src/lib/providers/runtime.js";
 import type {
    PreparedInvocation,
    ProviderAdapter,
@@ -42,11 +45,9 @@ function createContractProfile(input: {
          "{{task}}",
          "",
          "## Instructions",
-         'Set "resultType" to "provider-contract.v1".',
          'Set "summary" to "provider contract".',
+         'Set "outcome" to "done".',
          'Set "result" to an object with keys "ambientAgents", "ambientGemini", and "profilePrompt".',
-         'Set "handoff" to {"outcome":"done","notes":[],"questions":[]}.',
-         'Set "artifacts" to [].',
          "Inspect only the text already present in your instructions and any native bootstrap context the CLI applied automatically.",
          "Do not use tools and do not read workspace files.",
          'If you can see a line `AGENTS_ROUTER_SENTINEL: <value>`, set `ambientAgents` to that exact `<value>`; otherwise return `"NONE"`.',
@@ -62,6 +63,7 @@ function createContractProfile(input: {
       path: input.profilePath,
       provider: input.provider,
       reasoningEffort: input.provider === "codex" ? "medium" : "none",
+      resultMode: "schema",
       scope: "project"
    };
 }
@@ -92,7 +94,7 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
       "profiles",
       `provider-contract-${provider}.md`
    );
-   const runFile = path.join(runDir, "result.json");
+   const runFile = path.join(runDir, "run.json");
    const ambientAgentsSentinel = `ambient-agents-${provider}-sentinel`;
    const ambientGeminiSentinel = `ambient-gemini-${provider}-sentinel`;
    const profilePromptSentinel = `profile-prompt-${provider}-sentinel`;
@@ -108,6 +110,7 @@ async function createContractFixture(provider: "codex" | "gemini"): Promise<{
       `description: ${profile.description}`,
       `model: ${profile.model}`,
       `reasoningEffort: ${profile.reasoningEffort}`,
+      `resultMode: ${profile.resultMode}`,
       "---",
       "",
       profile.body.replace(
@@ -276,6 +279,7 @@ function buildLaunchSnapshot(input: {
       promptTransport: input.prepared.promptTransport,
       provider: input.profile.provider,
       reasoningEffort: input.profile.reasoningEffort,
+      resultMode: input.profile.resultMode,
       renderedPrompt: input.renderedPrompt,
       timeoutMs: input.timeoutMs
    };
@@ -336,7 +340,7 @@ async function runProviderContract(
    }
 
    const fixture = await createContractFixture(input.provider);
-   const renderedPrompt = buildPrompt(fixture.profile, {
+   const renderedPrompt = renderAgentPrompt(fixture.profile, {
       artifactsDir: path.join(fixture.runDir, "artifacts"),
       cwd: fixture.cwd,
       runFile: fixture.runFile,
@@ -381,7 +385,7 @@ async function runProviderContract(
       `${input.provider} provider contract test failed.\nSTDERR:\n${completed.stderr}\nSTDOUT:\n${completed.stdout}`
    );
 
-   const record = await input.adapter.parseCompletedRun({
+   const completion = await input.adapter.parseCompletion({
       agent: fixture.profile,
       cwd: fixture.cwd,
       endedAt: new Date().toISOString(),
@@ -402,7 +406,28 @@ async function runProviderContract(
       stderr: completed.stderr,
       stdout: completed.stdout
    });
-   const parsed = parseJsonObject(JSON.stringify(record.result));
+   const record = finalizeRunRecord({
+      artifacts: [],
+      completion,
+      cwd: fixture.cwd,
+      endedAt: new Date().toISOString(),
+      exitCode: completed.exitCode,
+      launch: buildLaunchSnapshot({
+         profile: fixture.profile,
+         prepared,
+         renderedPrompt,
+         runId: fixture.runId,
+         timeoutMs: providerContractTimeoutMs
+      }),
+      launchMode: "foreground",
+      profile: fixture.profile,
+      projectRoot: fixture.projectRoot,
+      runId: fixture.runId,
+      signal: completed.signal,
+      startedAt,
+      stderr: completed.stderr
+   });
+   const parsed = parseJsonObject(JSON.stringify(record.structuredResult));
 
    assert.equal(
       parsed.ambientAgents,

@@ -8,6 +8,7 @@ import type {
    ProjectContext,
    ProviderId,
    ReasoningEffort,
+   ResultMode,
    RunInspection,
    RunListOptions,
    RunResult,
@@ -30,6 +31,7 @@ export type {
    ProjectPaths,
    ProviderId,
    ReasoningEffort,
+   ResultMode,
    RunInspection,
    RunListOptions,
    RunResult,
@@ -37,6 +39,7 @@ export type {
 };
 
 export type CreateAgentInput = {
+   capabilities?: string[];
    description: string;
    force?: boolean;
    instructions: string;
@@ -44,6 +47,7 @@ export type CreateAgentInput = {
    name: string;
    provider: ProviderId;
    reasoningEffort?: ReasoningEffort;
+   resultMode?: ResultMode;
    scope: AgentScope;
 };
 

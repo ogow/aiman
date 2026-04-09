@@ -27,6 +27,7 @@ const sampleProfile: ScopedProfileDefinition = {
   path: "/tmp/reviewer.md",
   provider: "codex",
   reasoningEffort: "medium",
+  resultMode: "text",
   scope: "project"
 };
 
@@ -54,11 +55,6 @@ function createRun(input?: Record<string, unknown>): RunInspection {
     durationMs: 1_000,
     endedAt: "2026-04-03T10:01:00.000Z",
     exitCode: 0,
-    handoff: {
-      notes: [],
-      outcome: "done",
-      questions: []
-    },
     launch: {
       agentDigest: "agent-digest",
       agentName: "reviewer",
@@ -79,6 +75,7 @@ function createRun(input?: Record<string, unknown>): RunInspection {
       promptTransport: "stdin",
       provider: "codex",
       reasoningEffort: "medium",
+      resultMode: "text",
       renderedPrompt: "Prompt body",
       task: "Audit the repo",
       timeoutMs: 300_000
@@ -88,9 +85,10 @@ function createRun(input?: Record<string, unknown>): RunInspection {
       stderr: "stderr.log",
       stdout: "stdout.log"
     },
+    outcome: "done",
     paths: {
       artifactsDir: "/tmp/demo/artifacts",
-      resultFile: "/tmp/demo/result.json",
+      runFile: "/tmp/demo/run.json",
       runDir: "/tmp/demo",
       stopRequestedFile: "/tmp/demo/.stop-requested",
       stderrLog: "/tmp/demo/stderr.log",
@@ -98,10 +96,8 @@ function createRun(input?: Record<string, unknown>): RunInspection {
     },
     projectRoot: "/tmp/demo",
     provider: "codex",
-    result: {
-      message: "Final answer"
-    },
-    resultType: "review.v1",
+    resultMode: "text",
+    finalText: "Final answer",
     runId: "run-001",
     schemaVersion: 1,
     signal: null,
@@ -247,22 +243,16 @@ describe("AimanWorkbench", () => {
           agentPath: sampleProfile.path,
           agentScope: sampleProfile.scope,
           artifacts: [],
-          handoff: {
-            notes: [],
-            outcome: "done",
-            questions: []
-          },
+          finalText: "Final answer",
           launchMode: "foreground",
+          outcome: "done",
           provider: sampleProfile.provider,
           projectRoot: "/tmp/demo",
-          result: {
-            message: "Final answer"
-          },
-          resultType: "review.v1",
+          resultMode: "text",
           rights:
             "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
           runId: "run-001",
-          runPath: "/tmp/demo/result.json",
+          runFile: "/tmp/demo/run.json",
           status: "success",
           summary: "Final answer"
         };
@@ -303,7 +293,7 @@ describe("AimanWorkbench", () => {
             active: true,
             durationMs: undefined,
             endedAt: undefined,
-            result: undefined,
+            finalText: undefined,
             runId: "run-active",
             status: "running"
           })
@@ -323,7 +313,7 @@ describe("AimanWorkbench", () => {
 
         return createRun({
           active: false,
-          result: undefined,
+          finalText: undefined,
           runId,
           status: "cancelled"
         });
@@ -354,7 +344,7 @@ describe("AimanWorkbench", () => {
             active: true,
             durationMs: undefined,
             endedAt: undefined,
-            result: undefined,
+            finalText: undefined,
             runId: "run-active",
             startedAt: "2026-04-04T09:59:00.000Z",
             status: "running"

@@ -12,10 +12,12 @@ import {
 import type {
    ProfileScope,
    ProviderId,
-   ReasoningEffort
+   ReasoningEffort,
+   ResultMode
 } from "../lib/types.js";
 
 type AgentCreateArguments = {
+   capability?: string[];
    description?: string;
    force?: boolean;
    instructions?: string;
@@ -24,11 +26,13 @@ type AgentCreateArguments = {
    name?: string;
    provider?: ProviderId;
    reasoningEffort?: ReasoningEffort;
+   resultMode?: ResultMode;
    scope?: ProfileScope;
 };
 
 const providerChoices = ["codex", "gemini"] as const;
 const reasoningEffortChoices = ["none", "low", "medium", "high"] as const;
+const resultModeChoices = ["text", "schema"] as const;
 
 export const command = "create <name>";
 export const describe = "Create an agent";
@@ -74,6 +78,12 @@ export function builder(yargs: Argv): Argv {
          describe: "Short description for listings",
          type: "string"
       })
+      .option("capability", {
+         array: true,
+         describe:
+            "Optional informational capability declaration. Repeat for multiple values.",
+         type: "string"
+      })
       .option("instructions", {
          describe: "Agent instructions; use stdin for multiline input",
          type: "string"
@@ -88,6 +98,13 @@ export function builder(yargs: Argv): Argv {
          choices: reasoningEffortChoices,
          describe:
             'Reasoning effort for this agent. Required for Codex. Use "none" for Gemini.',
+         type: "string"
+      })
+      .option("result-mode", {
+         choices: resultModeChoices,
+         default: "text",
+         describe:
+            'How the runtime should treat the final answer. Use "text" for the default article-aligned mode, or "schema" when the agent must return structured JSON.',
          type: "string"
       })
       .option("force", {
@@ -147,6 +164,7 @@ export async function handler(
 
    const projectPaths = getProjectPaths();
    const agent = await createAgentFile(projectPaths, {
+      ...(Array.isArray(args.capability) ? { capabilities: args.capability } : {}),
       description: args.description ?? "",
       ...(args.force === true ? { force: true } : {}),
       instructions,
@@ -154,6 +172,7 @@ export async function handler(
       name: args.name,
       provider: args.provider,
       reasoningEffort,
+      resultMode: args.resultMode ?? "text",
       scope: args.scope ?? "project"
    });
 
@@ -174,6 +193,11 @@ export async function handler(
                value: formatProfileModel(agent)
             },
             { label: "Reasoning", value: agent.reasoningEffort },
+            { label: "Result", value: agent.resultMode },
+            {
+               label: "Capabilities",
+               value: agent.capabilities?.join(", ") ?? ""
+            },
             { label: "Path", value: agent.path }
          ])
       )}\n`

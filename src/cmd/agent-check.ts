@@ -88,6 +88,11 @@ export async function handler(
                })
             },
             { label: "Reasoning", value: report.profile.reasoningEffort ?? "" },
+            { label: "Result", value: report.profile.resultMode ?? "" },
+            {
+               label: "Capabilities",
+               value: report.profile.capabilities?.join(", ") ?? ""
+            },
             { label: "Path", value: report.profile.path },
             { label: "Errors", value: String(report.errors.length) },
             { label: "Warnings", value: String(report.warnings.length) }

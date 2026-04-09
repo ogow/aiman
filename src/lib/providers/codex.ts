@@ -3,15 +3,13 @@ import * as path from "node:path";
 import type { ProviderAdapter } from "../types.js";
 import {
    buildAllowedEnvironment,
-   buildPrompt,
    detectRequiredMcps,
    deriveCodexLastMessagePath,
    detectExecutable,
-   finalizeRecord,
-   parseAgentSuccessResult,
    parseCodexMcpList,
-   readOptionalFile
-} from "./shared.js";
+   readOptionalFile,
+   renderAgentPrompt
+} from "./runtime.js";
 
 function getCodexContextConfigArgs(
    contextFileNames: string[] | undefined
@@ -81,58 +79,23 @@ export function createCodexAdapter(): ProviderAdapter {
          ];
       },
       id: "codex",
-      async parseCompletedRun(input) {
-         const profile = input.profile ?? input.agent;
-
-         if (profile === undefined) {
-            throw new Error("Completed Codex run is missing its profile.");
-         }
-
+      async parseCompletion(input) {
          const lastMessagePath = deriveCodexLastMessagePath(input.runDir);
          const lastMessage = (await readOptionalFile(lastMessagePath)).trim();
-         const wroteExpectedOutput = lastMessage.length > 0;
-         const parsedResult = parseAgentSuccessResult(lastMessage);
-         const status =
-            input.signal === "SIGTERM"
-               ? "cancelled"
-               : input.exitCode === 0 &&
-                   wroteExpectedOutput &&
-                   parsedResult.error === undefined
-                 ? "success"
-                 : "error";
-         const error =
-            status === "error"
-               ? input.exitCode === 0 && !wroteExpectedOutput
-                  ? {
-                       message:
-                          "Codex did not write the expected last-message file."
-                    }
-                  : (parsedResult.error ??
-                    (input.stderr.trim().length > 0
-                       ? { message: input.stderr.trim() }
-                       : { message: "Codex execution failed." }))
-               : undefined;
+         if (lastMessage.length === 0 && input.exitCode === 0) {
+            return {
+               error: {
+                  message: "Codex did not write the expected last-message file."
+               }
+            };
+         }
 
-         return finalizeRecord({
-            cwd: input.cwd,
-            endedAt: input.endedAt,
-            ...(error ? { error } : {}),
-            exitCode: input.exitCode,
-            launchMode: input.launchMode,
-            launch: input.launch,
-            profile,
-            projectRoot: input.projectRoot,
-            runId: input.runId,
-            ...(parsedResult.result ? { result: parsedResult.result } : {}),
-            signal: input.signal,
-            startedAt: input.startedAt,
-            status
-         });
+         return lastMessage.length > 0 ? { output: lastMessage } : {};
       },
       async prepare(agent, input) {
          const runDir = path.dirname(input.runFile);
          const lastMessagePath = deriveCodexLastMessagePath(runDir);
-         const prompt = input.renderedPrompt ?? buildPrompt(agent, input);
+         const prompt = input.renderedPrompt ?? renderAgentPrompt(agent, input);
          const writableRoots =
             input.artifactsDir.length > 0
                ? ["--add-dir", input.artifactsDir]

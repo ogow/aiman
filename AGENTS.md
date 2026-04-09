@@ -10,7 +10,8 @@ Use this file as a lightweight router. Do not load every document by default. Re
 ## Read These When Relevant
 
 - [ARCHITECTURE.md](/Users/ogow/Code/aiman/ARCHITECTURE.md): current code structure and where behavior lives
-- [docs/agent-authoring.md](/Users/ogow/Code/aiman/docs/agent-authoring.md): requirements checklist and reliability guidance for creating or refining authored `aiman` agents
+- [docs/creating-agents.md](/Users/ogow/Code/aiman/docs/creating-agents.md): primary guide on how to create and use agents
+- [docs/agent-authoring.md](/Users/ogow/Code/aiman/docs/agent-authoring.md): technical reference for refining authored `aiman` specialists
 - [docs/agent-baseline.md](/Users/ogow/Code/aiman/docs/agent-baseline.md): stable neutral baseline for authored `aiman` agents via shared bootstrap context files
 - [docs/agent-debugging.md](/Users/ogow/Code/aiman/docs/agent-debugging.md): practical workflow for debugging weak, malformed, or failing authored `aiman` agents
 - [docs/cli.md](/Users/ogow/Code/aiman/docs/cli.md): command surface and CLI conventions
@@ -18,6 +19,7 @@ Use this file as a lightweight router. Do not load every document by default. Re
 - [docs/typescript-style.md](/Users/ogow/Code/aiman/docs/typescript-style.md): repo TypeScript rules adapted from the Google TypeScript Style Guide; read when editing `.ts` files
 - [package.json](/Users/ogow/Code/aiman/package.json): scripts, toolchain, and package entrypoints
 - [.agents/skills/memory-maintainer/SKILL.md](/Users/ogow/Code/aiman/.agents/skills/memory-maintainer/SKILL.md): use after meaningful actions and important architecture, code, or logic decisions
+- [.agents/skills/claude-managed-agents/SKILL.md](/Users/ogow/Code/aiman/.agents/skills/claude-managed-agents/SKILL.md): reference-heavy skill for drawing architectural and functional ideas from Claude Managed Agents
 
 ## Working Rules
 

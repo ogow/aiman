@@ -1,6 +1,6 @@
 # Agent Runtime
 
-`aiman` is a small local agent-run recorder. It launches one authored specialist agent, persists one canonical structured result, and makes that result easy to inspect through `aiman run` and `aiman runs ...`.
+`aiman` is a small local agent-run recorder. It launches one authored specialist agent, persists one canonical `run.json` ledger plus any supporting files, and makes that state easy to inspect through `aiman run` and `aiman runs ...`.
 
 ## Runtime Boundaries
 
@@ -8,12 +8,12 @@ Current responsibilities:
 
 - load authored agents from project scope, user scope, and the built-in `build` and `plan` agents
 - render the provider prompt from the authored body plus explicit placeholder substitution
-- append one runtime-enforced JSON result contract to every run prompt
+- append a runtime-enforced JSON result contract only for schema-mode agents
 - load layered harness config and pass shared native context file names to the downstream provider
 - launch and supervise the downstream CLI safely with explicit argv, cwd, and environment
 - freeze one immutable launch snapshot before execution starts
 - capture raw stdout/stderr logs
-- persist one canonical `result.json`
+- persist one canonical `run.json`
 - expose persisted state through `aiman runs show`, `aiman runs logs`, `aiman runs inspect`, and the default TUI
 
 Things `aiman` does not do:
@@ -31,16 +31,16 @@ Current flow:
 1. The caller chooses an agent name and invokes `aiman run <agent>`.
 2. `aiman` resolves the agent from project scope or user scope. Project scope wins on name collisions unless `--scope` is passed.
 3. `aiman` loads the shared repo-level `contextFileNames` setting from layered config.
-4. `aiman` renders the final prompt, appends the required JSON result contract, freezes an immutable `launch` snapshot, writes an initial running `result.json`, and chooses foreground or detached execution.
+4. `aiman` renders the final prompt, appends the schema contract only when the agent uses `resultMode: "schema"`, freezes an immutable `launch` snapshot, writes an initial running `run.json`, and chooses foreground or detached execution.
 5. The downstream provider discovers configured bootstrap context files natively as part of its own repo workflow.
-6. The active `aiman` process drains stdout and stderr into persisted logs while the provider subprocess runs, then validates the final provider output against the shared JSON success envelope and persists the final `result.json`.
+6. The active `aiman` process drains stdout and stderr into persisted logs while the provider subprocess runs, then persists the final `run.json`, validating structured output only when the agent uses `resultMode: "schema"`.
 7. Operator-facing reads derive whether the run is still active from the stored supervising `pid` plus a fresh heartbeat instead of trusting `status: running` alone.
 
 ## Agent Model
 
 Each agent is a Markdown file with frontmatter plus a provider-native body.
 
-The body remains the authored task contract. `aiman` substitutes explicit placeholders when present and then appends a strict runtime JSON success contract. Supported runtime placeholders today are:
+The body remains the authored task contract. `aiman` substitutes explicit placeholders when present. For schema-mode agents it also appends a strict runtime JSON result contract. Supported runtime placeholders today are:
 
 - `{{task}}`
 - `{{cwd}}`
@@ -56,6 +56,8 @@ Supported frontmatter for new authoring work:
 - required `provider`
 - required `description`
 - required `reasoningEffort` for Codex; optional for Gemini
+- recommended `resultMode`
+- optional informational `capabilities`
 
 `model` is provider-specific:
 
@@ -68,27 +70,28 @@ Supported frontmatter for new authoring work:
 - `gemini`: `none`
 
 Agents that use `permissions`, `contextFiles`, `skills`, or `requiredMcps` are invalid.
+Agents that use `mode` are also invalid; provider rights are a runtime concern, not authored agent frontmatter.
+When present, `capabilities` is a small descriptive list for operator visibility only and does not change runtime behavior.
 
-## Required Success Contract
+## Result Modes
 
-On successful completion, every agent must return only valid JSON with exactly these top-level keys:
+Supported modes:
 
-- `resultType`
-- `summary`
-- `result`
-- `handoff`
-- `artifacts`
+- `text`: default. The final provider answer is stored as `finalText`; operator surfaces may also use a derived `summary` for compact listings.
+- `schema`: opt-in. The final provider answer must be valid JSON with the following required top-level keys:
+  - `summary`
+  - `outcome`
+  - `result`
 
-`handoff` must contain:
+Optional schema-mode top-level keys:
 
-- `outcome`
-- `notes`
-- `questions`
-- optional `nextTask`
-- optional `nextAgent`
+- `next`
+
+`next`, when present, must be an object. Use it only when there is a clear next step for a human or another agent. Supported fields are:
+
+- optional `task`
+- optional `agent`
 - optional `inputs`
-
-`artifacts` must be an array of objects that use relative paths under `artifacts/`.
 
 If the provider exits successfully but the final message does not satisfy that contract, `aiman` records the run as an error.
 
@@ -127,7 +130,7 @@ All execution state lives under the global home store:
 ~/.aiman/runs/
   2026-04-07/
     20260407T101530Z-reviewer-ab12cd34/
-      result.json
+      run.json
       stdout.log
       stderr.log
       artifacts/
@@ -135,10 +138,10 @@ All execution state lives under the global home store:
 
 File roles:
 
-- `result.json`: canonical persisted run record
+- `run.json`: canonical persisted run ledger
 - `.stop-requested`: optional stop request marker written by `aiman runs stop <run-id>` or the default OpenTUI workbench
 - `stdout.log` / `stderr.log`: raw subprocess output when those streams contain data
-- `artifacts/`: optional directory for run-side files referenced from `result.json`
+- `artifacts/`: optional directory for run-side files produced or referenced during the run
 
 The runtime scans the filesystem directly. There is no separate database index.
 
@@ -148,9 +151,9 @@ For operator-facing reads, the runtime also derives whether the run is still act
 - inactive means the run is already terminal, or the supervising process died before the run reached a terminal record
 - when a run is inactive but still recorded as `running`, `status` and `inspect` show a warning instead of adding a new persisted lifecycle state
 
-## `result.json` Contract
+## `run.json` Contract
 
-`result.json` stores the canonical machine-readable run state. Core fields include:
+`run.json` stores the canonical machine-readable run state. Core fields include:
 
 - `schemaVersion`
 - `runId`
@@ -171,9 +174,11 @@ For operator-facing reads, the runtime also derives whether the run is still act
 - optional `signal`
 - optional `pid`
 - optional `summary`
-- optional `resultType`
-- optional `result`
-- optional `handoff`
+- required `resultMode`
+- optional `outcome`
+- optional `finalText`
+- optional `structuredResult`
+- optional `next`
 - `artifacts`
 - `logs`
 - optional `error`
@@ -182,6 +187,7 @@ For operator-facing reads, the runtime also derives whether the run is still act
 The `launch` object is the immutable evidence record for the run. It freezes:
 
 - resolved agent identity and path
+- any authored informational `capabilities`
 - provider and model
 - working directory, launch mode, timeout, and kill grace period
 - provider command, argv summary, prompt transport, allowlisted environment key names, and the rendered prompt
@@ -198,7 +204,7 @@ type ProviderAdapter = {
    detect(agent: AgentDefinition): Promise<ValidationIssue[]>;
    validateAgent(agent: AgentDefinition): ValidationIssue[];
    prepare(agent: AgentDefinition, input: PreparedRunInput): PreparedInvocation;
-   parseCompletedRun(input: CompletedRunInput): Promise<PersistedRunRecord>;
+   parseCompletion(input: CompletedRunInput): Promise<ProviderCompletion>;
 };
 ```
 
@@ -207,7 +213,8 @@ Current adapter behavior:
 - both adapters resolve a concrete CLI executable from `PATH`, including Windows `PATHEXT` shims such as `.cmd`
 - both use explicit argv instead of shell command strings
 - both run with an allowlisted environment
-- both normalize terminal output into the shared `result.json` contract
+- both normalize provider-specific terminal output into one shared completion shape
+- shared runtime code writes `run.json` and validates schema-mode output when required
 - Codex requires the persisted last-message file for a successful run
 - Gemini requires valid structured stdout from `--output-format json`
 

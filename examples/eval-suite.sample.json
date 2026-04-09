@@ -1,0 +1,20 @@
+[
+   {
+      "name": "blocked-when-scope-is-missing",
+      "task": "Review the code.",
+      "expect": {
+         "status": "success",
+         "outcome": "blocked",
+         "summaryIncludes": ["missing", "scope"]
+      }
+   },
+   {
+      "name": "returns-findings-shape",
+      "task": "Review src/lib/agents.ts for correctness risks.",
+      "expect": {
+         "status": "success",
+         "outcome": "needs_changes",
+         "structuredResultHasKeys": ["findings", "overallRisk", "recommendedAction"]
+      }
+   }
+]

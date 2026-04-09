@@ -4,7 +4,7 @@ export type ProfileScope = "project" | "user";
 
 export type ReasoningEffort = "high" | "low" | "medium" | "none";
 
-export type RunMode = "read-only" | "safe" | "workspace-write" | "yolo";
+export type ResultMode = "schema" | "text";
 
 export type LaunchMode = "detached" | "foreground";
 
@@ -31,11 +31,13 @@ export type ProviderCapabilities = {
 
 export type ProfileDefinition = {
    body: string;
+   capabilities?: string[];
    description: string;
    model: string;
    name: string;
    provider: ProviderId;
    reasoningEffort: ReasoningEffort;
+   resultMode: ResultMode;
 };
 
 export type ScopedProfileDefinition = ProfileDefinition & {
@@ -53,12 +55,14 @@ export type ValidationIssue = {
 export type ProfileCheckStatus = "invalid" | "ok" | "warnings";
 
 export type CheckedProfileDefinition = {
+   capabilities?: string[];
    id: string;
    model?: string;
    name?: string;
    path: string;
    provider?: string;
    reasoningEffort?: ReasoningEffort;
+   resultMode?: ResultMode;
    scope: ProfileScope;
 };
 
@@ -98,7 +102,7 @@ export type PreparedInvocation = {
 
 export type RunPaths = {
    artifactsDir: string;
-   resultFile: string;
+   runFile: string;
    runDir: string;
    stopRequestedFile: string;
    stderrLog: string;
@@ -130,13 +134,10 @@ export type ResultArtifact = {
    summary?: string;
 };
 
-export type ResultHandoff = {
+export type ResultNext = {
+   agent?: string;
    inputs?: Record<string, JsonValue>;
-   nextAgent?: string;
-   nextTask?: string;
-   notes: string[];
-   outcome: string;
-   questions: string[];
+   task?: string;
 };
 
 export type ResultError = {
@@ -145,12 +146,17 @@ export type ResultError = {
    message: string;
 };
 
-export type AgentSuccessResult = {
-   artifacts: ResultArtifact[];
-   handoff: ResultHandoff;
+export type SchemaModeResult = {
+   next?: ResultNext;
+   outcome: string;
    result: JsonValue;
-   resultType: string;
    summary: string;
+};
+
+export type ProviderCompletion = {
+   error?: ResultError;
+   output?: string;
+   usage?: UsageStats;
 };
 
 export type PreparedRunInput = {
@@ -188,6 +194,7 @@ export type RunLaunchSnapshot = {
    agentPath: string;
    agentScope: ProfileScope;
    args: string[];
+   capabilities?: string[];
    command: string;
    contextFiles?: string[];
    cwd: string;
@@ -195,8 +202,6 @@ export type RunLaunchSnapshot = {
    killGraceMs: number;
    launchMode: LaunchMode;
    model?: string;
-   mode?: RunMode;
-   permissions?: RunMode;
    profileDigest?: string;
    profileName?: string;
    profilePath?: string;
@@ -206,6 +211,7 @@ export type RunLaunchSnapshot = {
    promptTransport: PromptTransport;
    provider: ProviderId;
    reasoningEffort?: ReasoningEffort;
+   resultMode: ResultMode;
    renderedPrompt: string;
    task?: string;
    timeoutMs: number;
@@ -221,6 +227,7 @@ export type PersistedRunRecord = {
    endedAt?: string;
    error?: ResultError;
    exitCode?: number | null;
+   finalText?: string;
    heartbeatAt?: string;
    launch: RunLaunchSnapshot;
    launchMode: LaunchMode;
@@ -229,21 +236,21 @@ export type PersistedRunRecord = {
       stdout: string;
    };
    model?: string;
-   mode?: RunMode;
+   next?: ResultNext;
+   outcome?: string;
    pid?: number;
    projectRoot: string;
    provider: ProviderId;
-   result?: JsonValue;
-   resultType?: string;
+   resultMode: ResultMode;
    runId: string;
    schemaVersion: 1;
    signal?: string | null;
    startedAt: string;
    status: RunStatus;
+   structuredResult?: JsonValue;
    summary?: string;
    task?: string;
    usage?: UsageStats;
-   handoff?: ResultHandoff;
 };
 
 export type RunResult = {
@@ -252,17 +259,18 @@ export type RunResult = {
    agentScope: ProfileScope;
    artifacts: ResultArtifact[];
    error?: ResultError;
-   handoff?: ResultHandoff;
+   finalText?: string;
    launchMode: LaunchMode;
-   mode?: RunMode;
+   next?: ResultNext;
+   outcome?: string;
    projectRoot: string;
    provider: ProviderId;
-   result?: JsonValue;
-   resultType?: string;
+   resultMode: ResultMode;
    rights: string;
    runId: string;
-   runPath: string;
+   runFile: string;
    status: TerminalRunStatus;
+   structuredResult?: JsonValue;
    summary?: string;
 };
 
@@ -298,7 +306,7 @@ export type RunListOptions = {
 export type ProviderAdapter = {
    detect(profile: ProfileDefinition): Promise<ValidationIssue[]>;
    id: ProviderId;
-   parseCompletedRun(input: CompletedRunInput): Promise<PersistedRunRecord>;
+   parseCompletion(input: CompletedRunInput): Promise<ProviderCompletion>;
    prepare(
       profile: ProfileDefinition,
       input: PreparedRunInput

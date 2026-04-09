@@ -337,11 +337,16 @@ export function buildRunSummary(run: RunInspection | undefined): string {
       { label: "Run", value: run.runId },
       { label: "Agent", value: getRunShortLabel(run) },
       { label: "Provider", value: run.provider },
+      { label: "Result", value: run.resultMode },
       { label: "Rights", value: formatRunRights(run.provider) },
       { label: "Launch", value: run.launchMode },
       {
          label: "Status",
          value: getRunDisplayStatus(run)
+      },
+      {
+         label: "Outcome",
+         value: typeof run.outcome === "string" ? run.outcome : ""
       },
       { label: "Started", value: formatTimestamp(run.startedAt) },
       { label: "Ended", value: formatTimestamp(run.endedAt) },
@@ -373,8 +378,10 @@ export function buildAnswerContent(input: {
    }
 
    const answer =
-      input.run.result !== undefined
-         ? JSON.stringify(input.run.result, null, 2).trim()
+      input.run.structuredResult !== undefined
+         ? JSON.stringify(input.run.structuredResult, null, 2).trim()
+         : typeof input.run.finalText === "string"
+           ? input.run.finalText.trim()
          : typeof input.run.summary === "string"
            ? input.run.summary.trim()
            : "";
@@ -389,7 +396,7 @@ export function buildAnswerContent(input: {
 
    return input.run.status === "running"
       ? "Run is still active. Switch to the logs tab for live output."
-      : "This run did not record a structured result.";
+      : "This run did not record a final answer.";
 }
 
 export function trimLiveOutput(value: string, maxLength = 24 * 1024): string {

@@ -41,9 +41,10 @@ Avoid large tasks while debugging the authored contract. If the first task is hu
 `aiman runs show <run-id>` is the first runtime read:
 
 - parsed `summary`
-- `resultType`
-- `result`
-- `handoff`
+- `finalText` for text-mode runs
+- `structuredResult` for schema-mode runs
+- `outcome`
+- `next`
 - final error, if any
 
 `aiman runs inspect <run-id> --stream prompt` shows the exact rendered prompt:
@@ -52,11 +53,14 @@ Avoid large tasks while debugging the authored contract. If the first task is hu
 - whether the task-specific `result` guidance is explicit enough
 - whether the stop conditions are actually present
 
-`aiman runs inspect <run-id> --stream run` shows the canonical `result.json`:
+`aiman runs inspect <run-id> --stream run` shows the canonical `run.json`:
 
 - final `status`
-- structured `result`
-- `handoff`
+- `resultMode`
+- optional `finalText`
+- optional `structuredResult`
+- `outcome`
+- `next`
 - `artifacts`
 - immutable `launch` snapshot
 
@@ -77,24 +81,24 @@ The agent wanders:
 The agent guesses when evidence is missing:
 
 - add explicit missing-evidence behavior
-- tell it to return a blocked handoff instead of speculating
+- tell it to return a blocked `outcome` instead of speculating
 
 The agent returns vague structured output:
 
 - define the fields inside `result`
-- name the intended `resultType`
+- name the intended `outcome` values
 - make `Expected Output` list-shaped and concrete
 
 The next agent still cannot use the run:
 
-- tighten `handoff.nextTask`
+- tighten `next.task`
 - keep the important facts in `result`
 - use `artifacts/` only for larger detail, not as the main contract
 
 The provider appears successful but the run is still an error:
 
 - inspect `stdout.log`
-- check whether the final provider message satisfied the required JSON success envelope
+- check whether the final provider message satisfied the required schema-mode JSON envelope
 - confirm the agent body did not encourage extra prose around the final JSON
 
 ## What Good Looks Like
@@ -102,9 +106,9 @@ The provider appears successful but the run is still an error:
 A healthy authored agent usually has:
 
 - one narrow role
-- one stable `resultType`
-- one explicit task-specific `result` shape
+- one small set of stable `outcome` values
+- one explicit final deliverable
 - one clear blocked path when information is missing
 - one short stop rule that prevents endless exploration
 
-If another agent can read `summary`, `result`, `handoff`, and `artifacts` from `result.json` without rereading logs, the contract is in good shape.
+If another agent can read the key outcome, final answer or structured result, optional `next`, and relevant artifacts from `run.json` without rereading logs, the contract is in good shape.

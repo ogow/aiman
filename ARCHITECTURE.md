@@ -5,8 +5,8 @@
 ## Core Shape
 
 - **Agent Management**: Owns the strict agent catalog, validation, and agent-file creation.
-- **Execution Engine**: Manages run preparation, provider adapters (Codex, Gemini), and execution supervision.
-- **Persistence**: Owns persisted run files under `~/.aiman/runs/`, including the canonical `result.json` record.
+- **Execution Engine**: Manages run preparation, thin provider adapters (Codex, Gemini), result-mode-aware finalization, and execution supervision.
+- **Persistence**: Owns persisted run files under `~/.aiman/runs/`, including the canonical `run.json` ledger.
 - **Workbench**: The interactive OpenTUI terminal application.
 - **CLI**: Provides the `aiman` binary with `agent`, `run`, and `runs` command groups.
 - **API**: Exposes the `createAiman()` package facade for programmatic use.
@@ -25,4 +25,5 @@ Orchestration logic is maintained in standalone TypeScript scripts (e.g., `examp
 
 - Treat `src/index.ts` and `src/api/client.ts` as the stable script-facing contract.
 - Keep the CLI thin. If logic is worth testing or reuse, move it into the library or the public facade.
-- Keep run persistence file-first and explicit. `result.json` is canonical; logs and `artifacts/` are supporting evidence.
+- Keep run persistence file-first and explicit. `run.json` is canonical metadata; logs and `artifacts/` are supporting evidence.
+- Keep provider adapters thin. They should normalize provider-specific transport and let shared runtime code finalize persisted run records, validating schema-mode agents only when they explicitly opt in.

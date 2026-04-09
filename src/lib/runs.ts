@@ -3,7 +3,8 @@ import type { ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import type { WriteStream } from "node:fs";
 import { createWriteStream } from "node:fs";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import * as path from "node:path";
 
 import { loadAimanConfig } from "./config.js";
 import { UserError } from "../lib/errors.js";
@@ -15,20 +16,20 @@ import {
 } from "../lib/paths.js";
 import { loadAgentDefinition } from "../lib/agents.js";
 import { formatRunRights } from "../lib/provider-capabilities.js";
-import { buildPrompt } from "./providers/shared.js";
+import { finalizeRunRecord, renderAgentPrompt } from "./providers/runtime.js";
 import {
-   buildRunPaths,
    buildRunDirectory,
+   buildRunPaths,
    createFailedRunRecord,
    createRunId,
    listRunDetails,
-   persistResult,
+   persistRunRecord,
    readRunDetails,
    readRunLog,
    toRunResult,
    writeRunState,
    writeRunStateIfRunning
-} from "./run-store.js";
+} from "./run-records.js";
 import { getAdapterForProvider } from "./providers/index.js";
 import type {
    LaunchMode,
@@ -37,6 +38,7 @@ import type {
    PromptTransport,
    ProfileScope,
    ProviderId,
+   ResultArtifact,
    RunLaunchSnapshot,
    RunInspection,
    RunListOptions,
@@ -152,6 +154,7 @@ async function writeRunningState(input: {
          : {}),
       projectRoot: input.projectRoot,
       provider: input.profile.provider,
+      resultMode: input.profile.resultMode,
       runId: input.runId,
       schemaVersion: 1 as const,
       startedAt: input.startedAt,
@@ -163,11 +166,11 @@ async function writeRunningState(input: {
    } satisfies Parameters<typeof writeRunState>[1];
 
    if (input.onlyIfRunning === true) {
-      await writeRunStateIfRunning(paths.resultFile, nextState);
+      await writeRunStateIfRunning(paths.runFile, nextState);
       return;
    }
 
-   await writeRunState(paths.resultFile, nextState);
+   await writeRunState(paths.runFile, nextState);
 }
 
 function createLazyLogWriter(filePath: string): {
@@ -313,11 +316,47 @@ async function persistDetachedLaunchFailure(
       startedAt: preparedRun.startedAt
    });
 
-   await persistResult(record, paths.resultFile);
+   await persistRunRecord(record, paths.runFile);
 }
 
 function hashText(value: string): string {
    return createHash("sha256").update(value).digest("hex");
+}
+
+async function collectArtifactsFromDirectory(
+   artifactsDir: string,
+   currentDir = artifactsDir
+): Promise<ResultArtifact[]> {
+   const entries = await readdir(currentDir, { withFileTypes: true });
+   const artifacts: ResultArtifact[] = [];
+
+   for (const entry of entries) {
+      const entryPath = `${currentDir}/${entry.name}`;
+
+      if (entry.isDirectory()) {
+         artifacts.push(
+            ...(await collectArtifactsFromDirectory(artifactsDir, entryPath))
+         );
+         continue;
+      }
+
+      if (!entry.isFile()) {
+         continue;
+      }
+
+      const resolvedPath = path.resolve(entryPath);
+      const relativePath = path.relative(artifactsDir, resolvedPath);
+      const stats = await stat(resolvedPath);
+
+      artifacts.push({
+         exists: true,
+         path: relativePath,
+         resolvedPath,
+         summary: `${stats.size} bytes`
+      });
+   }
+
+   return artifacts.sort((left, right) => left.path.localeCompare(right.path));
 }
 
 function snapshotInvocationArgs(input: PreparedInvocation): string[] {
@@ -355,7 +394,7 @@ function buildLaunchEnvironment(input: {
             key === "AIMAN_ARTIFACTS_DIR"
                ? input.paths.artifactsDir
                : key === "AIMAN_RUN_PATH"
-                 ? input.paths.resultFile
+                 ? input.paths.runFile
                  : key === "AIMAN_RUN_DIR"
                    ? input.paths.runDir
                    : key === "AIMAN_RUN_ID"
@@ -387,6 +426,10 @@ async function buildLaunchSnapshot(input: {
       agentPath: input.profile.path,
       agentScope: input.profile.scope,
       args: snapshotInvocationArgs(input.prepared),
+      ...(input.profile.capabilities !== undefined &&
+      input.profile.capabilities.length > 0
+         ? { capabilities: input.profile.capabilities }
+         : {}),
       command: input.prepared.command,
       ...(input.contextFiles !== undefined && input.contextFiles.length > 0
          ? { contextFiles: input.contextFiles }
@@ -406,6 +449,7 @@ async function buildLaunchSnapshot(input: {
       promptDigest: hashText(input.prepared.renderedPrompt),
       promptTransport: input.prepared.promptTransport,
       provider: input.profile.provider,
+      resultMode: input.profile.resultMode,
       renderedPrompt: input.prepared.renderedPrompt,
       task: input.task,
       timeoutMs: input.timeoutMs
@@ -458,10 +502,10 @@ async function prepareRun(
    await mkdir(runDir, { recursive: true });
    const paths = buildRunPaths(runDir);
    await mkdir(paths.artifactsDir, { recursive: true });
-   const renderedPrompt = buildPrompt(profile, {
+   const renderedPrompt = renderAgentPrompt(profile, {
       artifactsDir: paths.artifactsDir,
       cwd: runCwd,
-      runFile: paths.resultFile,
+      runFile: paths.runFile,
       runId,
       task: input.task
    });
@@ -470,7 +514,7 @@ async function prepareRun(
       artifactsDir: paths.artifactsDir,
       cwd: runCwd,
       renderedPrompt,
-      runFile: paths.resultFile,
+      runFile: paths.runFile,
       runId,
       ...(config.contextFileNames !== undefined
          ? { contextFileNames: config.contextFileNames }
@@ -552,6 +596,9 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
 
    const profile: ScopedProfileDefinition = {
       body: renderedPrompt,
+      ...(run.launch.capabilities !== undefined
+         ? { capabilities: run.launch.capabilities }
+         : {}),
       description: "",
       id: profileName,
       ...(profilePath.startsWith("<builtin>/") ? { isBuiltIn: true } : {}),
@@ -560,6 +607,7 @@ async function loadPreparedRun(runId: string): Promise<PreparedRun> {
       path: profilePath,
       provider: run.launch.provider,
       reasoningEffort: run.launch.reasoningEffort ?? "none",
+      resultMode: run.launch.resultMode,
       scope: profileScope
    };
 
@@ -778,12 +826,12 @@ async function executePreparedRun(
          startedAt: preparedRun.startedAt
       });
 
-      await persistResult(record, paths.resultFile);
+      await persistRunRecord(record, paths.runFile);
       return toRunResult(record, paths);
    }
 
    const adapter = getAdapterForProvider(preparedRun.profile.provider);
-   const record = await adapter.parseCompletedRun({
+   const providerCompletion = await adapter.parseCompletion({
       cwd: preparedRun.runCwd,
       endedAt,
       exitCode: completion.exitCode,
@@ -798,6 +846,22 @@ async function executePreparedRun(
       stderr,
       stdout
    });
+   const artifacts = await collectArtifactsFromDirectory(paths.artifactsDir);
+   const record = finalizeRunRecord({
+      artifacts,
+      completion: providerCompletion,
+      cwd: preparedRun.runCwd,
+      endedAt,
+      exitCode: completion.exitCode,
+      launch: preparedRun.launch,
+      launchMode: preparedRun.launchMode,
+      profile: preparedRun.profile,
+      projectRoot: preparedRun.projectRoot,
+      runId: preparedRun.runId,
+      signal: completion.signal ?? (stopRequested ? "SIGTERM" : null),
+      startedAt: preparedRun.startedAt,
+      stderr
+   });
    const finalRecord = timedOut
       ? {
            ...record,
@@ -808,7 +872,7 @@ async function executePreparedRun(
         }
       : record;
 
-   await persistResult(finalRecord, paths.resultFile);
+   await persistRunRecord(finalRecord, paths.runFile);
 
    return toRunResult(finalRecord, paths);
 }

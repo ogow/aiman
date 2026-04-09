@@ -14,12 +14,13 @@ import type {
    ProfileScope,
    ProviderId,
    ReasoningEffort,
+   ResultMode,
    ScopedProfileDefinition,
    ValidationIssue
 } from "./types.js";
 
 const providers = new Set<ProviderId>(["codex", "gemini"]);
-const legacyRunModes = new Set(["safe", "yolo"]);
+const resultModes = new Set<ResultMode>(["schema", "text"]);
 const codexReasoningEfforts = new Set<ReasoningEffort>([
    "none",
    "low",
@@ -32,6 +33,7 @@ const recommendedSectionNames = [
    "Task Input",
    "Instructions",
    "Constraints",
+   "Stop Conditions",
    "Expected Output"
 ] as const;
 const taskPlaceholder = "{{task}}";
@@ -61,6 +63,11 @@ export const builtinProfiles: ScopedProfileDefinition[] = [
          "- Use the repo's native context files.",
          "- If something is risky or blocked, say so clearly.",
          "",
+         "## Stop Conditions",
+         "- Stop when the requested task is complete enough to summarize clearly.",
+         "- Stop with a blocked outcome when required context or evidence is missing.",
+         "- Do not keep exploring once the requested outcome is already clear.",
+         "",
          "## Expected Output",
          "- Deliver the requested result.",
          "- Mention any verification you completed.",
@@ -74,6 +81,7 @@ export const builtinProfiles: ScopedProfileDefinition[] = [
       path: "<builtin>/build",
       provider: "codex",
       reasoningEffort: "medium",
+      resultMode: "text",
       scope: "user"
    },
    {
@@ -94,6 +102,11 @@ export const builtinProfiles: ScopedProfileDefinition[] = [
          "- Use the repo's native context files.",
          "- Call out open questions and risks clearly.",
          "",
+         "## Stop Conditions",
+         "- Stop when the recommendation or plan is clear enough to act on.",
+         "- Stop with a blocked recommendation if required evidence is missing.",
+         "- Do not continue exploring once the key risks and next step are already clear.",
+         "",
          "## Expected Output",
          "- Provide a clear recommendation or plan.",
          "- Highlight key risks or unknowns.",
@@ -107,6 +120,7 @@ export const builtinProfiles: ScopedProfileDefinition[] = [
       path: "<builtin>/plan",
       provider: "codex",
       reasoningEffort: "medium",
+      resultMode: "text",
       scope: "user"
    }
 ];
@@ -125,6 +139,49 @@ function normalizeName(value: string): string {
 
 function humanizeProfileName(name: string): string {
    return name.trim().replace(/[-_]+/g, " ").replace(/\s+/g, " ");
+}
+
+function normalizeCapabilities(
+   value: unknown,
+   agentName: string
+): string[] | undefined {
+   if (value === undefined) {
+      return undefined;
+   }
+
+   if (!Array.isArray(value)) {
+      throw new UserError(
+         `Agent "${agentName}" has invalid capabilities. Use a YAML list of non-empty strings.`
+      );
+   }
+
+   const normalized: string[] = [];
+   const seen = new Set<string>();
+
+   for (const entry of value) {
+      if (typeof entry !== "string") {
+         throw new UserError(
+            `Agent "${agentName}" has invalid capabilities. Use a YAML list of non-empty strings.`
+         );
+      }
+
+      const trimmedEntry = entry.trim();
+
+      if (trimmedEntry.length === 0) {
+         throw new UserError(
+            `Agent "${agentName}" has invalid capabilities. Empty values are not allowed.`
+         );
+      }
+
+      if (seen.has(trimmedEntry)) {
+         continue;
+      }
+
+      seen.add(trimmedEntry);
+      normalized.push(trimmedEntry);
+   }
+
+   return normalized.length > 0 ? normalized : undefined;
 }
 
 function ensureTrailingPeriod(value: string): string {
@@ -179,16 +236,22 @@ function validateFrontmatterAttributes(
       typeof attributes.description === "string"
          ? attributes.description.trim()
          : undefined;
+   const capabilities = normalizeCapabilities(
+      attributes.capabilities,
+      name ?? "unknown"
+   );
    const model =
       typeof attributes.model === "string"
          ? attributes.model.trim()
          : undefined;
-   const mode =
-      typeof attributes.mode === "string" ? attributes.mode.trim() : undefined;
    const reasoningEffort =
       typeof attributes.reasoningEffort === "string"
          ? attributes.reasoningEffort.trim()
          : undefined;
+   const resultMode =
+      typeof attributes.resultMode === "string"
+         ? attributes.resultMode.trim()
+         : "text";
 
    if (typeof name !== "string" || name.length === 0) {
       throw new UserError(`Agent file ${filePath} is missing a name.`);
@@ -210,6 +273,12 @@ function validateFrontmatterAttributes(
       );
    }
 
+   if (attributes.mode !== undefined) {
+      throw new UserError(
+         `Agent "${name}" uses unsupported field "mode". Provider rights now come from the runtime and provider adapter, not agent frontmatter.`
+      );
+   }
+
    if (attributes.contextFiles !== undefined) {
       throw new UserError(
          `Agent "${name}" uses unsupported field "contextFiles". Configure shared repo context file names in .../config.json instead of per-agent frontmatter.`
@@ -225,6 +294,12 @@ function validateFrontmatterAttributes(
    if (attributes.skills !== undefined) {
       throw new UserError(
          `Agent "${name}" uses unsupported field "skills". Let the downstream provider discover skills natively from the repo instead of declaring them in agent frontmatter.`
+      );
+   }
+
+   if (!resultModes.has(resultMode as ResultMode)) {
+      throw new UserError(
+         `Agent "${name}" has invalid resultMode "${resultMode}". Use one of "text" or "schema".`
       );
    }
 
@@ -264,21 +339,19 @@ function validateFrontmatterAttributes(
       );
    }
 
-   if (mode !== undefined && !legacyRunModes.has(mode)) {
-      throw new UserError(`Agent "${name}" has invalid mode: ${mode}.`);
-   }
-
    if (body.length === 0) {
       throw new UserError(`Agent "${name}" has an empty body.`);
    }
 
    return {
       body,
+      ...(capabilities !== undefined ? { capabilities } : {}),
       description,
       model,
       name,
       provider: provider as ProviderId,
-      reasoningEffort: effectiveReasoningEffort as ReasoningEffort
+      reasoningEffort: effectiveReasoningEffort as ReasoningEffort,
+      resultMode: resultMode as ResultMode
    };
 }
 
@@ -463,12 +536,14 @@ function dedupeValidationIssues(issues: ValidationIssue[]): ValidationIssue[] {
 }
 
 function renderProfileMarkdown(input: {
+   capabilities?: string[];
    description: string;
    instructions: string;
    model: string;
    name: string;
    provider: ProviderId;
    reasoningEffort: ReasoningEffort;
+   resultMode: ResultMode;
 }): string {
    return [
       "---",
@@ -476,6 +551,15 @@ function renderProfileMarkdown(input: {
       `provider: ${input.provider}`,
       `description: ${input.description}`,
       `model: ${input.model}`,
+      `resultMode: ${input.resultMode}`,
+      ...(input.capabilities !== undefined && input.capabilities.length > 0
+         ? [
+              "capabilities:",
+              ...input.capabilities.map(
+                 (capability) => `  - ${JSON.stringify(capability)}`
+              )
+           ]
+         : []),
       ...(input.provider === "gemini" && input.reasoningEffort === "none"
          ? []
          : [`reasoningEffort: ${input.reasoningEffort}`]),
@@ -494,6 +578,11 @@ function renderProfileMarkdown(input: {
       "- Use the repo's native context files.",
       "- State assumptions clearly when information is missing.",
       "- Call out blockers directly instead of guessing.",
+      "",
+      "## Stop Conditions",
+      "- Stop when you can deliver the requested outcome clearly.",
+      "- Stop with a blocked outcome when required context or evidence is missing.",
+      "- Do not keep exploring once the answer shape is already clear.",
       "",
       "## Expected Output",
       "- Deliver a concise result focused on the task.",
@@ -559,6 +648,7 @@ export async function loadProfileDefinition(
 export async function createProfileFile(
    projectPaths: ProjectPaths,
    input: {
+      capabilities?: string[];
       description: string;
       force?: boolean;
       instructions: string;
@@ -566,6 +656,7 @@ export async function createProfileFile(
       name: string;
       provider: ProviderId;
       reasoningEffort?: ReasoningEffort;
+      resultMode?: ResultMode;
       scope: ProfileScope;
    }
 ): Promise<ScopedProfileDefinition> {
@@ -574,8 +665,10 @@ export async function createProfileFile(
    const trimmedInstructions = input.instructions.trim();
    const provider = input.provider;
    const model = input.model.trim();
+   const capabilities = normalizeCapabilities(input.capabilities, trimmedName);
    const reasoningEffort =
       input.reasoningEffort ?? (provider === "gemini" ? "none" : undefined);
+   const resultMode = input.resultMode ?? "text";
 
    if (reasoningEffort === undefined) {
       throw new UserError(
@@ -620,12 +713,14 @@ export async function createProfileFile(
    }
 
    const renderedProfile = renderProfileMarkdown({
+      ...(capabilities !== undefined ? { capabilities } : {}),
       description: trimmedDescription,
       instructions: trimmedInstructions,
       model,
       name: trimmedName,
       provider,
-      reasoningEffort
+      reasoningEffort,
+      resultMode
    });
    const parsedProfile = parseFrontmatter(renderedProfile);
    validateFrontmatterAttributes(
@@ -681,12 +776,16 @@ export async function checkProfileDefinition(
    return {
       errors: dedupeValidationIssues(errors),
       profile: {
+         ...(profile.capabilities !== undefined
+            ? { capabilities: profile.capabilities }
+            : {}),
          id: profile.id,
          ...(typeof profile.model === "string" ? { model: profile.model } : {}),
          name: profile.name,
          path: profile.path,
          provider: profile.provider,
          reasoningEffort: profile.reasoningEffort,
+         resultMode: profile.resultMode,
          scope: profile.scope
       },
       status:

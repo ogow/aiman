@@ -3,14 +3,12 @@ import * as path from "node:path";
 import type { ProviderAdapter } from "../types.js";
 import {
    buildAllowedEnvironment,
-   buildPrompt,
    detectRequiredMcps,
    detectExecutable,
-   finalizeRecord,
-   parseAgentSuccessResult,
    parseGeminiMcpList,
-   rejectUnsupportedReasoningEffort
-} from "./shared.js";
+   rejectUnsupportedReasoningEffort,
+   renderAgentPrompt
+} from "./runtime.js";
 
 type GeminiJsonError = {
    message?: string;
@@ -147,58 +145,30 @@ export function createGeminiAdapter(): ProviderAdapter {
          ];
       },
       id: "gemini",
-      async parseCompletedRun(input) {
-         const profile = input.profile ?? input.agent;
-
-         if (profile === undefined) {
-            throw new Error("Completed Gemini run is missing its profile.");
+      async parseCompletion(input) {
+         const parsedOutput = parseGeminiJsonOutput(input.stdout);
+         if (parsedOutput.parseError !== undefined) {
+            return {
+               error: {
+                  message: parsedOutput.parseError
+               }
+            };
          }
 
-         const parsedOutput = parseGeminiJsonOutput(input.stdout);
-         const parsedResult =
-            parsedOutput.parseError === undefined &&
-            parsedOutput.errorMessage === undefined
-               ? parseAgentSuccessResult(parsedOutput.responseText)
-               : {};
-         const status =
-            input.signal === "SIGTERM"
-               ? "cancelled"
-               : input.exitCode === 0 &&
-                   parsedOutput.parseError === undefined &&
-                   parsedOutput.errorMessage === undefined &&
-                   parsedResult.error === undefined
-                 ? "success"
-                 : "error";
-         const error =
-            status === "error"
-               ? (parsedResult.error ??
-                 (parsedOutput.parseError
-                    ? { message: parsedOutput.parseError }
-                    : parsedOutput.errorMessage
-                      ? { message: parsedOutput.errorMessage }
-                      : input.stderr.trim().length > 0
-                        ? { message: input.stderr.trim() }
-                        : { message: "Gemini execution failed." }))
-               : undefined;
+         if (parsedOutput.errorMessage !== undefined) {
+            return {
+               error: {
+                  message: parsedOutput.errorMessage
+               }
+            };
+         }
 
-         return finalizeRecord({
-            cwd: input.cwd,
-            endedAt: input.endedAt,
-            ...(error ? { error } : {}),
-            exitCode: input.exitCode,
-            launchMode: input.launchMode,
-            launch: input.launch,
-            profile,
-            projectRoot: input.projectRoot,
-            runId: input.runId,
-            ...(parsedResult.result ? { result: parsedResult.result } : {}),
-            signal: input.signal,
-            startedAt: input.startedAt,
-            status
-         });
+         return {
+            output: parsedOutput.responseText
+         };
       },
       async prepare(agent, input) {
-         const prompt = input.renderedPrompt ?? buildPrompt(agent, input);
+         const prompt = input.renderedPrompt ?? renderAgentPrompt(agent, input);
          const runDir = path.dirname(input.runFile);
          const childSettingsOverlay = getGeminiChildSettingsOverlay({
             ...(input.contextFileNames !== undefined

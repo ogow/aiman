@@ -1,6 +1,6 @@
 # Debugging Authored Aiman Agents
 
-Use this reference when a created agent is vague, malformed, blocked unexpectedly, or hard for another agent to consume.
+Use this reference when a created agent is vague, malformed, blocked unexpectedly, or hard for another reader to consume.
 
 ## Start Small
 
@@ -39,9 +39,10 @@ Bad smoke tasks:
 `aiman runs show <run-id>`:
 
 - parsed `summary`
-- `resultType`
-- `result`
-- `handoff`
+- `finalText` for text-mode runs
+- `structuredResult` for schema-mode runs
+- `outcome`
+- `next`
 - final error
 
 `aiman runs inspect <run-id> --stream prompt`:
@@ -51,7 +52,7 @@ Bad smoke tasks:
 
 `aiman runs inspect <run-id> --stream run`:
 
-- the canonical persisted `result.json`
+- the canonical persisted `run.json`
 - the immutable launch snapshot
 - whether the final run was `success`, `error`, or stuck in `running`
 
@@ -71,23 +72,24 @@ The agent wanders:
 The agent guesses:
 
 - tell it exactly what to do when evidence is missing
-- require blocked handoff behavior instead of speculation
+- require a blocked outcome instead of speculation
 
 The agent returns vague results:
 
-- define the fields inside `result`
-- name a stable `resultType`
+- for text-mode agents, define what the final answer must cover
+- for schema-mode agents, define the fields inside `result` and the allowed `outcome` values
 - make `Expected Output` concrete and list-shaped
 
 The agent produces malformed success JSON:
 
-- remind the body that the runtime already enforces the outer envelope
-- make the body describe only the task-specific `result`
+- confirm the agent actually declares `resultMode: schema`
+- remind the body that the runtime already enforces the outer schema envelope
+- make the body describe only the task-specific `result` plus any expected `next`
 - smoke test again and inspect `stdout.log` if the provider emitted extra prose
 
 The next agent still cannot use the result:
 
-- tighten `handoff.nextTask`
+- tighten `next.task`
 - put the key structured facts into `result`
 - move large detail into `artifacts/` and describe those artifacts explicitly
 
@@ -97,7 +99,7 @@ Prefer this order:
 
 1. fix the authored body
 2. rerun the same small task
-3. inspect `result.json`
+3. inspect `run.json`
 4. only then try a more realistic task
 
 That keeps the debug loop fast and makes regressions easier to see.

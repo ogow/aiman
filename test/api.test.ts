@@ -56,19 +56,7 @@ if (lastMessagePath.length > 0) {
    await mkdir(path.dirname(lastMessagePath), { recursive: true });
    await writeFile(
       lastMessagePath,
-      JSON.stringify({
-         artifacts: [],
-         handoff: {
-            notes: [],
-            outcome: "done",
-            questions: []
-         },
-         result: {
-            message: "API result"
-         },
-         resultType: "review.v1",
-         summary: "API result"
-      }),
+      "API result",
       "utf8"
    );
 }
@@ -121,6 +109,9 @@ description: Reviews changes carefully
 provider: codex
 model: gpt-5.4-mini
 reasoningEffort: medium
+capabilities:
+  - repo-grounded
+  - read-only
 ---
 
 ## Role
@@ -143,6 +134,8 @@ You are a focused reviewer.
    try {
       const aiman = await createAiman({ projectRoot });
       const agents = await aiman.agents.list();
+      const reviewer = await aiman.agents.get("reviewer");
+      const check = await aiman.agents.check("reviewer");
 
       const result = await aiman.runs.run("reviewer", {
          agentScope: "project",
@@ -151,6 +144,11 @@ You are a focused reviewer.
       const run = await aiman.runs.get(result.runId);
 
       expect(agents.some((entry) => entry.name === "reviewer")).toBe(true);
+      expect(reviewer.capabilities).toEqual(["repo-grounded", "read-only"]);
+      expect(check.agent.capabilities).toEqual([
+         "repo-grounded",
+         "read-only"
+      ]);
       expect(result.status).toBe("success");
       expect(result.summary).toBe("API result");
       expect(run.summary).toBe("API result");
