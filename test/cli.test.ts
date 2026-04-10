@@ -241,7 +241,21 @@ test("agent create writes a project-scope agent", async () => {
    const content = await readFile(agentPath, "utf8");
    assert.match(content, /name: tester/);
    assert.match(content, /description: Runs tests/);
+   assert.match(content, /<task>\s*\{\{task\}\}\s*<\/task>/);
    assert.match(content, /## Stop Conditions/);
+
+   const checkResult = runCli(["agent", "check", "tester", "--json"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+
+   assert.equal(checkResult.status, 0);
+   const checkReport = JSON.parse(checkResult.stdout) as {
+      status: string;
+      warnings: Array<{ code: string }>;
+   };
+   assert.equal(checkReport.status, "ok");
+   assert.deepEqual(checkReport.warnings, []);
 });
 
 test("agent create writes informational capabilities when requested", async () => {
@@ -284,6 +298,54 @@ test("agent create writes informational capabilities when requested", async () =
    assert.match(content, /capabilities:/);
    assert.match(content, /- "human-facing"/);
    assert.match(content, /- "repo-grounded"/);
+});
+
+test("agent create writes timeoutMs when requested", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+
+   const result = runCli(
+      [
+         "agent",
+         "create",
+         "timeout-tester",
+         "--description",
+         "Runs tests",
+         "--instructions",
+         "Run them",
+         "--model",
+         "gpt-5.4-mini",
+         "--provider",
+         "codex",
+         "--reasoning-effort",
+         "medium",
+         "--timeout-ms",
+         "0",
+         "--scope",
+         "project"
+      ],
+      {
+         cwd: projectRoot,
+         env: createCliEnv({ homeRoot })
+      }
+   );
+
+   assert.equal(result.status, 0);
+   const content = await readFile(
+      path.join(projectRoot, ".aiman", "agents", "timeout-tester.md"),
+      "utf8"
+   );
+   assert.match(content, /timeoutMs: 0/);
+
+   const checkResult = runCli(["agent", "check", "timeout-tester", "--json"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+   assert.equal(checkResult.status, 0);
+   const checkReport = JSON.parse(checkResult.stdout) as {
+      profile: { timeoutMs?: number };
+   };
+   assert.equal(checkReport.profile.timeoutMs, 0);
 });
 
 test("agent create rejects unsupported provider reasoning effort", async () => {
@@ -489,7 +551,124 @@ You are a reviewer.
    };
    assert.equal(report.status, "warnings");
    assert.ok(
-      report.warnings.some((warning) => warning.code === "missing-stop-conditions-section")
+      report.warnings.some(
+         (warning) => warning.code === "missing-stop-conditions-section"
+      )
+   );
+});
+
+test("agent check warns when task input is not XML-wrapped", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "missing-task-wrapper.md"),
+      `---
+name: missing-task-wrapper
+description: x
+provider: codex
+model: gpt-5.4-mini
+reasoningEffort: medium
+---
+
+## Role
+You are a reviewer.
+
+## Task Input
+{{task}}
+
+## Instructions
+- Review the task carefully.
+- If required evidence is missing, stop with a blocked outcome instead of guessing.
+
+## Constraints
+- Stay focused.
+
+## Stop Conditions
+- Stop when you can answer clearly.
+
+## Expected Output
+- Deliver the result.
+`,
+      "utf8"
+   );
+
+   const result = runCli(["agent", "check", "missing-task-wrapper", "--json"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+
+   assert.equal(result.status, 0);
+   const report = JSON.parse(result.stdout) as {
+      status: string;
+      warnings: Array<{ code: string }>;
+   };
+   assert.equal(report.status, "warnings");
+   assert.ok(
+      report.warnings.some(
+         (warning) => warning.code === "missing-task-xml-wrapper"
+      )
+   );
+});
+
+test("agent check warns when missing-evidence behavior is not explicit", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   await writeFile(
+      path.join(
+         projectRoot,
+         ".aiman",
+         "agents",
+         "missing-evidence-guidance.md"
+      ),
+      `---
+name: missing-evidence-guidance
+description: x
+provider: codex
+model: gpt-5.4-mini
+reasoningEffort: medium
+---
+
+## Role
+You are a reviewer.
+
+## Task Input
+<task>
+{{task}}
+</task>
+
+## Instructions
+- Review the task carefully.
+
+## Constraints
+- Stay focused.
+
+## Stop Conditions
+- Stop when you can answer clearly.
+
+## Expected Output
+- Deliver the result.
+`,
+      "utf8"
+   );
+
+   const result = runCli(
+      ["agent", "check", "missing-evidence-guidance", "--json"],
+      {
+         cwd: projectRoot,
+         env: createCliEnv({ homeRoot })
+      }
+   );
+
+   assert.equal(result.status, 0);
+   const report = JSON.parse(result.stdout) as {
+      status: string;
+      warnings: Array<{ code: string }>;
+   };
+   assert.equal(report.status, "warnings");
+   assert.ok(
+      report.warnings.some(
+         (warning) => warning.code === "missing-missing-evidence-guidance"
+      )
    );
 });
 
@@ -580,6 +759,35 @@ capabilities: repo-grounded
    assert.match(result.stderr, /invalid capabilities/);
 });
 
+test("agent check rejects invalid timeoutMs frontmatter", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "bad-timeout.md"),
+      `---
+name: bad-timeout
+description: x
+provider: codex
+model: gpt-5.4-mini
+reasoningEffort: medium
+timeoutMs: -1
+---
+
+## Task Input
+{{task}}
+`,
+      "utf8"
+   );
+
+   const result = runCli(["agent", "check", "bad-timeout"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+
+   assert.notEqual(result.status, 0);
+   assert.match(result.stderr, /invalid timeoutMs/);
+});
+
 test("agent show surfaces declared capabilities", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
@@ -594,6 +802,7 @@ reasoningEffort: medium
 capabilities:
   - human-facing
   - repo-grounded
+timeoutMs: 0
 ---
 
 ## Role
@@ -625,6 +834,7 @@ You are a reviewer.
    assert.match(humanResult.stdout, /Capabilities/);
    assert.match(humanResult.stdout, /human-facing/);
    assert.match(humanResult.stdout, /repo-grounded/);
+   assert.match(humanResult.stdout, /Timeout\s+none/);
 
    const jsonResult = runCli(["agent", "show", "cap-show", "--json"], {
       cwd: projectRoot,
@@ -632,12 +842,13 @@ You are a reviewer.
    });
    assert.equal(jsonResult.status, 0);
    const payload = JSON.parse(jsonResult.stdout) as {
-      agent: { capabilities?: string[] };
+      agent: { capabilities?: string[]; timeoutMs?: number };
    };
    assert.deepEqual(payload.agent.capabilities, [
       "human-facing",
       "repo-grounded"
    ]);
+   assert.equal(payload.agent.timeoutMs, 0);
 });
 
 test("run prompt keeps native context out of the persisted prompt stream without implicit context files", async () => {

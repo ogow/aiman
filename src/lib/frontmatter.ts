@@ -12,7 +12,7 @@ export function parseFrontmatter(markdown: string): {
       throw new UserError("Agent file must start with frontmatter.");
    }
 
-   const endIndex = normalizedMarkdown.indexOf("\n---\n", 4);
+   const endIndex = normalizedMarkdown.indexOf("\n---\n", 3);
 
    if (endIndex === -1) {
       throw new UserError("Agent frontmatter is not closed.");
@@ -20,6 +20,15 @@ export function parseFrontmatter(markdown: string): {
 
    try {
       const parsed = matter(normalizedMarkdown);
+
+      // If gray-matter fails to parse or find frontmatter, it often returns 
+      // the original string as content and empty data.
+      // Since we manually verified delimiters exist, if the content still 
+      // starts with the delimiter, it means parsing failed to strip it.
+      if (parsed.content.trim().startsWith("---")) {
+         throw new Error("Invalid YAML structure or content.");
+      }
+
       const attributes =
          typeof parsed.data === "object" &&
          parsed.data !== null &&

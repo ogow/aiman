@@ -8,6 +8,7 @@ import {
    renderSection,
    renderTable
 } from "../lib/pretty.js";
+import { formatRunTimeout } from "../lib/timeouts.js";
 import {
    formatCompactTimestamp,
    getRunShortLabel,
@@ -261,7 +262,7 @@ export function renderInspectView(
                label: "Rights",
                value: formatRunRights(run.launch.provider)
             },
-            { label: "Timeout", value: formatDuration(run.launch.timeoutMs) },
+            { label: "Timeout", value: formatRunTimeout(run.launch.timeoutMs) },
             {
                label: "Kill grace",
                value: formatDuration(run.launch.killGraceMs)
@@ -281,7 +282,7 @@ export function renderInspectView(
    sections.push(
       renderSection(
          "Files",
-        renderLabelValueBlock([
+         renderLabelValueBlock([
             { label: "Run", value: run.paths.runFile },
             { label: "Stdout", value: run.paths.stdoutLog },
             { label: "Stderr", value: run.paths.stderrLog },

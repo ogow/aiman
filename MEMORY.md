@@ -8,6 +8,7 @@
 - Agents live in project scope under `<repo>/.aiman/agents/` and user scope under `~/.aiman/agents/`.
 - Repo context is now native-provider-first: `aiman` configures shared bootstrap context file names for the repo, and Codex/Gemini discover those files natively instead of `aiman` injecting a managed runtime-context section into prompts.
 - `aiman` does not have its own skill catalog or prompt-time skill injection, but it provides a `bun run skills` wrapper for the `skills` tool to install skills into the correct project or user directories.
+- This repo now ships a dedicated `.agents/skills/agent-hardening/` skill for creating and repairing authored `aiman` agents with the existing `agent check`, smoke-run, and run-inspection workflow instead of adding new verification subcommands.
 - Codex and Gemini are execution backends only; `aiman` decides shared bootstrap context configuration and visible run metadata before launch.
 - `aiman` no longer models separate `safe` / `yolo` harness modes; both providers launch through one write-enabled contract and agent behavior differences belong in the authored prompt body.
 - Run persistence is global and file-first under `~/.aiman/runs/<YYYY-MM-DD>/<timestamp-run-id>/`.
@@ -21,10 +22,13 @@
 - Authored agent bodies own the task-specific prompt shape; `aiman` only substitutes explicit runtime placeholders such as `{{task}}`, `{{cwd}}`, `{{runId}}`, `{{runFile}}`, and `{{artifactsDir}}`.
 - Authored agents now declare a `resultMode`; `text` is the default path, while `schema` explicitly opts into runtime-enforced JSON validation.
 - For `resultMode: "schema"`, `aiman` appends a small runtime JSON contract that requires `summary`, `outcome`, and `result`, with optional `next`.
+- Gemini schema-mode runs now tolerate prose-heavy assistant output by extracting the last valid top-level JSON object from the provider response before schema validation, while still preserving explicit provider error payloads.
 - Authored agents may now also declare an optional informational `capabilities` list for operator visibility; it is surfaced through authored-agent views and frozen into the launch snapshot, but it does not change runtime behavior.
+- Authored agents may also declare an optional `timeoutMs`; omit it to use the runtime default, or set `0` to disable the timeout for that agent.
 - Authored agents must declare `provider`, `model`, `description`, `reasoningEffort` (optional for Gemini), and a Markdown body containing `{{task}}`.
 - `reasoningEffort` is provider-specific: Codex requires `none|low|medium|high`, while Gemini defaults to `none` if omitted.
 - `aiman run` is foreground-first: it runs a worker inline by default and returns the final result when complete, while `--detach` is the explicit background mode.
+- Run supervision uses a 5 minute default timeout unless a run override or authored agent `timeoutMs` says otherwise; `timeoutMs: 0` means no timeout.
 - Each persisted run now records `launchMode: foreground | detached`, and operator-facing views surface that mode instead of assuming every live run came from the same path.
 - Detached runs execute from snapshotted launch metadata persisted in `run.json`; hidden workers should not re-read mutable agent files after `run --detach` returns.
 - Run/session state is now global and filesystem-scanned: `aiman` stores run directories under `~/.aiman/runs/` and resolves them directly from disk without SQLite.
@@ -37,8 +41,11 @@
 - The `createAiman()` package API is now asynchronous to support configuration loading during initialization.
 - When `contextFileNames` is configured, all agents in one repo share that same native bootstrap file list; agents do not override those file names individually.
 - Codex-backed `aiman` runs should keep project-scoped provider config available for things like MCP registration, preserve native `AGENTS.md` loading, pass additional configured bootstrap file names through `project_doc_fallback_filenames`, blank other Codex prompt-shaping inputs such as `developer_instructions`, `instructions`, and `agents`, request JSONL event output on stdout via `--json`, pin `approval_policy="never"` for deterministic `codex exec` automation, and always grant the external run `artifacts/` directory as an explicit writable root via `--add-dir`.
+- Codex and Gemini provider launches now also export `PLAYWRIGHT_MCP_OUTPUT_DIR` pointing at the current run `artifacts/` directory so Playwright-based browser helpers can write run outputs there without disabling Playwright's own file-root checks; `PLAYWRIGHT_MCP_ALLOW_UNRESTRICTED_FILE_ACCESS` is allowlisted for explicit operator overrides but is not enabled by default.
+- Codex instruction discovery is one-file-per-directory: in each directory it checks `AGENTS.override.md`, then `AGENTS.md`, then configured fallback names, so fallback files only apply where `AGENTS.md` is absent at that directory level.
 - Gemini-backed `aiman` runs should keep the project workspace and project settings available for MCP registration, preserve native context discovery by passing the shared configured file names through a child-local `GEMINI_CLI_SYSTEM_SETTINGS_PATH` overlay, always run headless launches with `--approval-mode yolo`, add the per-run `artifacts/` directory to Gemini's workspace via `--include-directories`, send the authored prompt on stdin with `--prompt ""`, and request `--output-format json` so final parsing uses Gemini's structured `response` and `error` fields instead of raw stdout text.
 - `bun run test:provider-contract` is the live provider smoke-test suite; it uses the real Codex and Gemini CLIs to verify that configured bootstrap context files are visible natively while non-configured context files stay out.
+- `bun run test:config-smoke` is the live non-unit config harness; it runs a real authored agent through `createAiman()` and verifies layered config loading, persisted launch metadata, provider wiring, and native bootstrap-context visibility.
 - Operator-facing run liveness is derived from both the persisted supervising `aiman` process `pid` and a fresh supervisor heartbeat in `run.json`; `runs list` only treats runs as active when both signals are current, while `runs show`/`runs inspect` warn when a run never reached a terminal record.
 - Active runs can be stopped through `aiman runs stop <run-id>` or the default interactive workbench; both write a persisted `.stop-requested` marker that the supervising worker polls so stop behavior works cross-platform, including PowerShell/Windows and `.cmd`-wrapped provider process trees.
 - Human TTY surfaces now use Bun + OpenTUI React under `src/tui/`; `aiman` with no args remains the only interactive TTY entrypoint, and `aiman runs top` is removed.

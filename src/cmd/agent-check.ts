@@ -9,6 +9,7 @@ import {
 import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
 import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
+import { formatAuthoredTimeout } from "../lib/timeouts.js";
 import type { ProfileScope, ValidationIssue } from "../lib/types.js";
 
 type AgentCheckArguments = {
@@ -89,6 +90,10 @@ export async function handler(
             },
             { label: "Reasoning", value: report.profile.reasoningEffort ?? "" },
             { label: "Result", value: report.profile.resultMode ?? "" },
+            {
+               label: "Timeout",
+               value: formatAuthoredTimeout(report.profile.timeoutMs)
+            },
             {
                label: "Capabilities",
                value: report.profile.capabilities?.join(", ") ?? ""

@@ -7,6 +7,7 @@ import {
    ensureProfileScopeDirectory,
    getProfilesDirectoryForScope
 } from "./paths.js";
+import { normalizeTimeoutMs } from "./timeouts.js";
 import type { ProjectPaths } from "./paths.js";
 import type {
    ProfileCheckReport,
@@ -51,7 +52,9 @@ export const builtinProfiles: ScopedProfileDefinition[] = [
          "You are the build specialist.",
          "",
          "## Task Input",
+         "<task>",
          taskPlaceholder,
+         "</task>",
          "",
          "## Instructions",
          "- Work directly in the current project to complete the task.",
@@ -90,7 +93,9 @@ export const builtinProfiles: ScopedProfileDefinition[] = [
          "You are the planning specialist.",
          "",
          "## Task Input",
+         "<task>",
          taskPlaceholder,
+         "</task>",
          "",
          "## Instructions",
          "- Analyze the task and the codebase carefully before recommending changes.",
@@ -189,6 +194,28 @@ function ensureTrailingPeriod(value: string): string {
    return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
+function renderInstructionLines(instructions: string): string[] {
+   const lines = instructions
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+   if (lines.length === 0) {
+      return [
+         "- Refine this section with the exact steps this agent should follow."
+      ];
+   }
+
+   return lines.map((line) => {
+      if (/^(?:[-*]|\d+\.)\s+/.test(line) || /^<[^>]+>$/.test(line)) {
+         return line;
+      }
+
+      return `- ${ensureTrailingPeriod(line)}`;
+   });
+}
+
 function getAllowedReasoningEfforts(
    provider: ProviderId
 ): ReadonlySet<ReasoningEffort> {
@@ -256,6 +283,11 @@ function validateFrontmatterAttributes(
    if (typeof name !== "string" || name.length === 0) {
       throw new UserError(`Agent file ${filePath} is missing a name.`);
    }
+
+   const timeoutMs = normalizeTimeoutMs(
+      attributes.timeoutMs,
+      `Agent "${name}" has invalid timeoutMs`
+   );
 
    if (!providers.has(provider as ProviderId)) {
       throw new UserError(
@@ -351,7 +383,8 @@ function validateFrontmatterAttributes(
       name,
       provider: provider as ProviderId,
       reasoningEffort: effectiveReasoningEffort as ReasoningEffort,
-      resultMode: resultMode as ResultMode
+      resultMode: resultMode as ResultMode,
+      ...(timeoutMs !== undefined ? { timeoutMs } : {})
    };
 }
 
@@ -490,12 +523,15 @@ function collectPromptStructureWarnings(body: string): ValidationIssue[] {
 
    for (const sectionName of recommendedSectionNames) {
       const normalizedName = sectionName.toLowerCase();
+      const tagName = normalizedName.replace(/\s+/g, "_");
+      const hasHeader = normalizedTitles.includes(normalizedName);
+      const hasTag = new RegExp(`<${tagName}(?:\\s+[^>]*)?>`, "i").test(body);
 
-      if (!normalizedTitles.includes(normalizedName)) {
+      if (!hasHeader && !hasTag) {
          warnings.push(
             createIssue(
                `missing-${normalizedName.replace(/\s+/g, "-")}-section`,
-               `Agent body is missing the recommended "${sectionName}" section.`
+               `Agent body is missing the recommended "${sectionName}" section (as a Markdown header or XML tag).`
             )
          );
       }
@@ -504,15 +540,47 @@ function collectPromptStructureWarnings(body: string): ValidationIssue[] {
    const expectedOutputSection = sections.find(
       (section) => section.normalizedTitle === "expected output"
    );
+   const expectedOutputTagMatch = body.match(
+      /<expected_output(?:\s+[^>]*)?>(.*?)<\/expected_output>/is
+   );
+   const expectedOutputContent =
+      expectedOutputSection?.content ?? expectedOutputTagMatch?.[1] ?? "";
 
    if (
-      expectedOutputSection !== undefined &&
-      !/^\s*(?:[-*]|\d+\.)\s+/m.test(expectedOutputSection.content)
+      expectedOutputContent.length > 0 &&
+      !/^\s*(?:[-*]|\d+\.)\s+/m.test(expectedOutputContent)
    ) {
       warnings.push(
          createIssue(
             "missing-output-shape-guidance",
             'The "Expected Output" section should describe the result shape with a short list or other explicit structure.'
+         )
+      );
+   }
+
+   if (
+      body.includes(taskPlaceholder) &&
+      !/<(task|input|task_input)(?:\s+[^>]*)?>\s*\{\{task\}\}\s*<\/\1>/is.test(
+         body
+      )
+   ) {
+      warnings.push(
+         createIssue(
+            "missing-task-xml-wrapper",
+            `Wrap ${taskPlaceholder} in <task>...</task>, <input>...</input>, or <task_input>...</task_input> so authored instructions and user-supplied task text stay separate.`
+         )
+      );
+   }
+
+   if (
+      !/(missing (?:context|evidence|information)|not enough information|blocked outcome|instead of guessing|do not guess|don't guess|state assumptions clearly)/i.test(
+         body
+      )
+   ) {
+      warnings.push(
+         createIssue(
+            "missing-missing-evidence-guidance",
+            "Agent body should say what to do when required evidence or context is missing instead of leaving the model to guess."
          )
       );
    }
@@ -544,7 +612,21 @@ function renderProfileMarkdown(input: {
    provider: ProviderId;
    reasoningEffort: ReasoningEffort;
    resultMode: ResultMode;
+   timeoutMs?: number;
 }): string {
+   const expectedOutputLines =
+      input.resultMode === "schema"
+         ? [
+              "- Return a concise `summary` and one stable `outcome`.",
+              "- Keep `result` focused on task-specific facts another tool or agent can use.",
+              "- Use `next` only when a concrete follow-up is genuinely needed."
+           ]
+         : [
+              "- Deliver a concise result focused on the task.",
+              "- Mention important verification you completed.",
+              "- Note any important open risk or missing evidence."
+           ];
+
    return [
       "---",
       `name: ${input.name}`,
@@ -552,6 +634,9 @@ function renderProfileMarkdown(input: {
       `description: ${input.description}`,
       `model: ${input.model}`,
       `resultMode: ${input.resultMode}`,
+      ...(input.timeoutMs !== undefined
+         ? [`timeoutMs: ${input.timeoutMs}`]
+         : []),
       ...(input.capabilities !== undefined && input.capabilities.length > 0
          ? [
               "capabilities:",
@@ -569,13 +654,19 @@ function renderProfileMarkdown(input: {
       `You are the ${humanizeProfileName(input.name)} agent. ${ensureTrailingPeriod(input.description)}`,
       "",
       "## Task Input",
+      "<task>",
       taskPlaceholder,
+      "</task>",
       "",
       "## Instructions",
-      input.instructions.trim(),
+      ...renderInstructionLines(input.instructions),
+      "- Base the answer on the task input and repo evidence that is actually available.",
+      "- If required evidence is missing, say so directly and stop instead of guessing.",
+      "- Keep the final result scoped to this agent's one job.",
       "",
       "## Constraints",
       "- Use the repo's native context files.",
+      "- Do not invent files, behavior, commands, or verification you did not observe.",
       "- State assumptions clearly when information is missing.",
       "- Call out blockers directly instead of guessing.",
       "",
@@ -585,8 +676,7 @@ function renderProfileMarkdown(input: {
       "- Do not keep exploring once the answer shape is already clear.",
       "",
       "## Expected Output",
-      "- Deliver a concise result focused on the task.",
-      "- Mention important verification or open risk.",
+      ...expectedOutputLines,
       ""
    ].join("\n");
 }
@@ -658,6 +748,7 @@ export async function createProfileFile(
       reasoningEffort?: ReasoningEffort;
       resultMode?: ResultMode;
       scope: ProfileScope;
+      timeoutMs?: number;
    }
 ): Promise<ScopedProfileDefinition> {
    const trimmedName = input.name.trim();
@@ -669,6 +760,10 @@ export async function createProfileFile(
    const reasoningEffort =
       input.reasoningEffort ?? (provider === "gemini" ? "none" : undefined);
    const resultMode = input.resultMode ?? "text";
+   const timeoutMs = normalizeTimeoutMs(
+      input.timeoutMs,
+      `Agent "${trimmedName}" has invalid timeoutMs`
+   );
 
    if (reasoningEffort === undefined) {
       throw new UserError(
@@ -720,7 +815,8 @@ export async function createProfileFile(
       name: trimmedName,
       provider,
       reasoningEffort,
-      resultMode
+      resultMode,
+      ...(timeoutMs !== undefined ? { timeoutMs } : {})
    });
    const parsedProfile = parseFrontmatter(renderedProfile);
    validateFrontmatterAttributes(
@@ -786,7 +882,10 @@ export async function checkProfileDefinition(
          provider: profile.provider,
          reasoningEffort: profile.reasoningEffort,
          resultMode: profile.resultMode,
-         scope: profile.scope
+         scope: profile.scope,
+         ...(profile.timeoutMs !== undefined
+            ? { timeoutMs: profile.timeoutMs }
+            : {})
       },
       status:
          errors.length > 0

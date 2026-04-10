@@ -1,0 +1,5 @@
+[    1030ms] [ERROR] Failed to set referrer policy: The value '' is not one of 'no-referrer', 'no-referrer-when-downgrade', 'origin', 'origin-when-cross-origin', 'same-origin', 'strict-origin', 'strict-origin-when-cross-origin', or 'unsafe-url'. The referrer policy has been left unchanged. @ :0
+[    1096ms] [LOG] JQMIGRATE: Migrate is installed, version 3.4.1 @ https://www.marsta.nu/wp-content/cache/minify/818c0.js:4
+[   80739ms] [WARNING] Alpine Warning: Unable to initialize. Trying to load Alpine before `<body>` is available. Did you forget to add `defer` in Alpine's `<script>` tag? @ https://cdn.jsdelivr.net/npm/alpinejs@3.9.1/dist/cdn.min.js?ver=1.0.0:4
+[   80911ms] TypeError: Cannot read properties of null (reading 'addEventListener')
+    at https://moderaternasigtuna.se/wp-content/themes/moderaterna-sigtuna/js/app.js?ver=3.2.0:1:141

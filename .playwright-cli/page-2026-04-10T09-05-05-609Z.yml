@@ -1,0 +1,147 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e5]:
+      - generic [ref=e8]:
+        - link [ref=e9] [cursor=pointer]:
+          - /url: https://viarvalsta.se
+        - img "Vi är Valsta logotyp" [ref=e11]
+      - list [ref=e16]:
+        - listitem [ref=e17]:
+          - link "Vi är ett" [ref=e18] [cursor=pointer]:
+            - /url: https://viarvalsta.se/vi-ar-ett/
+        - listitem [ref=e19]:
+          - link "Om oss" [ref=e20] [cursor=pointer]:
+            - /url: https://viarvalsta.se/om-oss/
+        - listitem [ref=e21]:
+          - link "Aktuellt" [ref=e22] [cursor=pointer]:
+            - /url: https://viarvalsta.se/aktuellt/
+        - listitem [ref=e23]:
+          - link "Facebook" [ref=e24] [cursor=pointer]:
+            - /url: https://www.facebook.com/viarvalsta
+    - list [ref=e31]:
+      - listitem [ref=e32]:
+        - link "Vi är ett" [ref=e33] [cursor=pointer]:
+          - /url: https://viarvalsta.se/vi-ar-ett/
+      - listitem [ref=e34]:
+        - link "Om oss" [ref=e35] [cursor=pointer]:
+          - /url: https://viarvalsta.se/om-oss/
+      - listitem [ref=e36]:
+        - link "Aktuellt" [ref=e37] [cursor=pointer]:
+          - /url: https://viarvalsta.se/aktuellt/
+      - listitem [ref=e38]:
+        - link "Facebook" [ref=e39] [cursor=pointer]:
+          - /url: https://www.facebook.com/viarvalsta
+  - generic [ref=e40]:
+    - generic [ref=e43]:
+      - generic [ref=e45]:
+        - img "Bakgrundsmönster" [ref=e50]
+        - generic [ref=e51]:
+          - heading "Vi är Valsta!" [level=1] [ref=e52]
+          - paragraph [ref=e53]: Välkommen till bostadsområdet Valstas alldeles egen hemsida! Vi som står bakom sajten är drygt 20 lokala aktörer –fastighetsägare, Sigtuna kommun, föreningar, näringsidkare och lokalpolisen. Tillsammans med dig som bor här vill vi göra Valsta till en trygg och mer levande stadsdel. En plats som boende är stolta över och företag vill verka i. Här rapporterar vi om allt det roliga som händer i området, men också om problem och utmaningar. På så vis kan vi bredda bilden av Valsta och skapa en naturlig gemenskap. Tillsammans är vi Valsta!
+      - generic "Kvinna gör peacetecken med fingrarna" [ref=e57]
+    - generic [ref=e63]:
+      - heading "Vi är ett" [level=2] [ref=e64]
+      - paragraph [ref=e65]: Vi som bor i Valsta är i stort sett nöjda med vår hemmaplan. Hela 84% trivs hyfsat bra. Och 56% trivs mycket bra! Det visar en färsk enkätundersökning till 2000 slumpvis valda hushåll. Det vi gillar mest är våra lummiga, mysiga innergårdar, närheten till strövområden och sköna cykelvägar. Och förstås den fina gemenskapen som format vårt område sedan 1970-talet, den som ”gör oss till ett”.
+      - paragraph [ref=e66]:
+        - link "Läs mer" [ref=e67] [cursor=pointer]:
+          - /url: https://viarvalsta.se/vi-ar-ett/
+    - generic [ref=e73]:
+      - generic "Kille med röd jacka och hatt gör peacetecknet med fingrarna" [ref=e77]
+      - generic "Ryggar på personer som håller armarna runt varandra på ett led" [ref=e81]
+    - generic [ref=e84]:
+      - generic "Två personer tar i hand och ler" [ref=e87]
+      - generic [ref=e90]:
+        - heading "Om oss" [level=2] [ref=e91]
+        - paragraph [ref=e92]: Vi som står bakom den här sajten är en ideell förening bestående av fastighetsägare, lokala hyresgästföreningar, företagare och andra lokala verksamheter i Valsta. Vår grundidé är att ett gemensamt arbete ger större effekt än enskilda insatser. När vi samlar våra resurser – och delar idéer och perspektiv – står vi bättre rustade att bidra till ett tryggare och mer attraktivt Valsta. Vi arbetar redan utifrån en strukturerad modell och har satt en gemensam handlingsplan. Den här sajten ser vi som ett tredje ben som kommer ge ytterligare kraft till våra satsningar.
+        - paragraph [ref=e93]:
+          - link "Läs mer" [ref=e94] [cursor=pointer]:
+            - /url: https://viarvalsta.se/om-oss/
+    - generic [ref=e100]:
+      - generic [ref=e101]:
+        - generic [ref=e102] [cursor=pointer]: Alla
+        - generic [ref=e103] [cursor=pointer]: Aktuellt
+        - generic [ref=e104] [cursor=pointer]: Event
+      - generic [ref=e105]:
+        - generic [ref=e110]:
+          - article [ref=e111]:
+            - generic [ref=e112]:
+              - link:
+                - /url: https://viarvalsta.se/aktuellt/valstadagen-2026-bidra/
+              - generic [ref=e115]:
+                - generic [ref=e116]: "- 8 april, 2026"
+                - heading "Valstadagen 2026 – bidra" [level=2] [ref=e117]
+                - generic [ref=e118]: Vill du bidra till årets Valstadag den 6 juni? Vi välkomnar dig, din förening eller ditt företag att delta i Valstadagen 2026, som i år äger rum på nationaldagen, lördag 6 juni. Vi vill skapa en innehållsrik dag med uppträdanden och aktivitete...
+                - link "Läs mer" [ref=e120] [cursor=pointer]:
+                  - /url: https://viarvalsta.se/aktuellt/valstadagen-2026-bidra/
+          - article [ref=e121]:
+            - generic [ref=e122]:
+              - link:
+                - /url: https://viarvalsta.se/aktuellt/arets-eldsjal-2026/
+              - generic [ref=e125]:
+                - generic [ref=e126]: "- 8 april, 2026"
+                - heading "Årets eldsjäl 2026" [level=2] [ref=e127]
+                - generic [ref=e128]: Är du ”Årets eldsjäl” 2026? Eller känner du till någon som gör viktiga insatser för Valsta/Steninge? I samband med Valstadagens 20-årsjubileum 2019 instiftade föreningen Vi är Valsta en utmärkelse för eldsjälar i kommundelen Valsta/Steninge. T...
+                - link "Läs mer" [ref=e130] [cursor=pointer]:
+                  - /url: https://viarvalsta.se/aktuellt/arets-eldsjal-2026/
+          - article [ref=e131]:
+            - generic [ref=e132]:
+              - link:
+                - /url: https://viarvalsta.se/aktuellt/tack-for-en-underbar-vintermarknad-2025/
+              - generic [ref=e135]:
+                - generic [ref=e136]: "- 12 december, 2025"
+                - heading "Tack för en underbar vintermarknad 2025!" [level=2] [ref=e137]
+                - generic [ref=e138]: Stort tack för en magisk vintermarknad i Valsta centrum! Vilken dag vi fick tillsammans! Årets vintermarknad i Valsta centrum blev en succé och vi är otroligt glada och stolta över att vi slog rekord i både antal besökare och marknadsbord. Er närvaro o...
+                - link "Läs mer" [ref=e140] [cursor=pointer]:
+                  - /url: https://viarvalsta.se/aktuellt/tack-for-en-underbar-vintermarknad-2025/
+        - text: "- - - - - -"
+    - contentinfo [ref=e141]:
+      - generic [ref=e144]:
+        - generic [ref=e146]:
+          - img "Vi är Valsta logotyp vit" [ref=e149]
+          - paragraph [ref=e151]:
+            - text: Nyfosa
+            - text: Hembla
+            - text: Rikshem
+            - text: SigtunaHem
+            - text: SPP Fastigheter
+            - text: Sigtuna kommun
+            - text: Valsta/Steninge stadsdelsförening
+            - text: Svenska kyrkan i Valsta
+            - text: Shia muslimska församlingen i Valsta
+            - text: Muslimska kulturföreningen
+            - text: Syrisk Ortodoxa kyrkan i Märsta
+            - text: ICA Valsta
+            - text: Presentklippet
+            - text: LH Centrala Valsta
+            - text: LH Magne/Ymergatan
+            - text: LH Buregatan
+            - text: LH Sleipnergatan
+            - text: Digital Net Europe
+            - text: Etiopiska föreningen
+        - generic [ref=e153]:
+          - paragraph [ref=e155]:
+            - link "Följ oss gärna på " [ref=e156] [cursor=pointer]:
+              - /url: https://www.facebook.com/viarvalsta
+          - generic [ref=e158]:
+            - heading "Kontakt:" [level=3] [ref=e160]
+            - generic [ref=e161]:
+              - list [ref=e163]:
+                - listitem [ref=e164]:
+                  - textbox "Namn*" [ref=e166]:
+                    - /placeholder: "Namn:"
+                - listitem [ref=e167]:
+                  - textbox "E-mail*" [ref=e169]:
+                    - /placeholder: "E-mail:"
+                - listitem [ref=e170]:
+                  - textbox "Meddelande*" [ref=e172]:
+                    - /placeholder: "Meddelande:"
+                - listitem [ref=e173]:
+                  - generic [ref=e174]:
+                    - checkbox " Jag godkänner integritetspolicyn" [ref=e175]
+                    - generic [ref=e176]:
+                      - text:  Jag godkänner
+                      - link "integritetspolicyn" [ref=e177] [cursor=pointer]:
+                        - /url: https://viarvalsta.se/integritetspolicy/
+              - button "Skicka" [ref=e179] [cursor=pointer]
+          - paragraph [ref=e181]: © 2019 Vi är Valsta. Box 509, 195 25 Märsta
+  - generic [ref=e183] [cursor=pointer]: 

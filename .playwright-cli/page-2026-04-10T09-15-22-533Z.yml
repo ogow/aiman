@@ -1,0 +1,635 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - text: "- Annons -"
+    - link [ref=e7] [cursor=pointer]:
+      - /url: https://www.steningekompaniet.se/steninge/
+      - img [ref=e8]
+  - banner [ref=e9]:
+    - generic [ref=e10]:
+      - link "märsta.nu" [ref=e11] [cursor=pointer]:
+        - /url: https://www.marsta.nu
+        - img "märsta.nu" [ref=e12]
+      - generic [ref=e13]:
+        - text: "- Annons -"
+        - link [ref=e16] [cursor=pointer]:
+          - /url: https://klaraconsulting.se/kontakt/vara-kontor/marsta/
+          - img [ref=e17]
+      - text:        
+  - navigation [ref=e18]:
+    - list [ref=e19]:
+      - listitem [ref=e20]:
+        - link "Sidans huvudinnehåll" [ref=e21] [cursor=pointer]:
+          - /url: "#primary-content"
+      - listitem [ref=e22]:
+        - link "Sidans sekundära innehåll" [ref=e23] [cursor=pointer]:
+          - /url: "#secondary-content"
+    - generic [ref=e25]:
+      - list [ref=e26]:
+        - listitem [ref=e27]:
+          - link "Nyheter" [ref=e28] [cursor=pointer]:
+            - /url: https://www.marsta.nu/category/nyheter/
+        - listitem [ref=e29]:
+          - link "Sport" [ref=e30] [cursor=pointer]:
+            - /url: https://www.marsta.nu/category/sport/
+        - listitem [ref=e31]:
+          - link "Kultur & Nöje" [ref=e32] [cursor=pointer]:
+            - /url: https://www.marsta.nu/category/kulturnoje/
+        - listitem [ref=e33]:
+          - link "Näringsliv" [ref=e34] [cursor=pointer]:
+            - /url: https://www.marsta.nu/category/naringsliv/
+        - listitem [ref=e35]:
+          - link "Debatt" [ref=e36] [cursor=pointer]:
+            - /url: https://www.marsta.nu/category/debatt/
+      - generic [ref=e37]:
+        - button "Sök" [ref=e38] [cursor=pointer]:
+          - generic [ref=e39]: 
+        - text: 
+      - link "" [ref=e41] [cursor=pointer]:
+        - /url: https://www.facebook.com/marsta.nu
+        - generic [ref=e42]: 
+      - list [ref=e43]:
+        - listitem [ref=e44]:
+          - link "Annonsera!" [ref=e45] [cursor=pointer]:
+            - /url: https://www.marsta.nu/annonsera/
+        - listitem [ref=e46]:
+          - link "Kontakta oss" [ref=e47] [cursor=pointer]:
+            - /url: https://www.marsta.nu/kontakta/
+    - list [ref=e50]:
+      - listitem [ref=e51]:
+        - link "Blåljus" [ref=e52] [cursor=pointer]:
+          - /url: https://www.marsta.nu/category/nyheter/blaljus/
+      - listitem [ref=e53]:
+        - link "Politik" [ref=e54] [cursor=pointer]:
+          - /url: https://www.marsta.nu/category/nyheter/politik/
+      - listitem [ref=e55]:
+        - link "Notiser" [ref=e56] [cursor=pointer]:
+          - /url: https://www.marsta.nu/category/nyheter/notiser/
+      - listitem [ref=e57]:
+        - link "Ung & Student" [ref=e58] [cursor=pointer]:
+          - /url: https://www.marsta.nu/category/nyheter/ungstudent/
+  - generic [ref=e60]:
+    - generic [ref=e61]:
+      - main [ref=e62]:
+        - generic [ref=e64]:
+          - article [ref=e65]:
+            - generic [ref=e66]:
+              - figure [ref=e68]:
+                - link [ref=e69] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3072/
+                  - img [ref=e70]
+              - heading "Morgonkollen" [level=2] [ref=e71]:
+                - link "Morgonkollen" [ref=e72] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3072/
+              - paragraph [ref=e73]:
+                - generic [ref=e74]:
+                  - generic [ref=e75]: 
+                  - time [ref=e76]: 10 apr kl. 06:15
+              - paragraph [ref=e77]:
+                - link "Notiser" [ref=e78] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Morgonkollen - 10 april!
+          - generic [ref=e79]:
+            - text: "- Annons -"
+            - link [ref=e82] [cursor=pointer]:
+              - /url: https://www.sigtuna.se/omsorg-och-stod/familj-barn-och-ungdom/stod-till-familjen/separation-och-skilsmassa/samarbete-efter-separation-ses.html/
+              - img [ref=e83]
+          - article [ref=e84]:
+            - generic [ref=e85]:
+              - figure [ref=e87]:
+                - link [ref=e88] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/trafikolycka-vid-tollsta-bron/
+                  - img [ref=e89]
+              - heading "Trafikolycka vid Tollsta-bron" [level=2] [ref=e90]:
+                - link "Trafikolycka vid Tollsta-bron" [ref=e91] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/trafikolycka-vid-tollsta-bron/
+              - paragraph [ref=e92]:
+                - generic [ref=e93]:
+                  - generic [ref=e94]: 
+                  - time [ref=e95]: 10 apr kl. 05:48
+              - paragraph [ref=e96]:
+                - link "Blåljus" [ref=e97] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/blaljus/
+                - text: En trafikolycka inträffade underifrån natten vid Tollsta bron mellan Odensala och Märsta.
+          - article [ref=e98]:
+            - generic [ref=e99]:
+              - figure [ref=e101]:
+                - link [ref=e102] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/tamsons-m-lamnar-politiken-i-host/
+                  - img [ref=e103]
+              - heading "Tamsons (M) lämnar politiken i höst" [level=2] [ref=e104]:
+                - link "Tamsons (M) lämnar politiken i höst" [ref=e105] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/tamsons-m-lamnar-politiken-i-host/
+              - paragraph [ref=e106]:
+                - generic [ref=e107]:
+                  - generic [ref=e108]: 
+                  - time [ref=e109]: 9 apr kl. 12:53
+              - paragraph [ref=e110]:
+                - link "Politik" [ref=e111] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/politik/
+                - text: Oppositionsregionrådet Kristoffer Tamsons (M) i Region Stockholm lämnar politiken i samband med höstens val. Det skriver han i ett inlägg på Facebook.
+          - generic [ref=e112]:
+            - text: "- Annons -"
+            - link [ref=e115] [cursor=pointer]:
+              - /url: https://marstacentrum.se/
+              - img [ref=e116]
+          - article [ref=e117]:
+            - generic [ref=e118]:
+              - figure [ref=e120]:
+                - link [ref=e121] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marsta-pastorat-varnar-for-falska-biblar/
+                  - img [ref=e122]
+              - heading "Märsta Pastorat varnar för falska biblar" [level=2] [ref=e123]:
+                - link "Märsta Pastorat varnar för falska biblar" [ref=e124] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marsta-pastorat-varnar-for-falska-biblar/
+              - paragraph [ref=e125]:
+                - generic [ref=e126]:
+                  - generic [ref=e127]: 
+                  - time [ref=e128]: 9 apr kl. 11:03
+              - paragraph [ref=e129]:
+                - link "Notiser" [ref=e130] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Märsta pastorat varnar för utskick av biblar och barnböcker som just nu delas ut via post i Stockholmsområdet. Enligt pastoratet kommer dessa utskick inte från Svenska kyrkan eller Svenska kyrkan Märsta pastorat.
+          - article [ref=e131]:
+            - generic [ref=e132]:
+              - figure [ref=e134]:
+                - link [ref=e135] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/hog-risk-for-grasbrand-i-kommunen-under-torsdagen/
+                  - img [ref=e136]
+              - heading "Hög risk för gräsbrand i kommunen under torsdagen" [level=2] [ref=e137]:
+                - link "Hög risk för gräsbrand i kommunen under torsdagen" [ref=e138] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/hog-risk-for-grasbrand-i-kommunen-under-torsdagen/
+              - paragraph [ref=e139]:
+                - generic [ref=e140]:
+                  - generic [ref=e141]: 
+                  - time [ref=e142]: 9 apr kl. 10:06
+              - paragraph [ref=e143]:
+                - link "Notiser" [ref=e144] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Sigtuna kommun omfattas av gräsbrandsrisk som SMHI utfärdat för torsdagen.
+          - generic [ref=e145]:
+            - text: "- Annons -"
+            - link [ref=e148] [cursor=pointer]:
+              - /url: https://www.mp.se/sigtuna/just-nu/stark-sigtuna-kommuns-beredskap/
+              - img [ref=e149]
+          - article [ref=e150]:
+            - generic [ref=e151]:
+              - figure [ref=e153]:
+                - link [ref=e154] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/kommunen-vill-salja-sina-vindkraftverk/
+                  - img [ref=e155]
+              - heading "Kommunen vill sälja sina vindkraftverk" [level=2] [ref=e156]:
+                - link "Kommunen vill sälja sina vindkraftverk" [ref=e157] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/kommunen-vill-salja-sina-vindkraftverk/
+              - paragraph [ref=e158]:
+                - generic [ref=e159]:
+                  - generic [ref=e160]: 
+                  - time [ref=e161]: 9 apr kl. 07:24
+              - paragraph [ref=e162]:
+                - link "Politik" [ref=e163] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/politik/
+                - text: Sigtuna kommun avser sälja sina vindkraftverk. En utredning kommer initieras för att utreda möjligheterna till en försäljning
+          - article [ref=e164]:
+            - generic [ref=e165]:
+              - heading "Morgonkollen" [level=2] [ref=e166]:
+                - link "Morgonkollen" [ref=e167] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3071/
+              - paragraph [ref=e168]:
+                - generic [ref=e169]:
+                  - generic [ref=e170]: 
+                  - time [ref=e171]: 9 apr kl. 05:36
+              - paragraph [ref=e172]:
+                - link "Notiser" [ref=e173] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Morgonkollen - 9 oktober!
+          - generic [ref=e174]:
+            - text: "- Annons -"
+            - link [ref=e177] [cursor=pointer]:
+              - /url: https://www.steningekompaniet.se/steninge/
+              - img [ref=e178]
+          - article [ref=e179]:
+            - generic [ref=e180]:
+              - figure [ref=e182]:
+                - link [ref=e183] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/askerson-begar-mote-med-migrationsministern/
+                  - img [ref=e184]
+              - heading "Askerson begär möte med migrationsministern" [level=2] [ref=e185]:
+                - link "Askerson begär möte med migrationsministern" [ref=e186] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/askerson-begar-mote-med-migrationsministern/
+              - paragraph [ref=e187]:
+                - generic [ref=e188]:
+                  - generic [ref=e189]: 
+                  - time [ref=e190]: 8 apr kl. 10:27
+              - paragraph [ref=e191]:
+                - link "Fotboll" [ref=e192] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/sport/fotboll/
+                - text: Mattias Askerson (M), kommunstyrelsens ordförande, har skickat en begäran om möte med Migrationsministern Johan Forsell (M).
+          - article [ref=e193]:
+            - generic [ref=e194]:
+              - figure [ref=e196]:
+                - link [ref=e197] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3070/
+                  - img [ref=e198]
+              - heading "Morgonkollen" [level=2] [ref=e199]:
+                - link "Morgonkollen" [ref=e200] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3070/
+              - paragraph [ref=e201]:
+                - generic [ref=e202]:
+                  - generic [ref=e203]: 
+                  - time [ref=e204]: 8 apr kl. 06:17
+              - paragraph [ref=e205]:
+                - link "Notiser" [ref=e206] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Morgonkollen – onsdag 8 april
+          - generic [ref=e207]:
+            - text: "- Annons -"
+            - link [ref=e210] [cursor=pointer]:
+              - /url: https://www.sigtuna.se/f%C3%B6r%C3%A4ldrakollen/
+              - img [ref=e211]
+          - article [ref=e212]:
+            - generic [ref=e213]:
+              - figure [ref=e215]:
+                - link [ref=e216] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3069/
+                  - img [ref=e217]
+              - heading "Morgonkollen" [level=2] [ref=e218]:
+                - link "Morgonkollen" [ref=e219] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3069/
+              - paragraph [ref=e220]:
+                - generic [ref=e221]:
+                  - generic [ref=e222]: 
+                  - time [ref=e223]: 7 apr kl. 06:21
+              - paragraph [ref=e224]:
+                - link "Notiser" [ref=e225] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Morgonkollen – tisdag 7 april
+          - article [ref=e226]:
+            - generic [ref=e227]:
+              - figure [ref=e229]:
+                - link [ref=e230] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/notiser/morgonkollen-3068/
+                  - img [ref=e231]
+              - heading "Morgonkollen" [level=2] [ref=e232]:
+                - link "Morgonkollen" [ref=e233] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/notiser/morgonkollen-3068/
+              - paragraph [ref=e234]:
+                - generic [ref=e235]:
+                  - generic [ref=e236]: 
+                  - time [ref=e237]: 6 apr kl. 06:20
+              - paragraph [ref=e238]:
+                - link "Notiser" [ref=e239] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Morgonkollen - 6 april!
+          - generic [ref=e240]:
+            - text: "- Annons -"
+            - link [ref=e243] [cursor=pointer]:
+              - /url: https://moderaternasigtuna.se/
+              - img [ref=e244]
+          - article [ref=e245]:
+            - generic [ref=e246]:
+              - figure [ref=e248]:
+                - link [ref=e249] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-doms-for-misshandel-under-fotbollsmatch/
+                  - img [ref=e250]
+              - heading "Märstabo döms för misshandel under fotbollsmatch" [level=2] [ref=e251]:
+                - link "Märstabo döms för misshandel under fotbollsmatch" [ref=e252] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-doms-for-misshandel-under-fotbollsmatch/
+              - paragraph [ref=e253]:
+                - generic [ref=e254]:
+                  - generic [ref=e255]: 
+                  - time [ref=e256]: 5 apr kl. 18:36
+              - paragraph [ref=e257]:
+                - link "Notiser" [ref=e258] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: En man från Märsta har dömts för misshandel efter en händelse på en fotbollsmatch på Strawberry Arena i juni förra året.
+          - article [ref=e259]:
+            - generic [ref=e260]:
+              - figure [ref=e262]:
+                - link [ref=e263] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/atalas-for-hot-mot-socialtjansthandlaggare/
+                  - img [ref=e264]
+              - heading "Åtalas för hot mot LSS-handläggare" [level=2] [ref=e265]:
+                - link "Åtalas för hot mot LSS-handläggare" [ref=e266] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/atalas-for-hot-mot-socialtjansthandlaggare/
+              - paragraph [ref=e267]:
+                - generic [ref=e268]:
+                  - generic [ref=e269]: 
+                  - time [ref=e270]: 5 apr kl. 18:19
+              - paragraph [ref=e271]:
+                - link "Nyheter" [ref=e272] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/
+                - text: En person åtalas för en rad hot riktade mot socialtjänst och andra yrkesgrupper i Sigtuna kommun, enligt en stämningsansökan.
+          - generic [ref=e273]:
+            - text: "- Annons -"
+            - link [ref=e276] [cursor=pointer]:
+              - /url: https://sigtunavatten.se/
+              - img [ref=e277]
+          - article [ref=e278]:
+            - generic [ref=e279]:
+              - figure [ref=e281]:
+                - link [ref=e282] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3067/
+                  - img [ref=e283]
+              - heading "Morgonkollen" [level=2] [ref=e284]:
+                - link "Morgonkollen" [ref=e285] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3067/
+              - paragraph [ref=e286]:
+                - generic [ref=e287]:
+                  - generic [ref=e288]: 
+                  - time [ref=e289]: 5 apr kl. 06:15
+              - paragraph [ref=e290]:
+                - link "Notiser" [ref=e291] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Morgonkollen - 5 mars!
+          - article [ref=e292]:
+            - strong [ref=e294]: Påskhelg
+            - generic [ref=e295]:
+              - figure [ref=e297]:
+                - link [ref=e298] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/glad-pask-till-alla-lasare/
+                  - img [ref=e299]
+              - heading "Glad Påsk till alla läsare" [level=2] [ref=e300]:
+                - link "Glad Påsk till alla läsare" [ref=e301] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/glad-pask-till-alla-lasare/
+              - paragraph [ref=e302]:
+                - generic [ref=e303]:
+                  - generic [ref=e304]: 
+                  - time [ref=e305]: 4 apr kl. 10:53
+              - paragraph [ref=e306]:
+                - link "Notiser" [ref=e307] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: märsta.nu önskar alla läsare en Glad Påsk 🐣
+          - generic [ref=e308]:
+            - text: "- Annons -"
+            - link [ref=e311] [cursor=pointer]:
+              - /url: https://sigtuna.socialdemokraterna.se/
+              - img [ref=e312]
+          - article [ref=e313]:
+            - generic [ref=e314]:
+              - figure [ref=e316]:
+                - link [ref=e317] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/farre-med-ekonomiskt-bistand-lagsta-nivan-pa-tio-ar/
+                  - img [ref=e318]
+              - heading "Färre med ekonomiskt bistånd – lägsta nivån på tio år" [level=2] [ref=e319]:
+                - link "Färre med ekonomiskt bistånd – lägsta nivån på tio år" [ref=e320] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/farre-med-ekonomiskt-bistand-lagsta-nivan-pa-tio-ar/
+              - paragraph [ref=e321]:
+                - generic [ref=e322]:
+                  - generic [ref=e323]: 
+                  - time [ref=e324]: 4 apr kl. 07:11
+              - paragraph [ref=e325]:
+                - link "Notiser" [ref=e326] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Andelen invånare som får ekonomiskt bistånd i Sigtuna kommun är nu den lägsta på minst ett decennium, enligt Newsworthy.
+          - article [ref=e327]:
+            - generic [ref=e328]:
+              - figure [ref=e330]:
+                - link [ref=e331] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3066/
+                  - img [ref=e332]
+              - heading "Morgonkollen" [level=2] [ref=e333]:
+                - link "Morgonkollen" [ref=e334] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3066/
+              - paragraph [ref=e335]:
+                - generic [ref=e336]:
+                  - generic [ref=e337]: 
+                  - time [ref=e338]: 4 apr kl. 06:24
+              - paragraph [ref=e339]:
+                - link "Notiser" [ref=e340] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Morgonkollen lördag 4 april!
+          - generic [ref=e341]:
+            - text: "- Annons -"
+            - link [ref=e344] [cursor=pointer]:
+              - /url: https://www.sigtuna.se/evenemang/evenemang/oppenracketsportisgratisfordigmellan612ar.5.1f88827a19bb945f3a2c7860.html/
+              - img [ref=e345]
+          - article [ref=e346]:
+            - generic [ref=e347]:
+              - figure [ref=e349]:
+                - link [ref=e350] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/rosersberg-redo-for-ny-ungdomsavdelning-inom-kriminalvarden/
+                  - img [ref=e351]
+              - heading "Rosersberg redo för ny ungdomsavdelning inom Kriminalvården" [level=2] [ref=e352]:
+                - link "Rosersberg redo för ny ungdomsavdelning inom Kriminalvården" [ref=e353] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/rosersberg-redo-for-ny-ungdomsavdelning-inom-kriminalvarden/
+              - paragraph [ref=e354]:
+                - generic [ref=e355]:
+                  - generic [ref=e356]: 
+                  - time [ref=e357]: 3 apr kl. 12:22
+              - paragraph [ref=e358]:
+                - link "Nyheter" [ref=e359] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/
+                - text: Rosersberg blir en av de första platserna i landet där särskilda avdelningar för barn och unga inom Kriminalvården ska startas. Planen är att verksamheten ska vara i drift från den 1 juli 2026.
+          - article [ref=e360]:
+            - generic [ref=e361]:
+              - figure [ref=e363]:
+                - link [ref=e364] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/fiskeforbud-i-garnsviken-mellan-april-och-juni/
+                  - img [ref=e365]
+              - heading "Fiskeförbud i Garnsviken mellan april och juni" [level=2] [ref=e366]:
+                - link "Fiskeförbud i Garnsviken mellan april och juni" [ref=e367] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/fiskeforbud-i-garnsviken-mellan-april-och-juni/
+              - paragraph [ref=e368]:
+                - generic [ref=e369]:
+                  - generic [ref=e370]: 
+                  - time [ref=e371]: 3 apr kl. 08:40
+              - paragraph [ref=e372]:
+                - link "Notiser" [ref=e373] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Från 1 april till 15 juni råder totalt fiskeförbud i Garnsviken. Syftet är att skydda lekande gös och den rödlistade aspen.
+          - generic [ref=e374]:
+            - text: "- Annons -"
+            - link [ref=e377] [cursor=pointer]:
+              - /url: https://viarvalsta.se/
+              - img [ref=e378]
+          - article [ref=e379]:
+            - generic [ref=e380]:
+              - figure [ref=e382]:
+                - link [ref=e383] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3065/
+                  - img [ref=e384]
+              - heading "Morgonkollen" [level=2] [ref=e385]:
+                - link "Morgonkollen" [ref=e386] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3065/
+              - paragraph [ref=e387]:
+                - generic [ref=e388]:
+                  - generic [ref=e389]: 
+                  - time [ref=e390]: 3 apr kl. 06:02
+              - paragraph [ref=e391]:
+                - link "Notiser" [ref=e392] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Morgonkollen 3 april!
+          - article [ref=e393]:
+            - generic [ref=e394]:
+              - figure [ref=e396]:
+                - link [ref=e397] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/frontalkrock-pa-mabyleden-oklart-skadelage/
+                  - img [ref=e398]
+              - heading "Uppdaterad Frontalkrock på Måbyleden – två till sjukhus" [level=2] [ref=e399]:
+                - link "Uppdaterad Frontalkrock på Måbyleden – två till sjukhus" [ref=e400] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/frontalkrock-pa-mabyleden-oklart-skadelage/
+              - paragraph [ref=e401]:
+                - generic [ref=e402]:
+                  - generic [ref=e403]: 
+                  - time [ref=e404]: 2 apr kl. 23:32
+              - paragraph [ref=e405]:
+                - link "Blåljus" [ref=e406] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/blaljus/
+                - text: Två personer fördes till sjukhus efter en frontalkrock på Måbyleden sent på torsdagskvällen
+          - article [ref=e407]:
+            - strong [ref=e409]: påsklov
+            - generic [ref=e410]:
+              - figure [ref=e412]:
+                - link [ref=e413] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/pasklov-i-sigtuna-kommun-fullt-schema-med-gratis-aktiviteter/
+                  - img [ref=e414]
+              - heading "Påsklov i Sigtuna kommun – fullt schema med gratis aktiviteter" [level=2] [ref=e415]:
+                - link "Påsklov i Sigtuna kommun – fullt schema med gratis aktiviteter" [ref=e416] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/pasklov-i-sigtuna-kommun-fullt-schema-med-gratis-aktiviteter/
+              - paragraph [ref=e417]:
+                - generic [ref=e418]:
+                  - generic [ref=e419]: 
+                  - time [ref=e420]: 2 apr kl. 16:30
+              - paragraph [ref=e421]:
+                - link "Ung & Student" [ref=e422] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/ungstudent/
+                - text: Under påsklovet arrangerar Sigtuna kommun ett stort antal aktiviteter för barn och unga – många av dem helt gratis.
+          - article [ref=e423]:
+            - generic [ref=e424]:
+              - figure [ref=e426]:
+                - link [ref=e427] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/hastigheten-sanks-till-40-km-h-i-sigtuna-stad/
+                  - img [ref=e428]
+              - 'heading "Klubbat: Hastigheten sänks till 40 km/h i Sigtuna stad" [level=2] [ref=e429]':
+                - 'link "Klubbat: Hastigheten sänks till 40 km/h i Sigtuna stad" [ref=e430] [cursor=pointer]':
+                  - /url: https://www.marsta.nu/startsidan/hastigheten-sanks-till-40-km-h-i-sigtuna-stad/
+              - paragraph [ref=e431]:
+                - generic [ref=e432]:
+                  - generic [ref=e433]: 
+                  - time [ref=e434]: 2 apr kl. 09:29
+              - paragraph [ref=e435]:
+                - link "Nyheter" [ref=e436] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/
+                - text: Kommunstyrelsens samhällsbyggnadsutskott har beslutat att sänka hastigheten på flera gator i Sigtuna stad från 50 till 40 kilometer i timmen. Omskyltning planeras till sommaren.
+      - complementary [ref=e437]:
+        - generic [ref=e438]:
+          - generic [ref=e439]:
+            - heading "Nyheter" [level=2] [ref=e440]
+            - list [ref=e442]:
+              - listitem [ref=e443]:
+                - link "06:15 Morgonkollen" [ref=e444] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/nyheter/morgonkollen-3072/
+              - listitem [ref=e445]:
+                - link "05:48 Trafikolycka vid Tollsta-bron" [ref=e446] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/trafikolycka-vid-tollsta-bron/
+              - listitem [ref=e447]:
+                - link "9/4 Tamsons (M) lämnar politiken i höst" [ref=e448] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/tamsons-m-lamnar-politiken-i-host/
+              - listitem [ref=e449]:
+                - link "9/4 Märsta Pastorat varnar för falska biblar" [ref=e450] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marsta-pastorat-varnar-for-falska-biblar/
+              - listitem [ref=e451]:
+                - link "9/4 Hög risk för gräsbrand i kommunen under torsdagen" [ref=e452] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/hog-risk-for-grasbrand-i-kommunen-under-torsdagen/
+          - generic [ref=e453]:
+            - heading "Sport" [level=2] [ref=e454]
+            - list [ref=e456]:
+              - listitem [ref=e457]:
+                - link "8/4 Askerson begär möte med migrationsministern" [ref=e458] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/askerson-begar-mote-med-migrationsministern/
+              - listitem [ref=e459]:
+                - link "8/4 Märstasonen Valente klar för NHL – Startar i farmarlaget direkt" [ref=e460] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstasonen-valente-klar-for-nhl-startar-i-farmarlaget-direkt/
+              - listitem [ref=e461]:
+                - link "7/4 RA19 fortsätter att leverera resultat – både på junior- och seniornivå" [ref=e462] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/ra19-fortsatter-att-leverera-resultat-bade-pa-junior-och-seniorniva/
+              - listitem [ref=e463]:
+                - link "6/4 Så blir nya handbollsarenan" [ref=e464] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/sa-blir-nya-handbollsarenan/
+              - listitem [ref=e465]:
+                - link "1/4 Moa får stipendium – satsar vidare mot toppen" [ref=e466] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/moa-far-stipendium-satsar-vidare-mot-toppen/
+          - generic [ref=e467]:
+            - heading "Kultur & Nöje" [level=2] [ref=e468]
+            - list [ref=e470]:
+              - listitem [ref=e471]:
+                - link "8/4 Vårfest vid S:t Lars kyrkoruin i Sigtuna" [ref=e472] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/varfest-vid-st-lars-kyrkoruin-i-sigtuna/
+              - listitem [ref=e473]:
+                - link "6/4 Märstabörd präst ny kyrkoherde i Ljusnans pastorat" [ref=e474] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabord-prast-ny-kyrkoherde-i-ljusnans-pastorat/
+              - listitem [ref=e475]:
+                - link "6/4 Odensala Konstrunda firar 25 år" [ref=e476] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/odensala-konstrunda-firar-25-ar/
+              - listitem [ref=e477]:
+                - link "31/3 Förvaltningschef lämnar Sigtuna – klar för Enköping" [ref=e478] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/forvaltningschef-lamnar-sigtuna-klar-for-enkoping/
+              - listitem [ref=e479]:
+                - 'link "30/3 Klart: Sigtuna Art Walk återvänder i september 2026" [ref=e480] [cursor=pointer]':
+                  - /url: https://www.marsta.nu/startsidan/klart-sigtuna-art-walk-atervander-i-september-2026/
+          - generic [ref=e481]:
+            - heading "Debatt" [level=2] [ref=e482]
+            - list [ref=e484]:
+              - listitem [ref=e485]:
+                - link "9/4 Bra Askerson! Men glöm inte Ayla." [ref=e486] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/bra-askerson-men-glom-inte-ayla/
+              - listitem [ref=e487]:
+                - link "29/3 Socialdemokraterna vänder kappan efter ideologin" [ref=e488] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/socialdemokraterna-vander-kappan-efter-ideologin/
+              - listitem [ref=e489]:
+                - link "27/3 Stärk Sigtuna kommuns beredskap" [ref=e490] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/stark-sigtuna-kommuns-beredskap/
+              - listitem [ref=e491]:
+                - link "27/3 Stoppa utförsäljningen av våra hem i Pilsbo" [ref=e492] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/stoppa-utforsaljningen-av-vara-hem-i-pilsbo/
+              - listitem [ref=e493]:
+                - link "26/3 M och KD är sena på bollen" [ref=e494] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/m-och-kd-ar-sena-pa-bollen/
+        - generic [ref=e495]:
+          - heading "Notiser" [level=2] [ref=e496]
+          - figure [ref=e498]:
+            - link [ref=e499] [cursor=pointer]:
+              - /url: https://www.marsta.nu/nyheter/morgonkollen-3072/
+          - heading "Morgonkollen" [level=3] [ref=e500]:
+            - link "Morgonkollen" [ref=e501] [cursor=pointer]:
+              - /url: https://www.marsta.nu/nyheter/morgonkollen-3072/
+          - paragraph [ref=e502]:
+            - time [ref=e504]: 10 Apr kl. 06:15
+          - paragraph [ref=e505]: Morgonkollen - 10 april!
+        - generic [ref=e506]: "- Annons -"
+        - generic [ref=e507]:
+          - heading "Tipsa Redaktionen" [level=2] [ref=e508]
+          - paragraph [ref=e510]:
+            - link [ref=e511] [cursor=pointer]:
+              - /url: https://www.marsta.nu/sf-bio/
+            - text: Har du ett hett tips eller råkar befinna dig mitt i ett nyhetsskeende – ring/mms/sms:a oss på 070-566 62 91 eller maila på tips@marsta.nu
+            - link "Du kan bli en vinnare, läs mer här!" [ref=e512] [cursor=pointer]:
+              - /url: https://www.marsta.nu/tipsa/
+    - text: "- Annonser -"
+  - contentinfo [ref=e513]:
+    - generic [ref=e514]:
+      - list [ref=e515]:
+        - listitem [ref=e516]:
+          - link "Start" [ref=e517] [cursor=pointer]:
+            - /url: http://www.marsta.nu/
+        - listitem [ref=e518]:
+          - text: "|"
+          - link "Annonsera!" [ref=e519] [cursor=pointer]:
+            - /url: https://www.marsta.nu/annonsera/
+        - listitem [ref=e520]:
+          - text: "|"
+          - link "Tipsa märsta.nu" [ref=e521] [cursor=pointer]:
+            - /url: https://www.marsta.nu/tipsa/
+        - listitem [ref=e522]:
+          - text: "|"
+          - link "Om cookies" [ref=e523] [cursor=pointer]:
+            - /url: https://www.marsta.nu/cookies/
+        - listitem [ref=e524]:
+          - text: "|"
+          - link "Kontakta oss" [ref=e525] [cursor=pointer]:
+            - /url: https://www.marsta.nu/kontakta/
+      - paragraph [ref=e526]:
+        - text: "Tel: 070-566 62 91 | E-post:"
+        - link "redaktion@marsta.nu" [ref=e527] [cursor=pointer]:
+          - /url: mailto:redaktion@marsta.nu
+        - text: "| Chefredaktör: Daniel Iskander."
+      - paragraph [ref=e528]: Copyright märsta.nu. Allt material på sajten är skyddat enligt upphovsrättslagen.

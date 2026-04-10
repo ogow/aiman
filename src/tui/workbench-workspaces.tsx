@@ -4,6 +4,7 @@ import type { RunInspection, ScopedProfileDefinition } from "../lib/types.js";
 import type { FocusRegion, RunDetailTab } from "./workbench-model.js";
 import {
   buildProfileOptions,
+  detailTabOptions,
   formatCompactTimestamp,
   formatRunDuration,
   getProjectTitle,
@@ -510,17 +511,16 @@ export function RunsWorkspace(input: {
           <Panel onMouseDown={() => input.setFocusRegion("detailTabs")}>
             <TabsRow
               activeRegion={input.focusRegion}
-              items={[
-                { label: "Summary", value: "summary" },
-                { label: "Answer", value: "answer" },
-                { label: "Logs", value: "logs" },
-                { label: "Prompt", value: "prompt" }
-              ]}
+              items={detailTabOptions.map((option) => ({
+                label: option.name,
+                value: option.value
+              }))}
               onSelect={(value) => {
                 if (
                   value === "summary" ||
                   value === "answer" ||
-                  value === "logs" ||
+                  value === "activity" ||
+                  value === "raw" ||
                   value === "prompt"
                 ) {
                   input.setFocusRegion("detailTabs");

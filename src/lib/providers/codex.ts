@@ -104,7 +104,8 @@ export function createCodexAdapter(): ProviderAdapter {
             AIMAN_ARTIFACTS_DIR: input.artifactsDir,
             AIMAN_RUN_PATH: input.runFile,
             AIMAN_RUN_DIR: runDir,
-            AIMAN_RUN_ID: input.runId
+            AIMAN_RUN_ID: input.runId,
+            PLAYWRIGHT_MCP_OUTPUT_DIR: input.artifactsDir
          });
 
          return {

@@ -116,6 +116,72 @@ setInterval(() => {}, 1000);
    );
 }
 
+async function createSlowCodexBinary(
+   binDir: string,
+   delayMs = 200
+): Promise<void> {
+   const scriptPath = path.join(binDir, "codex.mjs");
+   const launcherPath = path.join(
+      binDir,
+      process.platform === "win32" ? "codex.cmd" : "codex"
+   );
+
+   await mkdir(binDir, { recursive: true });
+   await writeFile(
+      scriptPath,
+      `import { mkdir, writeFile } from "node:fs/promises";
+import * as path from "node:path";
+
+let lastMessagePath = "";
+let useJsonOutput = false;
+for (let index = 0; index < process.argv.length; index += 1) {
+   if (process.argv[index] === "--output-last-message") {
+      lastMessagePath = process.argv[index + 1] ?? "";
+   }
+   if (process.argv[index] === "--json") {
+      useJsonOutput = true;
+   }
+}
+
+for await (const _ of process.stdin) {}
+
+await new Promise((resolve) => {
+   setTimeout(resolve, ${delayMs});
+});
+
+if (lastMessagePath.length > 0) {
+   await mkdir(path.dirname(lastMessagePath), { recursive: true });
+   await writeFile(lastMessagePath, "Slow codex result", "utf8");
+}
+
+if (useJsonOutput) {
+   process.stdout.write(
+      JSON.stringify({
+         id: "evt-1",
+         message: { role: "assistant", content: "Slow codex result" },
+         type: "turn.completed"
+      }) + "\\n"
+   );
+}
+`,
+      "utf8"
+   );
+   await writeFile(
+      launcherPath,
+      process.platform === "win32"
+         ? `@echo off\r
+"${process.execPath}" "%~dp0\\codex.mjs" %*\r
+`
+         : `#!/usr/bin/env sh
+"${process.execPath}" "$(dirname "$0")/codex.mjs" "$@"
+`,
+      {
+         encoding: "utf8",
+         mode: 0o755
+      }
+   );
+}
+
 async function createRunnableFixture(): Promise<{
    binDir: string;
    homeRoot: string;
@@ -358,6 +424,165 @@ You are a focused reviewer.
       const run = await readRunDetails(result.runId);
       assert.equal(run.status, "error");
       assert.equal(run.error?.message, "Execution timed out.");
+   } finally {
+      restore();
+   }
+});
+
+test("runAgent uses authored timeoutMs when no override is provided", async () => {
+   const projectRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-timeout-"));
+   const homeRoot = await createHomeFixture();
+   const binDir = path.join(projectRoot, "bin");
+
+   await mkdir(path.join(projectRoot, ".aiman", "agents"), {
+      recursive: true
+   });
+   await createHangingCodexBinary(binDir);
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "reviewer.md"),
+      `---
+name: reviewer
+description: Reviews code for risks
+provider: codex
+model: gpt-5.4-mini
+reasoningEffort: medium
+timeoutMs: 100
+---
+
+## Role
+You are a focused reviewer.
+
+## Task Input
+{{task}}
+
+## Instructions
+- Review the current change carefully.
+
+## Expected Output
+- Return a concise result.
+`,
+      "utf8"
+   );
+
+   const restore = useProjectFixture({ binDir, homeRoot, projectRoot });
+
+   try {
+      const result = await runAgent({
+         killGraceMs: 50,
+         profileName: "reviewer",
+         task: "Review the authored timeout"
+      });
+
+      assert.equal(result.status, "error");
+      assert.equal(result.error?.message, "Execution timed out.");
+
+      const run = await readRunDetails(result.runId);
+      assert.equal(run.launch.timeoutMs, 100);
+   } finally {
+      restore();
+   }
+});
+
+test("runAgent explicit timeoutMs overrides authored timeoutMs", async () => {
+   const projectRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-timeout-"));
+   const homeRoot = await createHomeFixture();
+   const binDir = path.join(projectRoot, "bin");
+
+   await mkdir(path.join(projectRoot, ".aiman", "agents"), {
+      recursive: true
+   });
+   await createSlowCodexBinary(binDir, 200);
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "reviewer.md"),
+      `---
+name: reviewer
+description: Reviews code for risks
+provider: codex
+model: gpt-5.4-mini
+reasoningEffort: medium
+timeoutMs: 50
+---
+
+## Role
+You are a focused reviewer.
+
+## Task Input
+{{task}}
+
+## Instructions
+- Review the current change carefully.
+
+## Expected Output
+- Return a concise result.
+`,
+      "utf8"
+   );
+
+   const restore = useProjectFixture({ binDir, homeRoot, projectRoot });
+
+   try {
+      const result = await runAgent({
+         profileName: "reviewer",
+         task: "Review the explicit timeout override",
+         timeoutMs: 1_000
+      });
+
+      assert.equal(result.status, "success");
+
+      const run = await readRunDetails(result.runId);
+      assert.equal(run.launch.timeoutMs, 1_000);
+   } finally {
+      restore();
+   }
+});
+
+test("runAgent treats timeoutMs 0 as no timeout", async () => {
+   const projectRoot = await mkdtemp(path.join(os.tmpdir(), "aiman-timeout-"));
+   const homeRoot = await createHomeFixture();
+   const binDir = path.join(projectRoot, "bin");
+
+   await mkdir(path.join(projectRoot, ".aiman", "agents"), {
+      recursive: true
+   });
+   await createSlowCodexBinary(binDir, 200);
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "reviewer.md"),
+      `---
+name: reviewer
+description: Reviews code for risks
+provider: codex
+model: gpt-5.4-mini
+reasoningEffort: medium
+timeoutMs: 0
+---
+
+## Role
+You are a focused reviewer.
+
+## Task Input
+{{task}}
+
+## Instructions
+- Review the current change carefully.
+
+## Expected Output
+- Return a concise result.
+`,
+      "utf8"
+   );
+
+   const restore = useProjectFixture({ binDir, homeRoot, projectRoot });
+
+   try {
+      const result = await runAgent({
+         profileName: "reviewer",
+         task: "Review the disabled timeout"
+      });
+
+      assert.equal(result.status, "success");
+
+      const run = await readRunDetails(result.runId);
+      assert.equal(run.launch.timeoutMs, 0);
    } finally {
       restore();
    }

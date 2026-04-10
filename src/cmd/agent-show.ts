@@ -10,6 +10,7 @@ import { UserError } from "../lib/errors.js";
 import { writeJson } from "../lib/output.js";
 import { renderLabelValueBlock, renderSection } from "../lib/pretty.js";
 import { getProviderCapabilities } from "../lib/provider-capabilities.js";
+import { formatAuthoredTimeout } from "../lib/timeouts.js";
 import type { ProfileScope } from "../lib/types.js";
 
 type AgentShowArguments = {
@@ -62,7 +63,9 @@ export async function handler(
       agent.capabilities !== undefined && agent.capabilities.length > 0
          ? renderSection(
               "Capabilities",
-              agent.capabilities.map((capability) => `- ${capability}`).join("\n")
+              agent.capabilities
+                 .map((capability) => `- ${capability}`)
+                 .join("\n")
            )
          : "";
 
@@ -79,6 +82,7 @@ export async function handler(
             { label: "Model", value: formatProfileModel(agent) },
             { label: "Reasoning", value: agent.reasoningEffort },
             { label: "Result", value: agent.resultMode },
+            { label: "Timeout", value: formatAuthoredTimeout(agent.timeoutMs) },
             { label: "Description", value: agent.description },
             { label: "Path", value: agent.path }
          ])

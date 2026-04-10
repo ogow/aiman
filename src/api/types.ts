@@ -49,6 +49,7 @@ export type CreateAgentInput = {
    reasoningEffort?: ReasoningEffort;
    resultMode?: ResultMode;
    scope: AgentScope;
+   timeoutMs?: number;
 };
 
 export type CreateAimanOptions = {
@@ -68,12 +69,14 @@ export type RunAgentInput = {
    }) => void;
    agentScope?: AgentScope;
    task: string;
+   timeoutMs?: number;
 };
 
 export type LaunchAgentInput = {
    cwd?: string;
    agentScope?: AgentScope;
    task: string;
+   timeoutMs?: number;
 };
 
 export type AimanClient = {

@@ -58,6 +58,7 @@ Supported frontmatter for new authoring work:
 - required `reasoningEffort` for Codex; optional for Gemini
 - recommended `resultMode`
 - optional informational `capabilities`
+- optional `timeoutMs`
 
 `model` is provider-specific:
 
@@ -72,6 +73,7 @@ Supported frontmatter for new authoring work:
 Agents that use `permissions`, `contextFiles`, `skills`, or `requiredMcps` are invalid.
 Agents that use `mode` are also invalid; provider rights are a runtime concern, not authored agent frontmatter.
 When present, `capabilities` is a small descriptive list for operator visibility only and does not change runtime behavior.
+When present, `timeoutMs` is the authored per-agent run timeout in milliseconds. Omit it to use the runtime default of 5 minutes. Set `timeoutMs: 0` only when you intentionally want no timeout for that agent.
 
 ## Result Modes
 
@@ -79,9 +81,9 @@ Supported modes:
 
 - `text`: default. The final provider answer is stored as `finalText`; operator surfaces may also use a derived `summary` for compact listings.
 - `schema`: opt-in. The final provider answer must be valid JSON with the following required top-level keys:
-  - `summary`
-  - `outcome`
-  - `result`
+   - `summary`
+   - `outcome`
+   - `result`
 
 Optional schema-mode top-level keys:
 
@@ -111,6 +113,7 @@ For authored-agent debugging, the usual inspection order is:
 - Repo config overrides home config.
 - When configured, all agents in the same repo use the same file names.
 - Agents do not override those file names individually.
+- For Codex, those extra file names are fallback names checked only when `AGENTS.md` is absent in a given directory, and Codex includes at most one discovered instruction file per directory. Design shared context layouts around that rule.
 
 ## Provider Isolation
 
@@ -121,6 +124,8 @@ Current provider behavior:
 - Codex launches pin non-interactive approval behavior to `approval_policy="never"`.
 - Codex launches preserve native `AGENTS.md` handling, pass additional configured bootstrap file names through `project_doc_fallback_filenames`, blank other Codex prompt-shaping inputs such as `developer_instructions`, `instructions`, and `agents`, and grant the run `artifacts/` directory as an explicit extra writable root via `--add-dir`.
 - Gemini launches use a child-local settings overlay so Gemini sees the shared configured bootstrap file names through its native `context.fileName` setting, include the run `artifacts/` directory in Gemini's workspace via `--include-directories`, and request `--output-format json`.
+- Both providers now also export `PLAYWRIGHT_MCP_OUTPUT_DIR={{artifactsDir}}` for downstream Playwright-based helpers, so direct browser captures can write into the current run `artifacts/` directory without disabling Playwright's file-root checks.
+- If an operator explicitly exports `PLAYWRIGHT_MCP_ALLOW_UNRESTRICTED_FILE_ACCESS=1` before launching `aiman`, that broader Playwright override is passed through too, but it is intentionally not the default.
 
 ## Run Storage
 

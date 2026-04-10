@@ -38,6 +38,7 @@ export type ProfileDefinition = {
    provider: ProviderId;
    reasoningEffort: ReasoningEffort;
    resultMode: ResultMode;
+   timeoutMs?: number;
 };
 
 export type ScopedProfileDefinition = ProfileDefinition & {
@@ -64,6 +65,7 @@ export type CheckedProfileDefinition = {
    reasoningEffort?: ReasoningEffort;
    resultMode?: ResultMode;
    scope: ProfileScope;
+   timeoutMs?: number;
 };
 
 export type ProfileCheckReport = {

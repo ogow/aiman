@@ -144,6 +144,7 @@ test("codex adapter prepares a write-enabled invocation with native context file
    assert.match(prepared.renderedPrompt, /Task: Review the diff/);
    assert.match(prepared.renderedPrompt, /## Required Result Contract/);
    assert.equal(prepared.promptTransport, "stdin");
+   assert.equal(prepared.env.PLAYWRIGHT_MCP_OUTPUT_DIR, artifactsDir);
 });
 
 test("gemini adapter rejects non-none reasoning effort", () => {
@@ -178,7 +179,7 @@ test("gemini adapter prepares a yolo invocation with yolo approval mode", async 
       "--prompt",
       "",
       "--output-format",
-      "json",
+      "stream-json",
       "--include-directories",
       artifactsDir,
       "--approval-mode",
@@ -188,6 +189,7 @@ test("gemini adapter prepares a yolo invocation with yolo approval mode", async 
       prepared.env.GEMINI_CLI_SYSTEM_SETTINGS_PATH,
       path.join("/repo/.../runs/run-2", ".gemini-system-settings.json")
    );
+   assert.equal(prepared.env.PLAYWRIGHT_MCP_OUTPUT_DIR, artifactsDir);
    assert.match(prepared.renderedPrompt, /Build the requested change directly/);
    assert.match(prepared.renderedPrompt, /## Required Result Contract/);
 });
@@ -235,6 +237,66 @@ test("gemini adapter parses structured JSON output", async () => {
          session_id: "session-1",
          stats: {}
       })
+   });
+   const record = finalizeRunRecord({
+      artifacts: [],
+      completion,
+      cwd: "/repo",
+      endedAt: "2026-04-05T13:10:05.000Z",
+      exitCode: 0,
+      launch,
+      launchMode: "foreground",
+      profile: geminiProfile,
+      projectRoot: "/repo",
+      runId: "run-2",
+      signal: null,
+      startedAt: "2026-04-05T13:10:00.000Z",
+      stderr: ""
+   });
+
+   assert.equal(record.summary, "Implemented the fix.");
+   assert.equal(record.outcome, "done");
+   assert.equal(record.status, "success");
+});
+
+test("gemini adapter extracts a schema JSON object from prose-heavy output", async () => {
+   const adapter = createGeminiAdapter();
+   const launch = buildLaunchSnapshot({
+      preparedPrompt: renderAgentPrompt(geminiProfile, {
+         artifactsDir: "/repo/.../runs/run-2/artifacts",
+         cwd: "/repo",
+         runFile: "/repo/.../runs/run-2/run.json",
+         runId: "run-2",
+         task: "Implement the fix"
+      }),
+      provider: "gemini"
+   });
+   const completion = await adapter.parseCompletion({
+      cwd: "/repo",
+      endedAt: "2026-04-05T13:10:05.000Z",
+      exitCode: 0,
+      launch,
+      launchMode: "foreground",
+      profile: geminiProfile,
+      projectRoot: "/repo",
+      runDir: "/repo/.../runs/run-2",
+      runId: "run-2",
+      signal: null,
+      startedAt: "2026-04-05T13:10:00.000Z",
+      stderr: "",
+      stdout: [
+         JSON.stringify({
+            type: "message",
+            role: "assistant",
+            content: "The crawl completed. "
+         }),
+         JSON.stringify({
+            type: "message",
+            role: "assistant",
+            content: buildAgentEnvelope("Implemented the fix."),
+            delta: true
+         })
+      ].join("\n")
    });
    const record = finalizeRunRecord({
       artifacts: [],

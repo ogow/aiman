@@ -57,7 +57,7 @@ function getGeminiChildSettingsOverlay(input: {
 }
 
 function getGeminiOutputFormatArgs(): string[] {
-   return ["--output-format", "json"];
+   return ["--output-format", "stream-json"];
 }
 
 function getGeminiWorkspaceArgs(artifactsDir: string): string[] {
@@ -66,63 +66,143 @@ function getGeminiWorkspaceArgs(artifactsDir: string): string[] {
       : [];
 }
 
+function extractLastJsonObject(text: string): string | undefined {
+   let start = -1;
+   let depth = 0;
+   let inString = false;
+   let isEscaped = false;
+   let lastValidCandidate: string | undefined;
+
+   for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+
+      if (start === -1) {
+         if (char === "{") {
+            start = index;
+            depth = 1;
+            inString = false;
+            isEscaped = false;
+         }
+
+         continue;
+      }
+
+      if (inString) {
+         if (isEscaped) {
+            isEscaped = false;
+            continue;
+         }
+
+         if (char === "\\") {
+            isEscaped = true;
+            continue;
+         }
+
+         if (char === '"') {
+            inString = false;
+         }
+
+         continue;
+      }
+
+      if (char === '"') {
+         inString = true;
+         continue;
+      }
+
+      if (char === "{") {
+         depth += 1;
+         continue;
+      }
+
+      if (char !== "}") {
+         continue;
+      }
+
+      depth -= 1;
+
+      if (depth !== 0) {
+         continue;
+      }
+
+      const candidate = text.slice(start, index + 1).trim();
+
+      try {
+         JSON.parse(candidate);
+         lastValidCandidate = candidate;
+      } catch {
+         // Keep scanning for the next balanced JSON object.
+      }
+
+      start = -1;
+   }
+
+   return lastValidCandidate;
+}
+
 function parseGeminiJsonOutput(stdout: string): {
    errorMessage?: string;
    responseText: string;
    parseError?: string;
 } {
-   const trimmed = stdout.trim();
+   const lines = stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
-   if (trimmed.length === 0) {
+   if (lines.length === 0) {
       return {
          responseText: "",
-         parseError: "Gemini did not produce JSON output."
+         parseError: "Gemini did not produce any output."
       };
    }
 
-   try {
-      const parsed = JSON.parse(trimmed) as unknown;
+   let responseText = "";
+   let errorMessage: string | undefined;
 
-      if (
-         typeof parsed !== "object" ||
-         parsed === null ||
-         Array.isArray(parsed)
-      ) {
-         return {
-            responseText: "",
-            parseError: "Gemini JSON output must be an object."
-         };
+   for (const line of lines) {
+      try {
+         const payload = JSON.parse(line) as Record<string, unknown>;
+
+         if (typeof payload["response"] === "string") {
+            responseText = payload["response"];
+         }
+
+         if (typeof payload["error"] === "object" && payload["error"] !== null) {
+            const topLevelError = payload["error"] as Record<string, unknown>;
+            if (typeof topLevelError["message"] === "string") {
+               errorMessage = topLevelError["message"];
+            }
+         }
+
+         if (payload["type"] === "message" && payload["role"] === "assistant") {
+            const content = payload["content"];
+            if (typeof content === "string") {
+               if (payload["delta"] === true) {
+                  responseText += content;
+               } else {
+                  responseText = content;
+               }
+            }
+         }
+
+         if (payload["type"] === "error") {
+            const error = payload["error"] as Record<string, unknown> | undefined;
+            const message = error?.["message"] ?? payload["message"];
+            if (typeof message === "string") {
+               errorMessage = message;
+            }
+         }
+      } catch {
+         // Ignore lines that are not valid JSON (e.g. YOLO warnings)
       }
-
-      const payload = parsed as GeminiJsonOutput;
-      const errorMessage =
-         typeof payload.error?.message === "string"
-            ? payload.error.message.trim()
-            : undefined;
-
-      if (typeof errorMessage === "string" && errorMessage.length > 0) {
-         return {
-            errorMessage,
-            responseText: ""
-         };
-      }
-
-      if (typeof payload.response !== "string") {
-         return {
-            responseText: "",
-            parseError: "Gemini JSON output did not include a response."
-         };
-      }
-
-      return {
-         responseText: payload.response.trim()
-      };
-   } catch {
-      return {
-         responseText: "",
-         parseError: "Gemini did not return valid JSON output."
-      };
    }
+
+   if (errorMessage !== undefined) {
+      return { errorMessage, responseText: "" };
+   }
+
+   return { responseText: responseText.trim() };
 }
 
 export function createGeminiAdapter(): ProviderAdapter {
@@ -163,8 +243,14 @@ export function createGeminiAdapter(): ProviderAdapter {
             };
          }
 
+         const output =
+            input.profile?.resultMode === "schema"
+               ? extractLastJsonObject(parsedOutput.responseText) ??
+                 parsedOutput.responseText
+               : parsedOutput.responseText;
+
          return {
-            output: parsedOutput.responseText
+            output
          };
       },
       async prepare(agent, input) {
@@ -194,7 +280,8 @@ export function createGeminiAdapter(): ProviderAdapter {
                AIMAN_RUN_PATH: input.runFile,
                AIMAN_RUN_DIR: runDir,
                AIMAN_RUN_ID: input.runId,
-               GEMINI_CLI_SYSTEM_SETTINGS_PATH: childSettingsOverlay.path
+               GEMINI_CLI_SYSTEM_SETTINGS_PATH: childSettingsOverlay.path,
+               PLAYWRIGHT_MCP_OUTPUT_DIR: input.artifactsDir
             }),
             promptTransport: "stdin",
             renderedPrompt: prompt,

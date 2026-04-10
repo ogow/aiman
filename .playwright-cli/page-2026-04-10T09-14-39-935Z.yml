@@ -1,0 +1,552 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - text: "- Annons -"
+    - link [ref=e7] [cursor=pointer]:
+      - /url: https://viarvalsta.se/
+      - img [ref=e8]
+  - banner [ref=e9]:
+    - generic [ref=e10]:
+      - link "märsta.nu" [ref=e11] [cursor=pointer]:
+        - /url: https://www.marsta.nu
+        - img "märsta.nu" [ref=e12]
+      - generic [ref=e13]:
+        - text: "- Annons -"
+        - link [ref=e16] [cursor=pointer]:
+          - /url: https://klaraconsulting.se/kontakt/vara-kontor/marsta/
+          - img [ref=e17]
+      - text:        
+  - navigation [ref=e18]:
+    - list [ref=e19]:
+      - listitem [ref=e20]:
+        - link "Sidans huvudinnehåll" [ref=e21] [cursor=pointer]:
+          - /url: "#primary-content"
+      - listitem [ref=e22]:
+        - link "Sidans sekundära innehåll" [ref=e23] [cursor=pointer]:
+          - /url: "#secondary-content"
+    - generic [ref=e25]:
+      - list [ref=e26]:
+        - listitem [ref=e27]:
+          - link "Nyheter" [ref=e28] [cursor=pointer]:
+            - /url: https://www.marsta.nu/category/nyheter/
+        - listitem [ref=e29]:
+          - link "Sport" [ref=e30] [cursor=pointer]:
+            - /url: https://www.marsta.nu/category/sport/
+        - listitem [ref=e31]:
+          - link "Kultur & Nöje" [ref=e32] [cursor=pointer]:
+            - /url: https://www.marsta.nu/category/kulturnoje/
+        - listitem [ref=e33]:
+          - link "Näringsliv" [ref=e34] [cursor=pointer]:
+            - /url: https://www.marsta.nu/category/naringsliv/
+        - listitem [ref=e35]:
+          - link "Debatt" [ref=e36] [cursor=pointer]:
+            - /url: https://www.marsta.nu/category/debatt/
+      - generic [ref=e37]:
+        - button "Sök" [ref=e38] [cursor=pointer]:
+          - generic [ref=e39]: 
+        - text: 
+      - link "" [ref=e41] [cursor=pointer]:
+        - /url: https://www.facebook.com/marsta.nu
+        - generic [ref=e42]: 
+      - list [ref=e43]:
+        - listitem [ref=e44]:
+          - link "Annonsera!" [ref=e45] [cursor=pointer]:
+            - /url: https://www.marsta.nu/annonsera/
+        - listitem [ref=e46]:
+          - link "Kontakta oss" [ref=e47] [cursor=pointer]:
+            - /url: https://www.marsta.nu/kontakta/
+  - generic [ref=e49]:
+    - generic [ref=e50]:
+      - main [ref=e51]:
+        - generic [ref=e52]:
+          - heading "Sök på märsta.nu" [level=1] [ref=e53]
+          - search [ref=e55]:
+            - generic [ref=e57]:
+              - searchbox "Sök" [ref=e58]: Märsta
+              - button "" [ref=e59] [cursor=pointer]:
+                - generic [ref=e60]: 
+          - paragraph [ref=e61]:
+            - text: Din sökning efter Märsta gav
+            - strong [ref=e62]: "10862"
+            - text: träffar. Visar resultat
+            - strong [ref=e63]: 1-23
+            - text: av
+            - strong [ref=e64]: "10862"
+            - text: träffar.
+          - separator [ref=e65]
+          - article [ref=e66]:
+            - generic [ref=e67]:
+              - figure [ref=e69]:
+                - link [ref=e70] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/naringsliv/sa-har-tomma-lokaler-forandrat-handeln-i-marsta/
+                  - img [ref=e71]
+              - heading "Så har tomma lokaler förändrat handeln i Märsta" [level=2] [ref=e72]:
+                - link "Så har tomma lokaler förändrat handeln i Märsta" [ref=e73] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/naringsliv/sa-har-tomma-lokaler-forandrat-handeln-i-marsta/
+              - paragraph [ref=e74]:
+                - generic [ref=e75]:
+                  - generic [ref=e76]: 
+                  - time [ref=e77]: 9 apr kl. 17:46
+              - paragraph [ref=e78]:
+                - link "Partner" [ref=e79] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/naringsliv/partner/
+                - text: Under de senaste åren har handeln i Märsta förändrats mycket och det har resulterat i allt fler tomma skyltfönster.
+          - generic [ref=e80]:
+            - text: "- Annons -"
+            - link [ref=e83] [cursor=pointer]:
+              - /url: https://www.sigtuna.se/f%C3%B6r%C3%A4ldrakollen/
+              - img [ref=e84]
+          - article [ref=e85]:
+            - generic [ref=e86]:
+              - figure [ref=e88]:
+                - link [ref=e89] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marsta-pastorat-varnar-for-falska-biblar/
+                  - img [ref=e90]
+              - heading "Märsta Pastorat varnar för falska biblar" [level=2] [ref=e91]:
+                - link "Märsta Pastorat varnar för falska biblar" [ref=e92] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marsta-pastorat-varnar-for-falska-biblar/
+              - paragraph [ref=e93]:
+                - generic [ref=e94]:
+                  - generic [ref=e95]: 
+                  - time [ref=e96]: 9 apr kl. 11:03
+              - paragraph [ref=e97]:
+                - link "Notiser" [ref=e98] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Märsta pastorat varnar för utskick av biblar och barnböcker som just nu delas ut via post i Stockholmsområdet. Enligt pastoratet kommer dessa utskick inte från Svenska kyrkan eller Svenska kyrkan Märsta pastorat.
+          - article [ref=e99]:
+            - strong [ref=e101]: EXTRA
+            - generic [ref=e102]:
+              - figure [ref=e104]:
+                - link [ref=e105] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstasonen-valente-klar-for-nhl-startar-i-farmarlaget-direkt/
+                  - img [ref=e106]
+              - heading "Märstasonen Valente klar för NHL – Startar i farmarlaget direkt" [level=2] [ref=e107]:
+                - link "Märstasonen Valente klar för NHL – Startar i farmarlaget direkt" [ref=e108] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstasonen-valente-klar-for-nhl-startar-i-farmarlaget-direkt/
+              - paragraph [ref=e109]:
+                - generic [ref=e110]:
+                  - generic [ref=e111]: 
+                  - time [ref=e112]: 8 apr kl. 09:09
+              - paragraph [ref=e113]:
+                - link "Ishockey" [ref=e114] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/sport/ishockey/
+                - text: Liam Valente från Märsta är klar för NHL-laget Buffalos farmarlag Rochester och ansluter direkt för att spela med laget i slutet av serien innan hans ettårskontrakt träder i kraft.
+          - generic [ref=e115]:
+            - text: "- Annons -"
+            - link [ref=e118] [cursor=pointer]:
+              - /url: https://moderaternasigtuna.se/
+              - img [ref=e119]
+          - article [ref=e120]:
+            - generic [ref=e121]:
+              - figure [ref=e123]:
+                - link [ref=e124] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabord-prast-ny-kyrkoherde-i-ljusnans-pastorat/
+                  - img [ref=e125]
+              - heading "Märstabörd präst ny kyrkoherde i Ljusnans pastorat" [level=2] [ref=e126]:
+                - link "Märstabörd präst ny kyrkoherde i Ljusnans pastorat" [ref=e127] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabord-prast-ny-kyrkoherde-i-ljusnans-pastorat/
+              - paragraph [ref=e128]:
+                - generic [ref=e129]:
+                  - generic [ref=e130]: 
+                  - time [ref=e131]: 6 apr kl. 17:12
+              - paragraph [ref=e132]:
+                - link "Kulturnyheter" [ref=e133] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/kulturnoje/kulturnyheter/
+                - text: Hanne Stichel, tidigare församlingsledare i Märsta pastorat, har nu mottagits som kyrkoherde i Ljusnans pastorat. Mottagningen hölls av biskop Karin Johannesson under högmässan i Ljusdals kyrka den 29 mars.
+          - article [ref=e134]:
+            - generic [ref=e135]:
+              - figure [ref=e137]:
+                - link [ref=e138] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-doms-for-misshandel-under-fotbollsmatch/
+                  - img [ref=e139]
+              - heading "Märstabo döms för misshandel under fotbollsmatch" [level=2] [ref=e140]:
+                - link "Märstabo döms för misshandel under fotbollsmatch" [ref=e141] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-doms-for-misshandel-under-fotbollsmatch/
+              - paragraph [ref=e142]:
+                - generic [ref=e143]:
+                  - generic [ref=e144]: 
+                  - time [ref=e145]: 5 apr kl. 18:36
+              - paragraph [ref=e146]:
+                - link "Notiser" [ref=e147] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: En man från Märsta har dömts för misshandel efter en händelse på en fotbollsmatch på Strawberry Arena i juni förra året.
+          - generic [ref=e148]:
+            - text: "- Annons -"
+            - link [ref=e151] [cursor=pointer]:
+              - /url: https://marstacentrum.se/
+              - img [ref=e152]
+          - article [ref=e153]:
+            - generic [ref=e154]:
+              - figure [ref=e156]:
+                - link [ref=e157] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/naringsliv/fran-lokala-scener-till-digitala-plattformar-sa-valjer-marstaborna-sin-underhallning/
+                  - img [ref=e158]
+              - 'heading "Från lokala scener till digitala plattformar: Så väljer Märstaborna sin underhållning" [level=2] [ref=e159]':
+                - 'link "Från lokala scener till digitala plattformar: Så väljer Märstaborna sin underhållning" [ref=e160] [cursor=pointer]':
+                  - /url: https://www.marsta.nu/naringsliv/fran-lokala-scener-till-digitala-plattformar-sa-valjer-marstaborna-sin-underhallning/
+              - paragraph [ref=e161]:
+                - generic [ref=e162]:
+                  - generic [ref=e163]: 
+                  - time [ref=e164]: 3 apr kl. 11:51
+              - paragraph [ref=e165]:
+                - link "Partner" [ref=e166] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/naringsliv/partner/
+                - text: Märsta har en levande kulturscen präglad både av tradition och modernitet. Från Märsta kyrkas historiska miljöer till aktiv musik- och teaterverksamhet, finns det mycket att uppleva lokalt.
+          - article [ref=e167]:
+            - strong [ref=e169]: tonårsutvisningarna
+            - generic [ref=e170]:
+              - figure [ref=e172]:
+                - link [ref=e173] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/ungdomar-fran-marsta-deltar-i-hungerstrejk-i-stockholm/
+                  - img [ref=e174]
+              - heading "Ungdomar från Märsta deltar i hungerstrejk i Stockholm" [level=2] [ref=e175]:
+                - link "Ungdomar från Märsta deltar i hungerstrejk i Stockholm" [ref=e176] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/ungdomar-fran-marsta-deltar-i-hungerstrejk-i-stockholm/
+              - paragraph [ref=e177]:
+                - generic [ref=e178]:
+                  - generic [ref=e179]: 
+                  - time [ref=e180]: 1 apr kl. 19:25
+              - paragraph [ref=e181]:
+                - link "Politik" [ref=e182] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/politik/
+                - text: Ungdomar med koppling till Märsta och Sigtuna kommun kommer att delta i en hungerstrejk som inleds utanför riksdagen i Stockholm den 4 april.
+          - generic [ref=e183]:
+            - text: "- Annons -"
+            - link [ref=e186] [cursor=pointer]:
+              - /url: https://www.sigtuna.se/evenemang/evenemang/oppenracketsportisgratisfordigmellan612ar.5.1f88827a19bb945f3a2c7860.html/
+              - img [ref=e187]
+          - article [ref=e188]:
+            - strong [ref=e190]: Valet2026
+            - generic [ref=e191]:
+              - figure [ref=e193]:
+                - link [ref=e194] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/moderaterna-vill-se-polisstation-i-marsta/
+                  - img [ref=e195]
+              - heading "Moderaterna vill se polisstation i Märsta" [level=2] [ref=e196]:
+                - link "Moderaterna vill se polisstation i Märsta" [ref=e197] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/moderaterna-vill-se-polisstation-i-marsta/
+              - paragraph [ref=e198]:
+                - generic [ref=e199]:
+                  - generic [ref=e200]: 
+                  - time [ref=e201]: 1 apr kl. 09:22
+              - paragraph [ref=e202]:
+                - link "Politik" [ref=e203] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/politik/
+                - text: Kommunstyrelsens ordförande Mattias Askerson (M) vill jobba för en polisstation i Märsta.
+          - article [ref=e204]:
+            - generic [ref=e205]:
+              - figure [ref=e207]:
+                - link [ref=e208] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/mileway-bygger-ut-i-marsta-utokar-med-3-600-kvadratmeter/
+                  - img [ref=e209]
+              - heading "Mileway bygger ut i Märsta – utökar med 3 600 kvadratmeter" [level=2] [ref=e210]:
+                - link "Mileway bygger ut i Märsta – utökar med 3 600 kvadratmeter" [ref=e211] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/mileway-bygger-ut-i-marsta-utokar-med-3-600-kvadratmeter/
+              - paragraph [ref=e212]:
+                - generic [ref=e213]:
+                  - generic [ref=e214]: 
+                  - time [ref=e215]: 31 mar kl. 06:55
+              - paragraph [ref=e216]:
+                - link "Näringsliv" [ref=e217] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/naringsliv/
+                - text: Mileway satsar vidare i Märsta och utökar sin anläggning på fastigheten Märsta 15:7. Ett nytt avtal innebär både förlängning av ett befintligt hyresavtal och en utbyggnad på cirka 3 600 kvadratmeter.
+          - generic [ref=e218]:
+            - text: "- Annons -"
+            - link [ref=e221] [cursor=pointer]:
+              - /url: https://sigtuna.socialdemokraterna.se/
+              - img [ref=e222]
+          - article [ref=e223]:
+            - generic [ref=e224]:
+              - figure [ref=e226]:
+                - link [ref=e227] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/naringsliv/digitala-tjanster-i-marsta-hur-sakerhet-paverkar-vardagen/
+                  - img [ref=e228]
+              - heading "Digitala tjänster i Märsta – hur säkerhet påverkar vardagen" [level=2] [ref=e229]:
+                - link "Digitala tjänster i Märsta – hur säkerhet påverkar vardagen" [ref=e230] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/naringsliv/digitala-tjanster-i-marsta-hur-sakerhet-paverkar-vardagen/
+              - paragraph [ref=e231]:
+                - generic [ref=e232]:
+                  - generic [ref=e233]: 
+                  - time [ref=e234]: 30 mar kl. 19:37
+              - paragraph [ref=e235]:
+                - link "Partner" [ref=e236] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/naringsliv/partner/
+                - text: I Märsta och Sigtuna kommun är digitala tjänster en naturlig del av vardagen.
+          - article [ref=e237]:
+            - generic [ref=e238]:
+              - figure [ref=e240]:
+                - link [ref=e241] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-doms-for-att-ha-kort-i-mittenfil-pa-e4/
+                  - img [ref=e242]
+              - heading "Märstabo döms för att ha kört i mittenfil på E4" [level=2] [ref=e243]:
+                - link "Märstabo döms för att ha kört i mittenfil på E4" [ref=e244] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-doms-for-att-ha-kort-i-mittenfil-pa-e4/
+              - paragraph [ref=e245]:
+                - generic [ref=e246]:
+                  - generic [ref=e247]: 
+                  - time [ref=e248]: 23 mar kl. 11:47
+              - paragraph [ref=e249]:
+                - link "Notiser" [ref=e250] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: En 35-årig bilist från Märsta får böter efter att polisen filmat honom köra länge i mittenfilen på E4 norr om Stockholm, utan att väja till höger. Tingsrätten konstaterar att föraren bröt mot trafikregler som få känner till, enligt experter.
+          - article [ref=e251]:
+            - generic [ref=e252]:
+              - figure [ref=e254]:
+                - link [ref=e255] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/norrsken-over-marsta-under-fredagskvallen/
+                  - img [ref=e256]
+              - heading "Norrsken över Märsta under fredagskvällen" [level=2] [ref=e257]:
+                - link "Norrsken över Märsta under fredagskvällen" [ref=e258] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/norrsken-over-marsta-under-fredagskvallen/
+              - paragraph [ref=e259]:
+                - generic [ref=e260]:
+                  - generic [ref=e261]: 
+                  - time [ref=e262]: 21 mar kl. 07:22
+              - paragraph [ref=e263]:
+                - link "Notiser" [ref=e264] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: Under fredagskvällen kunde norrsken ses över Märsta och delar av Sigtuna kommun.
+          - article [ref=e265]:
+            - strong [ref=e267]: valet2026
+            - generic [ref=e268]:
+              - figure [ref=e270]:
+                - link [ref=e271] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/forslag-om-expressbussar-till-arlanda-marsta-pekas-ut-som-knutpunkt/
+                  - img [ref=e272]
+              - heading "Förslag om expressbussar till Arlanda – Märsta pekas ut som knutpunkt" [level=2] [ref=e273]:
+                - link "Förslag om expressbussar till Arlanda – Märsta pekas ut som knutpunkt" [ref=e274] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/forslag-om-expressbussar-till-arlanda-marsta-pekas-ut-som-knutpunkt/
+              - paragraph [ref=e275]:
+                - generic [ref=e276]:
+                  - generic [ref=e277]: 
+                  - time [ref=e278]: 18 mar kl. 06:05
+              - paragraph [ref=e279]:
+                - link "Politik" [ref=e280] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/politik/
+                - text: Kristdemokraterna i Region Stockholm föreslår att expressbussar till Stockholm Arlanda Airport ska införas och ingå i det ordinarie SL-systemet. Förslaget innebär att resenärer ska kunna ta sig till flygplatsen med SL-kort.
+          - article [ref=e281]:
+            - generic [ref=e282]:
+              - figure [ref=e284]:
+                - link [ref=e285] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-vann-en-miljon-pa-lotto/
+                  - img [ref=e286]
+              - heading "Märstabo vann en miljon på Lotto" [level=2] [ref=e287]:
+                - link "Märstabo vann en miljon på Lotto" [ref=e288] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-vann-en-miljon-pa-lotto/
+              - paragraph [ref=e289]:
+                - generic [ref=e290]:
+                  - generic [ref=e291]: 
+                  - time [ref=e292]: 15 mar kl. 09:13
+              - paragraph [ref=e293]:
+                - link "Nöjesnyheter" [ref=e294] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/kulturnoje/nojesnyheter/
+                - text: En spelare från Märsta vann en miljon kronor i samband med lördagens dragning i Lotto.
+          - article [ref=e295]:
+            - generic [ref=e296]:
+              - figure [ref=e298]:
+                - link [ref=e299] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/naringsliv/marstaborna-valjer-hemmakontoret-expertguide-for-en-stabilare-uppkoppling-och-proffsigare-videomoten/
+                  - img [ref=e300]
+              - 'heading "Märstaborna väljer hemmakontoret: Expertguide för en stabilare uppkoppling och proffsigare videomöten" [level=2] [ref=e301]':
+                - 'link "Märstaborna väljer hemmakontoret: Expertguide för en stabilare uppkoppling och proffsigare videomöten" [ref=e302] [cursor=pointer]':
+                  - /url: https://www.marsta.nu/naringsliv/marstaborna-valjer-hemmakontoret-expertguide-for-en-stabilare-uppkoppling-och-proffsigare-videomoten/
+              - paragraph [ref=e303]:
+                - generic [ref=e304]:
+                  - generic [ref=e305]: 
+                  - time [ref=e306]: 14 mar kl. 09:07
+              - paragraph [ref=e307]:
+                - link "Partner" [ref=e308] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/naringsliv/partner/
+                - text: Den digitala transformationen har förändrat arbetslandskapet i Sigtuna kommun i grunden. För många invånare i Märsta, som tidigare dagligen pendlat mot Stockholm City eller Arlanda, har hemmakontoret blivit den primära arbetsplatsen.
+          - article [ref=e309]:
+            - generic [ref=e310]:
+              - figure [ref=e312]:
+                - link [ref=e313] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/babblarna-kommer-till-marsta-i-april/
+                  - img [ref=e314]
+              - heading "Babblarna kommer till Märsta" [level=2] [ref=e315]:
+                - link "Babblarna kommer till Märsta" [ref=e316] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/babblarna-kommer-till-marsta-i-april/
+              - paragraph [ref=e317]:
+                - generic [ref=e318]:
+                  - generic [ref=e319]: 
+                  - time [ref=e320]: 13 mar kl. 09:52
+              - paragraph [ref=e321]:
+                - link "Nöjesnyheter" [ref=e322] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/kulturnoje/nojesnyheter/
+                - text: Den populära barnföreställningen Babblarna & Klonks Klapp-kalas kommer till Märsta den 3 april 2027. Föreställningen spelas på Kulturumteatern.
+          - article [ref=e323]:
+            - generic [ref=e324]:
+              - figure [ref=e326]:
+                - link [ref=e327] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-ny-forbundschef-for-upplands-fotbollforbund/
+                  - img [ref=e328]
+              - heading "Märstabo ny förbundschef för Upplands Fotbollförbund" [level=2] [ref=e329]:
+                - link "Märstabo ny förbundschef för Upplands Fotbollförbund" [ref=e330] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-ny-forbundschef-for-upplands-fotbollforbund/
+              - paragraph [ref=e331]:
+                - generic [ref=e332]:
+                  - generic [ref=e333]: 
+                  - time [ref=e334]: 11 mar kl. 10:56
+              - paragraph [ref=e335]:
+                - link "Fotboll" [ref=e336] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/sport/fotboll/
+                - text: "Haris Curovac från Märsta blir ny förbundschef för Upplands Fotbollförbund. Han tillträder tjänsten den 15 juni: - Jag är väldigt stolt och hedrad över att få ta över uppdraget att leda förbundet, säger Haris i ett uttalande."
+          - article [ref=e337]:
+            - strong [ref=e339]: EXTRA
+            - generic [ref=e340]:
+              - figure [ref=e342]:
+                - link [ref=e343] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-haktad-for-grovt-narkotikabrott/
+                  - img [ref=e344]
+              - heading "Märstabo häktad för grovt narkotikabrott" [level=2] [ref=e345]:
+                - link "Märstabo häktad för grovt narkotikabrott" [ref=e346] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/marstabo-haktad-for-grovt-narkotikabrott/
+              - paragraph [ref=e347]:
+                - generic [ref=e348]:
+                  - generic [ref=e349]: 
+                  - time [ref=e350]: 3 mar kl. 11:11
+              - paragraph [ref=e351]:
+                - link "Notiser" [ref=e352] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/notiser/
+                - text: En man i 25-årsåldern från Märsta har häktats på sannolika skäl misstänkt för grovt narkotikabrott.
+          - article [ref=e353]:
+            - strong [ref=e355]: EXTRA
+            - generic [ref=e356]:
+              - figure [ref=e358]:
+                - link [ref=e359] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/tonarsflicka-uppges-ha-blivit-slagen-av-taxichauffor-i-marsta/
+                  - img [ref=e360]
+              - heading "Tonårsflicka uppges ha blivit slagen av taxichaufför i Märsta" [level=2] [ref=e361]:
+                - link "Tonårsflicka uppges ha blivit slagen av taxichaufför i Märsta" [ref=e362] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/tonarsflicka-uppges-ha-blivit-slagen-av-taxichauffor-i-marsta/
+              - paragraph [ref=e363]:
+                - generic [ref=e364]:
+                  - generic [ref=e365]: 
+                  - time [ref=e366]: 1 mar kl. 14:55
+              - paragraph [ref=e367]:
+                - link "Blåljus" [ref=e368] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/blaljus/
+                - text: En tjej i övre tonåren uppges ha blivit slagen av en taxichaufför i Märsta natten mot söndag, enligt unt.se.
+          - article [ref=e369]:
+            - strong [ref=e371]: EXTRA
+            - generic [ref=e372]:
+              - figure [ref=e374]:
+                - link [ref=e375] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/kvinna-anhallen-efter-knivincident-i-marsta/
+                  - img [ref=e376]
+              - heading "Kvinna anhållen efter knivincident i Märsta" [level=2] [ref=e377]:
+                - link "Kvinna anhållen efter knivincident i Märsta" [ref=e378] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/kvinna-anhallen-efter-knivincident-i-marsta/
+              - paragraph [ref=e379]:
+                - generic [ref=e380]:
+                  - generic [ref=e381]: 
+                  - time [ref=e382]: 26 feb kl. 13:20
+              - paragraph [ref=e383]:
+                - link "Blåljus" [ref=e384] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/blaljus/
+                - text: En kvinna i 40-årsåldern har anhållits misstänkt för försök till grov misshandel efter en händelse i en lägenhet i Märsta natten mot torsdag, enligt unt.se.
+          - article [ref=e385]:
+            - generic [ref=e386]:
+              - figure [ref=e388]:
+                - link [ref=e389] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/signalfel-paverkar-pendeltag-mot-marsta/
+                  - img [ref=e390]
+              - heading "Signalfel påverkar pendeltåg mot Märsta" [level=2] [ref=e391]:
+                - link "Signalfel påverkar pendeltåg mot Märsta" [ref=e392] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/signalfel-paverkar-pendeltag-mot-marsta/
+              - paragraph [ref=e393]:
+                - generic [ref=e394]:
+                  - generic [ref=e395]: 
+                  - time [ref=e396]: 22 feb kl. 13:01
+              - paragraph [ref=e397]:
+                - link "Nyheter" [ref=e398] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/
+                - text: Ett signalfel mellan Ulriksdal och Helenelund påverkar pendeltågstrafiken på linje 40 mot Uppsala C och linje 41 mot Märsta. Sedan klockan 09.00 stannar tågen inte vid Helenelund.
+          - article [ref=e399]:
+            - generic [ref=e400]:
+              - figure [ref=e402]:
+                - link [ref=e403] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/stokig-trafikmorgon-i-marsta-efter-tva-olyckor/
+                  - img [ref=e404]
+              - heading "Stökig trafikmorgon i Märsta efter två olyckor" [level=2] [ref=e405]:
+                - link "Stökig trafikmorgon i Märsta efter två olyckor" [ref=e406] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/stokig-trafikmorgon-i-marsta-efter-tva-olyckor/
+              - paragraph [ref=e407]:
+                - generic [ref=e408]:
+                  - generic [ref=e409]: 
+                  - time [ref=e410]: 20 feb kl. 10:51
+              - paragraph [ref=e411]:
+                - link "Blåljus" [ref=e412] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/blaljus/
+                - text: Två trafikolyckor inträffade i Märsta under fredagsmorgonen och påverkade trafiken i området.
+          - article [ref=e413]:
+            - strong [ref=e415]: EXTRA
+            - generic [ref=e416]:
+              - figure [ref=e418]:
+                - link [ref=e419] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/startsidan/person-begard-haktad-misstankt-for-terrorbrott-i-marsta/
+                  - img [ref=e420]
+              - 'heading "Uppdaterad: Person begärd häktad misstänkt för terrorbrott i Märsta" [level=2] [ref=e421]':
+                - 'link "Uppdaterad: Person begärd häktad misstänkt för terrorbrott i Märsta" [ref=e422] [cursor=pointer]':
+                  - /url: https://www.marsta.nu/startsidan/person-begard-haktad-misstankt-for-terrorbrott-i-marsta/
+              - paragraph [ref=e423]:
+                - generic [ref=e424]:
+                  - generic [ref=e425]: 
+                  - time [ref=e426]: 20 feb kl. 10:41
+              - paragraph [ref=e427]:
+                - link "Nyheter" [ref=e428] [cursor=pointer]:
+                  - /url: https://www.marsta.nu/category/nyheter/
+                - text: En person har begärts häktad vid Attunda tingsrätt misstänkt för brott med koppling till våldsbejakande högerextremism.
+          - paragraph [ref=e430]:
+            - link "Nästa sida →" [ref=e431] [cursor=pointer]:
+              - /url: https://www.marsta.nu/page/2/?s=M%C3%A4rsta
+      - complementary [ref=e432]:
+        - generic [ref=e433]:
+          - heading "Notiser" [level=2] [ref=e434]
+          - figure [ref=e436]:
+            - link [ref=e437] [cursor=pointer]:
+              - /url: https://www.marsta.nu/nyheter/morgonkollen-3072/
+          - heading "Morgonkollen" [level=3] [ref=e438]:
+            - link "Morgonkollen" [ref=e439] [cursor=pointer]:
+              - /url: https://www.marsta.nu/nyheter/morgonkollen-3072/
+          - paragraph [ref=e440]:
+            - time [ref=e442]: 10 Apr kl. 06:15
+          - paragraph [ref=e443]: Morgonkollen - 10 april!
+        - generic [ref=e444]: "- Annons -"
+        - generic [ref=e445]:
+          - heading "Tipsa Redaktionen" [level=2] [ref=e446]
+          - paragraph [ref=e448]:
+            - link [ref=e449] [cursor=pointer]:
+              - /url: https://www.marsta.nu/sf-bio/
+            - text: Har du ett hett tips eller råkar befinna dig mitt i ett nyhetsskeende – ring/mms/sms:a oss på 070-566 62 91 eller maila på tips@marsta.nu
+            - link "Du kan bli en vinnare, läs mer här!" [ref=e450] [cursor=pointer]:
+              - /url: https://www.marsta.nu/tipsa/
+    - text: "- Annonser -"
+  - contentinfo [ref=e451]:
+    - generic [ref=e452]:
+      - list [ref=e453]:
+        - listitem [ref=e454]:
+          - link "Start" [ref=e455] [cursor=pointer]:
+            - /url: http://www.marsta.nu/
+        - listitem [ref=e456]:
+          - text: "|"
+          - link "Annonsera!" [ref=e457] [cursor=pointer]:
+            - /url: https://www.marsta.nu/annonsera/
+        - listitem [ref=e458]:
+          - text: "|"
+          - link "Tipsa märsta.nu" [ref=e459] [cursor=pointer]:
+            - /url: https://www.marsta.nu/tipsa/
+        - listitem [ref=e460]:
+          - text: "|"
+          - link "Om cookies" [ref=e461] [cursor=pointer]:
+            - /url: https://www.marsta.nu/cookies/
+        - listitem [ref=e462]:
+          - text: "|"
+          - link "Kontakta oss" [ref=e463] [cursor=pointer]:
+            - /url: https://www.marsta.nu/kontakta/
+      - paragraph [ref=e464]:
+        - text: "Tel: 070-566 62 91 | E-post:"
+        - link "redaktion@marsta.nu" [ref=e465] [cursor=pointer]:
+          - /url: mailto:redaktion@marsta.nu
+        - text: "| Chefredaktör: Daniel Iskander."
+      - paragraph [ref=e466]: Copyright märsta.nu. Allt material på sajten är skyddat enligt upphovsrättslagen.

@@ -36,6 +36,25 @@ It runs one agent against a JSON suite using `createAiman()` and checks:
 
 Use the sample suite at `examples/eval-suite.sample.json` as the starting shape.
 
+## Runtime Config Smoke
+
+Use `bun run test:config-smoke` when you want to verify that authored agent config is being applied by the real runtime instead of just validated statically.
+
+The smoke harness creates a temporary repo, writes a real root `AGENTS.md`, a configured fallback bootstrap file in a nested working directory, repo-level `.aiman/config.json`, and one authored schema-mode agent, then runs that agent through `createAiman()`.
+
+It checks:
+
+- `aiman agent check` passes for the authored agent
+- layered `contextFileNames` load correctly
+- the persisted launch snapshot records the expected provider, model, reasoning effort, result mode, capabilities, and configured context files
+- provider-specific launch wiring is present
+- the rendered prompt contains the task input but not injected copies of native context files
+- the running model can see configured bootstrap files natively while an unconfigured file stays invisible
+
+The nested-directory layout is intentional. Current Codex behavior includes at most one discovered instruction file per directory, so fallback names are for alternate or deeper directory files, not stacked same-directory context.
+
+By default it tries both Codex and Gemini and skips a provider when the CLI is missing or authentication is unavailable. You can target one provider with `bun run test:config-smoke codex` or `bun run test:config-smoke gemini`.
+
 ## Practical Workflow
 
 1. Write or refine the agent.

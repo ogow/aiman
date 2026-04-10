@@ -333,6 +333,147 @@ describe("AimanWorkbench", () => {
     expect(frame).toContain("Stop requested for run-active");
   });
 
+  test("renders a readable activity view for active runs", async () => {
+    let resolveRun:
+      | ((value: Awaited<ReturnType<WorkbenchServices["runAgent"]>>) => void)
+      | undefined;
+
+    const setup = await renderWorkbench({
+      async listProfiles() {
+        return [sampleProfile];
+      },
+      async listRuns() {
+        return [
+          createRun({
+            active: true,
+            durationMs: undefined,
+            endedAt: undefined,
+            finalText: undefined,
+            runId: "run-active",
+            status: "running"
+          })
+        ];
+      },
+      async loadProjectContext() {
+        return sampleContext;
+      },
+      async readRunLog() {
+        return "prompt body";
+      },
+      async readRunOutput() {
+        return "";
+      },
+      async runAgent(input) {
+        input.onRunStarted?.({
+          agent: "reviewer",
+          agentPath: sampleProfile.path,
+          agentScope: sampleProfile.scope,
+          provider: sampleProfile.provider,
+          runId: "run-active",
+          startedAt: "2026-04-03T10:00:00.000Z"
+        });
+        input.onRunOutput?.({
+          stream: "stdout",
+          text: [
+            JSON.stringify({ type: "turn.started" }),
+            JSON.stringify({
+              name: "bash",
+              text: "ls src",
+              type: "tool.started"
+            }),
+            JSON.stringify({
+              message: {
+                content: "Inspecting the repository layout.",
+                role: "assistant"
+              },
+              type: "turn.completed"
+            })
+          ].join("\n")
+        });
+        input.onRunOutput?.({
+          stream: "stderr",
+          text: "warming cache"
+        });
+
+        return await new Promise((resolve) => {
+          resolveRun = resolve;
+        });
+      }
+    });
+
+    await pressKey("t");
+    await pressKey("enter");
+    await typeText("Audit the repo");
+    await pressKey("l", { ctrl: true });
+    await settle(10);
+
+    const frame = setup.captureCharFrame();
+
+    expect(frame).toContain("Activity");
+    expect(frame).toContain("assistant");
+    expect(frame).toContain("Inspecting the repository layout.");
+    expect(frame).toContain("tool");
+    expect(frame).toContain("bash: ls src");
+    expect(frame).toContain("stderr");
+    expect(frame).toContain("warming cache");
+
+    resolveRun?.({
+      agent: "reviewer",
+      agentPath: sampleProfile.path,
+      agentScope: sampleProfile.scope,
+      artifacts: [],
+      finalText: "Final answer",
+      launchMode: "foreground",
+      outcome: "done",
+      provider: sampleProfile.provider,
+      projectRoot: "/tmp/demo",
+      resultMode: "text",
+      rights:
+        "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
+      runId: "run-active",
+      runFile: "/tmp/demo/run.json",
+      status: "success",
+      summary: "Final answer"
+    });
+    await settle(10);
+  });
+
+  test("shows artifact filenames in the run summary", async () => {
+    const setup = await renderWorkbench({
+      async listProfiles() {
+        return [sampleProfile];
+      },
+      async listRuns() {
+        return [
+          createRun({
+            artifacts: [
+              { path: "reports/review.md" },
+              { path: "screenshots/failure.png" }
+            ]
+          })
+        ];
+      },
+      async loadProjectContext() {
+        return sampleContext;
+      },
+      async readRunLog() {
+        return "prompt body";
+      },
+      async readRunOutput() {
+        return "";
+      }
+    });
+
+    await pressKey("r");
+    await pressKey("enter");
+
+    const frame = setup.captureCharFrame();
+
+    expect(frame).toContain("Artifacts (2)");
+    expect(frame).toContain("review.md");
+    expect(frame).toContain("failure.png");
+  });
+
   test("renders the runs workspace as a compact table with status and time columns", async () => {
     const setup = await renderWorkbench({
       async listProfiles() {

@@ -2,6 +2,8 @@
 
 Use this guide when an authored `aiman` agent is vague, malformed, hard to chain, or failing unexpectedly.
 
+If you want guided help while repairing one agent, explicitly use `$agent-hardening`. The skill is meant to drive the same loop below with the smallest possible fix.
+
 The fastest path is:
 
 1. run a very small smoke task
@@ -20,6 +22,8 @@ Use a task that is small enough to debug in one pass:
 
 Avoid large tasks while debugging the authored contract. If the first task is huge, it is hard to tell whether the problem is prompt shape, missing context, or normal task complexity.
 
+For example, when hardening a schema agent such as `site-mapper`, prefer a tiny task like `Map the public surface of https://example.com.` over a broad exploratory request. The smaller task makes malformed JSON, vague stop behavior, and output drift obvious much faster.
+
 ## The Main Debug Loop
 
 1. Run `aiman agent check <name>`.
@@ -35,7 +39,9 @@ Avoid large tasks while debugging the authored contract. If the first task is hu
 
 - frontmatter issues
 - missing `{{task}}`
+- missing XML wrapping around `{{task}}`
 - missing recommended body sections
+- missing missing-evidence guidance
 - weak `Expected Output` structure
 
 `aiman runs show <run-id>` is the first runtime read:

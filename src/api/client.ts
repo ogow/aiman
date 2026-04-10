@@ -39,6 +39,9 @@ function toRunInput(input: RunAgentInput) {
       ...(input.agentScope !== undefined
          ? { profileScope: input.agentScope }
          : {}),
+      ...(typeof input.timeoutMs === "number"
+         ? { timeoutMs: input.timeoutMs }
+         : {}),
       task: input.task
    };
 }
@@ -50,6 +53,9 @@ function toLaunchInput(input: LaunchAgentInput) {
          : {}),
       ...(input.agentScope !== undefined
          ? { profileScope: input.agentScope }
+         : {}),
+      ...(typeof input.timeoutMs === "number"
+         ? { timeoutMs: input.timeoutMs }
          : {}),
       task: input.task
    };

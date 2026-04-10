@@ -9,6 +9,7 @@ import {
    createAgentFile,
    formatProfileModel
 } from "../lib/agents.js";
+import { formatAuthoredTimeout } from "../lib/timeouts.js";
 import type {
    ProfileScope,
    ProviderId,
@@ -28,6 +29,7 @@ type AgentCreateArguments = {
    reasoningEffort?: ReasoningEffort;
    resultMode?: ResultMode;
    scope?: ProfileScope;
+   timeoutMs?: number;
 };
 
 const providerChoices = ["codex", "gemini"] as const;
@@ -107,6 +109,11 @@ export function builder(yargs: Argv): Argv {
             'How the runtime should treat the final answer. Use "text" for the default article-aligned mode, or "schema" when the agent must return structured JSON.',
          type: "string"
       })
+      .option("timeout-ms", {
+         describe:
+            "Optional authored timeout in milliseconds. Use 0 to disable the runtime timeout for this agent.",
+         type: "number"
+      })
       .option("force", {
          default: false,
          describe: "Overwrite the target file in the selected scope",
@@ -164,7 +171,9 @@ export async function handler(
 
    const projectPaths = getProjectPaths();
    const agent = await createAgentFile(projectPaths, {
-      ...(Array.isArray(args.capability) ? { capabilities: args.capability } : {}),
+      ...(Array.isArray(args.capability)
+         ? { capabilities: args.capability }
+         : {}),
       description: args.description ?? "",
       ...(args.force === true ? { force: true } : {}),
       instructions,
@@ -173,7 +182,10 @@ export async function handler(
       provider: args.provider,
       reasoningEffort,
       resultMode: args.resultMode ?? "text",
-      scope: args.scope ?? "project"
+      scope: args.scope ?? "project",
+      ...(typeof args.timeoutMs === "number"
+         ? { timeoutMs: args.timeoutMs }
+         : {})
    });
 
    if (args.json) {
@@ -194,6 +206,7 @@ export async function handler(
             },
             { label: "Reasoning", value: agent.reasoningEffort },
             { label: "Result", value: agent.resultMode },
+            { label: "Timeout", value: formatAuthoredTimeout(agent.timeoutMs) },
             {
                label: "Capabilities",
                value: agent.capabilities?.join(", ") ?? ""

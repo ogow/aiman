@@ -17,7 +17,7 @@ The run store is global under `~/.aiman/runs/` and is scanned directly from disk
 - `aiman agent list [--scope project|user] [--json]`
 - `aiman agent show <agent> [--scope project|user] [--json]`
 - `aiman agent check <agent> [--scope project|user] [--json]`
-- `aiman agent create <name> --scope project|user --provider codex|gemini --model <id|auto> --reasoning-effort <value> --result-mode text|schema [--capability <value>]... --description <text> [--instructions <text>] [--force] [--json]`
+- `aiman agent create <name> --scope project|user --provider codex|gemini --model <id|auto> --reasoning-effort <value> --result-mode text|schema [--capability <value>]... [--timeout-ms <ms>] --description <text> [--instructions <text>] [--force] [--json]`
 - `aiman run <agent> [--task <text>] [--cwd <path>] [--scope project|user] [--detach] [--json]`
 - `aiman runs list [--all] [--limit <n>] [--json]`
 - `aiman runs show <run-id> [--json]`
@@ -36,7 +36,7 @@ Agents can exist in two scopes:
 
 ## Agent Authoring
 
-For `aiman agent create`, `--scope`, `--provider`, `--model`, and `--description` are required. `--reasoning-effort` is required for Codex and optional for Gemini (defaults to `none`). `--result-mode` defaults to `text`.
+For `aiman agent create`, `--scope`, `--provider`, `--model`, and `--description` are required. `--reasoning-effort` is required for Codex and optional for Gemini (defaults to `none`). `--result-mode` defaults to `text`. `--timeout-ms` is optional; omit it to keep the runtime default, or use `0` when you intentionally want no timeout for that agent.
 
 Use repeated `--capability` flags when you want an authored agent to declare informational traits such as `human-facing`, `automation-friendly`, `read-only`, `writes-files`, or `repo-grounded`.
 
@@ -44,10 +44,18 @@ Legacy frontmatter such as `mode`, `permissions`, `contextFiles`, `skills`, and 
 
 Agent bodies are explicit prompt templates. `aiman` substitutes runtime values where the body asks for them. New agents created by `aiman agent create` include `{{task}}` by default, and runnable agents should include that placeholder somewhere in the body.
 
+New scaffolds also wrap `{{task}}` in `<task>...</task>` and include default missing-evidence guidance. `aiman agent check` warns when authored agents drop that XML wrapper or fail to say what to do when required context is missing.
+
 Result modes:
 
 - `text`: default. The final provider answer is stored as `finalText` in `run.json`, and `aiman run` prints it directly.
 - `schema`: opt-in. `aiman` appends a required JSON contract and validates the final provider answer before recording a successful run.
+
+Timeouts:
+
+- runs default to a 5 minute timeout unless the caller or authored agent overrides it
+- authored agents can declare `timeoutMs` in frontmatter
+- `timeoutMs: 0` disables the timeout for that agent
 
 Use `docs/agent-authoring.md` for the higher-level checklist.
 Use `docs/agent-debugging.md` for the practical smoke-test and inspection workflow.

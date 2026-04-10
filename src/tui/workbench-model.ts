@@ -21,7 +21,7 @@ export type FocusRegion =
    | "runList"
    | "taskEditor";
 
-export type RunDetailTab = "answer" | "logs" | "prompt" | "summary";
+export type RunDetailTab = "activity" | "answer" | "prompt" | "raw" | "summary";
 
 export type NoticeTone = "error" | "info" | "success";
 
@@ -65,9 +65,14 @@ export const detailTabOptions = [
       value: "answer"
    },
    {
-      description: "Recent stdout and stderr output.",
-      name: "Logs",
-      value: "logs"
+      description: "Readable activity focused on model behavior.",
+      name: "Activity",
+      value: "activity"
+   },
+   {
+      description: "Raw stdout and stderr output.",
+      name: "Raw",
+      value: "raw"
    },
    {
       description: "Resolved prompt for this run.",
@@ -333,6 +338,14 @@ export function buildRunSummary(run: RunInspection | undefined): string {
       return "No runs recorded yet.";
    }
 
+   const artifactNames = Array.from(
+      new Set(
+         run.artifacts
+            .map((artifact) => basename(artifact.path) || artifact.path)
+            .filter((artifact) => artifact.length > 0)
+      )
+   );
+
    const summary = renderLabelValueBlock([
       { label: "Run", value: run.runId },
       { label: "Agent", value: getRunShortLabel(run) },
@@ -363,39 +376,36 @@ export function buildRunSummary(run: RunInspection | undefined): string {
       typeof run.error?.message === "string" && run.error.message.length > 0
          ? `Error\n\n${run.error.message}`
          : "";
+   const artifacts =
+      artifactNames.length > 0
+         ? `Artifacts (${artifactNames.length})\n\n${artifactNames.join("\n")}`
+         : "";
 
-   return [summary, warning, errorMessage]
+   return [summary, artifacts, warning, errorMessage]
       .filter((part) => part.length > 0)
       .join("\n\n");
 }
 
-export function buildAnswerContent(input: {
-   liveOutput: string;
-   run: RunInspection | undefined;
-}): string {
-   if (input.run === undefined) {
+export function buildAnswerContent(run: RunInspection | undefined): string {
+   if (run === undefined) {
       return "Select a run to inspect it.";
    }
 
    const answer =
-      input.run.structuredResult !== undefined
-         ? JSON.stringify(input.run.structuredResult, null, 2).trim()
-         : typeof input.run.finalText === "string"
-           ? input.run.finalText.trim()
-         : typeof input.run.summary === "string"
-           ? input.run.summary.trim()
-           : "";
+      run.structuredResult !== undefined
+         ? JSON.stringify(run.structuredResult, null, 2).trim()
+         : typeof run.finalText === "string"
+           ? run.finalText.trim()
+           : typeof run.summary === "string"
+             ? run.summary.trim()
+             : "";
 
    if (answer.length > 0) {
       return answer;
    }
 
-   if (input.run.status === "running" && input.liveOutput.trim().length > 0) {
-      return input.liveOutput.trimEnd();
-   }
-
-   return input.run.status === "running"
-      ? "Run is still active. Switch to the logs tab for live output."
+   return run.status === "running"
+      ? "Run is still active. Switch to the Activity tab for live model output."
       : "This run did not record a final answer.";
 }
 

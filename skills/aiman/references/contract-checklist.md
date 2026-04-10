@@ -7,23 +7,28 @@ Lock these answers before drafting or revising an `aiman` agent.
 - What exact outcome does the agent own?
 - What is explicitly out of scope?
 - Is this a human-facing specialist, a parent-agent helper, or automation support?
+- Why should this exist as a named agent instead of a one-off task prompt?
 
-## Output
+## Evidence And Decisions
+
+- What evidence must the agent gather before it can decide?
+- What should it do when required evidence is missing?
+- What are the explicit stop conditions?
+
+## Output And Result Mode
 
 - What should a good run return: findings, a patch, a plan, a report, or a short answer?
-- What structure should the output follow every time?
-- What should the agent say when the evidence is incomplete?
+- Should the agent be `text` or `schema`?
+- If `text`, what must the final answer always cover?
+- If `schema`, what fields belong inside `result`?
+- If `schema`, what `outcome` values are allowed and when should optional `next` appear?
+- What belongs in `artifacts/` instead of inline output?
 
 ## Runtime
 
 - Which provider and model fit the work best?
 - What `reasoningEffort` matches that provider?
-
-## Orchestration
-
-- What `handoff.outcome` values should this agent use ("done", "blocked", "incomplete")?
-- Does this agent suggest a `nextTask` or `nextAgent` to continue the work?
-- What `notes` does the next specialist need to carry forward?
+- Should the agent expose informational `capabilities` for operator visibility?
 
 ## Repo Fit
 
@@ -36,5 +41,6 @@ Lock these answers before drafting or revising an `aiman` agent.
 - What `aiman agent show` output would confirm the contract?
 - What should `aiman agent check` catch if the file is malformed?
 - What is the smallest smoke task that proves the agent behaves correctly?
+- Which failure would tell you the boundary or expected output is still too vague?
 
 If any answer is missing and cannot be inferred safely, ask a short follow-up question before writing the final file.

@@ -1,0 +1,4 @@
+interface:
+   display_name: "Agent Hardening"
+   short_description: "Create or repair reliable aiman agents"
+   default_prompt: "Use $agent-hardening to tighten this authored `aiman` agent, lock its contract, and drive the smallest useful `aiman agent check` plus smoke-task workflow."

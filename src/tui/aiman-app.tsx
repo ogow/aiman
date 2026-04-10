@@ -46,6 +46,7 @@ import {
   sortRunsForWorkbench,
   trimLiveOutput
 } from "./workbench-model.js";
+import { renderOutputSections, renderRunActivity } from "./run-activity.js";
 import { WorkbenchShell } from "./workbench-shell.js";
 import {
   AgentsWorkspace,
@@ -55,6 +56,12 @@ import {
 } from "./workbench-workspaces.js";
 
 type RunAgentInput = Parameters<typeof runAgent>[0];
+type RunStream = "stderr" | "stdout";
+type LiveRunOutput = {
+  runId?: string;
+  stderr: string;
+  stdout: string;
+};
 
 export type WorkbenchServices = {
   listProfiles: (
@@ -103,6 +110,56 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function createEmptyLiveRunOutput(runId?: string): LiveRunOutput {
+  return {
+    ...(runId !== undefined ? { runId } : {}),
+    stderr: "",
+    stdout: ""
+  };
+}
+
+function appendLiveRunOutput(input: {
+  currentValue: LiveRunOutput;
+  runId: string;
+  stream: RunStream;
+  text: string;
+}): LiveRunOutput {
+  const baseValue =
+    input.currentValue.runId === input.runId
+      ? input.currentValue
+      : createEmptyLiveRunOutput(input.runId);
+  const nextValue = `${baseValue[input.stream]}${input.text}`;
+
+  return {
+    ...baseValue,
+    runId: input.runId,
+    [input.stream]: trimLiveOutput(nextValue)
+  };
+}
+
+async function loadRunStreamOutput(input: {
+  liveOutput: LiveRunOutput;
+  run: RunInspection;
+  services: WorkbenchServices;
+}): Promise<{ stderr: string; stdout: string }> {
+  if (
+    input.liveOutput.runId === input.run.runId &&
+    (input.liveOutput.stdout.length > 0 || input.liveOutput.stderr.length > 0)
+  ) {
+    return {
+      stderr: input.liveOutput.stderr,
+      stdout: input.liveOutput.stdout
+    };
+  }
+
+  const [stdout, stderr] = await Promise.all([
+    input.services.readRunOutput(input.run.runId, "stdout", detailLogLines),
+    input.services.readRunOutput(input.run.runId, "stderr", detailLogLines)
+  ]);
+
+  return { stderr, stdout };
+}
+
 function getDefaultFocusRegion(workspace: Workspace): FocusRegion {
   switch (workspace) {
     case "start":
@@ -142,7 +199,7 @@ async function waitForRendererDestroy(renderer: CliRenderer): Promise<void> {
 
 async function loadDetailBody(input: {
   detailTab: RunDetailTab;
-  liveOutput: string;
+  liveOutput: LiveRunOutput;
   run: RunInspection | undefined;
   services: WorkbenchServices;
 }): Promise<string> {
@@ -153,17 +210,32 @@ async function loadDetailBody(input: {
     case "summary":
       return buildRunSummary(input.run);
     case "answer":
-      return buildAnswerContent({
+      return buildAnswerContent(input.run);
+    case "activity": {
+      const output = await loadRunStreamOutput({
         liveOutput: input.liveOutput,
-        run: input.run
+        run: input.run,
+        services: input.services
       });
-    case "logs": {
-      const output = await input.services.readRunOutput(
-        input.run.runId,
-        "all",
-        detailLogLines
-      );
-      if (output.trim().length > 0) return output;
+      const activity = renderRunActivity({
+        provider: input.run.provider,
+        status: input.run.status,
+        stderr: output.stderr,
+        stdout: output.stdout
+      });
+      if (activity.trim().length > 0) return activity;
+      return input.run.status === "running"
+        ? "Run is active but has not emitted any activity yet."
+        : "No provider activity was recorded for this run.";
+    }
+    case "raw": {
+      const output = await loadRunStreamOutput({
+        liveOutput: input.liveOutput,
+        run: input.run,
+        services: input.services
+      });
+      const renderedOutput = renderOutputSections(output);
+      if (renderedOutput.trim().length > 0) return renderedOutput;
       return input.run.status === "running"
         ? "Run is active but has not written any logs yet."
         : "No stdout or stderr logs were recorded for this run.";
@@ -270,7 +342,9 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
   const [refreshingRuns, setRefreshingRuns] = useState(false);
   const [stoppingRunId, setStoppingRunId] = useState<string | undefined>();
   const [notice, setNotice] = useState<AppNotice | undefined>();
-  const [liveOutput, setLiveOutput] = useState("");
+  const [liveOutput, setLiveOutput] = useState<LiveRunOutput>(
+    createEmptyLiveRunOutput()
+  );
   const [runAnimationFrame, setRunAnimationFrame] = useState(0);
   const projectTitle = getProjectTitle(props.projectPaths.projectRoot);
   const selectedProfile = profiles[selectedProfileIndex];
@@ -380,23 +454,36 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
     }
     setLaunching(true);
     setNotice({ text: `Launching ${selectedProfile.name}…`, tone: "info" });
-    setLiveOutput("");
+    setLiveOutput(createEmptyLiveRunOutput());
+    let liveRunId: string | undefined;
 
     try {
       const result = await services.runAgent({
         profileName: selectedProfile.name,
         profileScope: selectedProfile.scope,
-        onRunOutput: ({ text }) => {
+        onRunOutput: ({ stream, text }) => {
+          const currentRunId = liveRunId;
+          if (typeof currentRunId !== "string") {
+            return;
+          }
+
           setLiveOutput((currentValue) =>
-            trimLiveOutput(`${currentValue}${text}`)
+            appendLiveRunOutput({
+              currentValue,
+              runId: currentRunId,
+              stream,
+              text
+            })
           );
         },
         onRunStarted: ({ agent, runId }) => {
+          liveRunId = runId;
           startTransition(() => {
+            setLiveOutput(createEmptyLiveRunOutput(runId));
             setSelectedRunId(runId);
-            setDetailTab("logs");
+            setDetailTab("activity");
             setWorkspace("runs");
-            setFocusRegion("detailPane"); // Drill down to logs immediately
+            setFocusRegion("detailPane");
             setNotice({
               text: `Running ${agent} in the workbench…`,
               tone: "info"
@@ -419,17 +506,17 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
       }
 
       startTransition(() => {
-        setDetailTab(result.status === "success" ? "answer" : "logs");
+        setDetailTab(result.status === "success" ? "answer" : "activity");
         setSelectedRunId(result.runId);
         setWorkspace("runs");
-        setFocusRegion("detailPane"); // Drill down to result/logs
+        setFocusRegion("detailPane");
       });
       await refreshRuns();
     } catch (error) {
       setNotice({ text: getErrorMessage(error), tone: "error" });
     } finally {
       setLaunching(false);
-      setLiveOutput("");
+      setLiveOutput(createEmptyLiveRunOutput());
     }
   };
 
@@ -521,7 +608,15 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
     return () => {
       cancelled = true;
     };
-  }, [detailTab, liveOutput, selectedRun?.runId, selectedRun?.status, runs]);
+  }, [
+    detailTab,
+    liveOutput.runId,
+    liveOutput.stderr,
+    liveOutput.stdout,
+    selectedRun?.runId,
+    selectedRun?.status,
+    runs
+  ]);
 
   useKeyboard((key) => {
     if (workspace === "runs" && focusRegion === "runFilter") {
@@ -620,7 +715,8 @@ export function AimanWorkbench(props: AimanWorkbenchProps) {
       if (
         nextTab === "summary" ||
         nextTab === "answer" ||
-        nextTab === "logs" ||
+        nextTab === "activity" ||
+        nextTab === "raw" ||
         nextTab === "prompt"
       ) {
         setDetailTab(nextTab);

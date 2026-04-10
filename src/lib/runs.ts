@@ -3,7 +3,14 @@ import type { ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import type { WriteStream } from "node:fs";
 import { createWriteStream } from "node:fs";
-import { access, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import {
+   access,
+   mkdir,
+   readdir,
+   readFile,
+   stat,
+   writeFile
+} from "node:fs/promises";
 import * as path from "node:path";
 
 import { loadAimanConfig } from "./config.js";
@@ -31,6 +38,11 @@ import {
    writeRunStateIfRunning
 } from "./run-records.js";
 import { getAdapterForProvider } from "./providers/index.js";
+import {
+   defaultKillGraceMs,
+   normalizeTimeoutMs,
+   resolveRunTimeoutMs
+} from "./timeouts.js";
 import type {
    LaunchMode,
    LaunchedRun,
@@ -46,8 +58,6 @@ import type {
    ScopedProfileDefinition
 } from "../lib/types.js";
 
-const defaultRunTimeoutMs = 5 * 60 * 1000;
-const defaultKillGraceMs = 1 * 1000;
 const promptArgumentPlaceholder = "@prompt.md";
 const runHeartbeatIntervalMs = 1000;
 const stopPollIntervalMs = 100;
@@ -496,7 +506,18 @@ async function prepareRun(
    const runId = createRunId(profile.name, startedAt);
    const runDir = buildRunDirectory(projectPaths.runsDir, runId, startedAt);
    const runCwd = resolveRunCwd(projectPaths.projectRoot, input.cwd);
-   const timeoutMs = input.timeoutMs ?? defaultRunTimeoutMs;
+   const timeoutOverride = normalizeTimeoutMs(
+      input.timeoutMs,
+      "Run timeoutMs is invalid"
+   );
+   const timeoutMs = resolveRunTimeoutMs({
+      ...(profile.timeoutMs !== undefined
+         ? { authoredTimeoutMs: profile.timeoutMs }
+         : {}),
+      ...(timeoutOverride !== undefined
+         ? { overrideTimeoutMs: timeoutOverride }
+         : {})
+   });
    const killGraceMs = input.killGraceMs ?? defaultKillGraceMs;
 
    await mkdir(runDir, { recursive: true });
@@ -785,14 +806,19 @@ async function executePreparedRun(
 
    child.stdin?.end();
 
-   const timer = setTimeout(() => {
-      timedOut = true;
-      requestChildStop();
-   }, preparedRun.timeoutMs);
+   const timer =
+      preparedRun.timeoutMs > 0
+         ? setTimeout(() => {
+              timedOut = true;
+              requestChildStop();
+           }, preparedRun.timeoutMs)
+         : undefined;
 
    const completion = await completionPromise.finally(async () => {
       completed = true;
-      clearTimeout(timer);
+      if (timer !== undefined) {
+         clearTimeout(timer);
+      }
       clearInterval(stopRequestInterval);
       process.off("SIGINT", handleProcessSignal);
       process.off("SIGTERM", handleProcessSignal);
