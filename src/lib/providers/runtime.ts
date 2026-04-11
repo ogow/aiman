@@ -94,7 +94,9 @@ const nextSchema = z
    .strict()
    .transform((value) => {
       const normalized = {
-         ...(typeof value.agent === "string" ? { agent: value.agent.trim() } : {}),
+         ...(typeof value.agent === "string"
+            ? { agent: value.agent.trim() }
+            : {}),
          ...(value.inputs !== undefined ? { inputs: value.inputs } : {}),
          ...(typeof value.task === "string" ? { task: value.task.trim() } : {})
       };
@@ -305,7 +307,9 @@ function buildRunRecord(input: {
       endedAt: input.endedAt,
       ...(input.error ? { error: input.error } : {}),
       exitCode: input.exitCode,
-      ...(typeof input.finalText === "string" ? { finalText: input.finalText } : {}),
+      ...(typeof input.finalText === "string"
+         ? { finalText: input.finalText }
+         : {}),
       launch: input.launch,
       launchMode: input.launchMode,
       logs: {
@@ -358,7 +362,6 @@ function buildSchemaModeContract(): string {
       '"summary" must be a concise human-readable sentence.',
       '"outcome" must be a short status such as "done", "blocked", or "needs_followup".',
       '"result" must contain the task-specific structured output.',
-      'Optional "next" may be an object with keys "task", "agent", and "inputs" when there is a clear next step.',
       "Do not wrap the JSON in markdown fences.",
       "Do not include any text before or after the JSON object."
    ].join("\n");
@@ -385,7 +388,9 @@ function formatSchemaPath(pathEntries: PropertyKey[]): string {
    }
 
    return pathEntries
-      .map((entry) => (typeof entry === "number" ? `[${entry}]` : String(entry)))
+      .map((entry) =>
+         typeof entry === "number" ? `[${entry}]` : String(entry)
+      )
       .join(".");
 }
 

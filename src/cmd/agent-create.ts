@@ -1,3 +1,4 @@
+import { createInterface } from "node:readline/promises";
 import type { ArgumentsCamelCase, Argv } from "yargs";
 
 import { getProjectPaths } from "../lib/paths.js";
@@ -18,7 +19,6 @@ import type {
 } from "../lib/types.js";
 
 type AgentCreateArguments = {
-   capability?: string[];
    description?: string;
    force?: boolean;
    instructions?: string;
@@ -57,6 +57,102 @@ async function readInstructionsFromStdin(): Promise<string> {
    return Buffer.concat(chunks).toString("utf8").trim();
 }
 
+type CreatePromptAnswers = {
+   description?: string;
+   provider?: ProviderId;
+   resultMode?: ResultMode;
+};
+
+function normalizePromptResultMode(value: string): ResultMode | undefined {
+   const normalized = value.trim().toLowerCase();
+
+   if (normalized === "json" || normalized === "schema") {
+      return "schema";
+   }
+
+   if (normalized === "text") {
+      return "text";
+   }
+
+   return undefined;
+}
+
+async function promptForMissingCreateFields(
+   input: CreatePromptAnswers
+): Promise<CreatePromptAnswers> {
+   if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      return input;
+   }
+
+   const answers: CreatePromptAnswers = { ...input };
+   const prompt = createInterface({
+      input: process.stdin,
+      output: process.stdout
+   });
+
+   try {
+      if (answers.provider === undefined) {
+         while (answers.provider === undefined) {
+            const value = await prompt.question("Provider (codex/gemini): ");
+            const normalized = value.trim().toLowerCase();
+
+            if (normalized === "codex" || normalized === "gemini") {
+               answers.provider = normalized;
+               break;
+            }
+         }
+      }
+
+      if (
+         typeof answers.description !== "string" ||
+         answers.description.trim().length === 0
+      ) {
+         while (
+            typeof answers.description !== "string" ||
+            answers.description.trim().length === 0
+         ) {
+            answers.description = await prompt.question(
+               "What job does this agent own? "
+            );
+         }
+      }
+
+      if (answers.resultMode === undefined) {
+         while (answers.resultMode === undefined) {
+            const value = await prompt.question(
+               "Output style (text/json) [text]: "
+            );
+            const resultMode =
+               value.trim().length === 0
+                  ? "text"
+                  : normalizePromptResultMode(value);
+
+            if (resultMode !== undefined) {
+               answers.resultMode = resultMode;
+            }
+         }
+      }
+   } finally {
+      prompt.close();
+   }
+
+   return answers;
+}
+
+function buildDefaultInstructions(input: {
+   description: string;
+   resultMode: ResultMode;
+}): string {
+   if (input.resultMode === "schema") {
+      return [
+         `Do the work needed to ${input.description.trim().toLowerCase()}.`,
+         "Return only the task result as strict JSON."
+      ].join("\n");
+   }
+
+   return `Do the work needed to ${input.description.trim().toLowerCase()}.`;
+}
+
 export function builder(yargs: Argv): Argv {
    return yargs
       .positional("name", {
@@ -71,42 +167,33 @@ export function builder(yargs: Argv): Argv {
       })
       .option("provider", {
          choices: providerChoices,
-         demandOption: true,
          describe: "Provider backend for this agent",
          type: "string"
       })
       .option("description", {
-         demandOption: true,
          describe: "Short description for listings",
          type: "string"
       })
-      .option("capability", {
-         array: true,
-         describe:
-            "Optional informational capability declaration. Repeat for multiple values.",
-         type: "string"
-      })
       .option("instructions", {
-         describe: "Agent instructions; use stdin for multiline input",
+         describe:
+            "Optional agent instructions; when omitted, aiman generates a minimal default scaffold",
          type: "string"
       })
       .option("model", {
-         demandOption: true,
          describe:
-            'Model for this agent. For Gemini, use "auto" to let the Gemini CLI choose its automatic default model.',
+            'Optional advanced override. For Gemini, use "auto" to let the Gemini CLI choose its automatic default model.',
          type: "string"
       })
       .option("reasoning-effort", {
          choices: reasoningEffortChoices,
          describe:
-            'Reasoning effort for this agent. Required for Codex. Use "none" for Gemini.',
+            "Optional advanced override for provider reasoning behavior.",
          type: "string"
       })
       .option("result-mode", {
          choices: resultModeChoices,
-         default: "text",
          describe:
-            'How the runtime should treat the final answer. Use "text" for the default article-aligned mode, or "schema" when the agent must return structured JSON.',
+            'How the runtime should treat the final answer. Use "text" for human-readable output or "schema" for strict JSON.',
          type: "string"
       })
       .option("timeout-ms", {
@@ -146,42 +233,49 @@ export async function handler(
    const instructions =
       optionInstructions.length > 0 ? optionInstructions : stdinInstructions;
 
-   if (instructions.length === 0) {
+   const prompted = await promptForMissingCreateFields({
+      ...(typeof args.description === "string"
+         ? { description: args.description.trim() }
+         : {}),
+      ...(typeof args.provider === "string" ? { provider: args.provider } : {}),
+      ...(args.resultMode !== undefined ? { resultMode: args.resultMode } : {})
+   });
+
+   const provider = prompted.provider;
+
+   if (provider === undefined) {
       throw new UserError(
-         "Agent instructions are required. Provide them with --instructions or stdin."
+         "Provider is required. Pass --provider or run this command in an interactive TTY."
       );
    }
 
-   if (typeof args.provider !== "string") {
-      throw new UserError("Provider is required.");
-   }
+   const description = prompted.description?.trim();
 
-   if (typeof args.model !== "string" || args.model.trim().length === 0) {
-      throw new UserError("Model is required.");
-   }
-
-   const reasoningEffort =
-      args.reasoningEffort ?? (args.provider === "gemini" ? "none" : undefined);
-
-   if (reasoningEffort === undefined) {
+   if (typeof description !== "string" || description.length === 0) {
       throw new UserError(
-         `Reasoning effort is required for provider "${args.provider}".`
+         "Description is required. Pass --description or run this command in an interactive TTY."
       );
    }
+
+   const resultMode = prompted.resultMode ?? "text";
 
    const projectPaths = getProjectPaths();
    const agent = await createAgentFile(projectPaths, {
-      ...(Array.isArray(args.capability)
-         ? { capabilities: args.capability }
-         : {}),
-      description: args.description ?? "",
+      description,
       ...(args.force === true ? { force: true } : {}),
-      instructions,
-      model: args.model,
+      instructions:
+         instructions.length > 0
+            ? instructions
+            : buildDefaultInstructions({ description, resultMode }),
+      ...(typeof args.model === "string" && args.model.trim().length > 0
+         ? { model: args.model.trim() }
+         : {}),
       name: args.name,
-      provider: args.provider,
-      reasoningEffort,
-      resultMode: args.resultMode ?? "text",
+      provider,
+      ...(args.reasoningEffort !== undefined
+         ? { reasoningEffort: args.reasoningEffort }
+         : {}),
+      resultMode,
       scope: args.scope ?? "project",
       ...(typeof args.timeoutMs === "number"
          ? { timeoutMs: args.timeoutMs }
@@ -207,10 +301,6 @@ export async function handler(
             { label: "Reasoning", value: agent.reasoningEffort },
             { label: "Result", value: agent.resultMode },
             { label: "Timeout", value: formatAuthoredTimeout(agent.timeoutMs) },
-            {
-               label: "Capabilities",
-               value: agent.capabilities?.join(", ") ?? ""
-            },
             { label: "Path", value: agent.path }
          ])
       )}\n`

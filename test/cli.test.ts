@@ -219,14 +219,8 @@ test("agent create writes a project-scope agent", async () => {
          "tester",
          "--description",
          "Runs tests",
-         "--instructions",
-         "Run them",
-         "--model",
-         "gpt-5.4-mini",
          "--provider",
          "codex",
-         "--reasoning-effort",
-         "medium",
          "--scope",
          "project"
       ],
@@ -241,8 +235,11 @@ test("agent create writes a project-scope agent", async () => {
    const content = await readFile(agentPath, "utf8");
    assert.match(content, /name: tester/);
    assert.match(content, /description: Runs tests/);
+   assert.doesNotMatch(content, /^model:/m);
+   assert.doesNotMatch(content, /^reasoningEffort:/m);
    assert.match(content, /<task>\s*\{\{task\}\}\s*<\/task>/);
    assert.match(content, /## Stop Conditions/);
+   assert.doesNotMatch(content, /## Constraints/);
 
    const checkResult = runCli(["agent", "check", "tester", "--json"], {
       cwd: projectRoot,
@@ -258,7 +255,7 @@ test("agent create writes a project-scope agent", async () => {
    assert.deepEqual(checkReport.warnings, []);
 });
 
-test("agent create writes informational capabilities when requested", async () => {
+test("agent create writes explicit advanced model and reasoning when requested", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
 
@@ -266,15 +263,9 @@ test("agent create writes informational capabilities when requested", async () =
       [
          "agent",
          "create",
-         "cap-tester",
+         "advanced-tester",
          "--description",
          "Runs tests",
-         "--capability",
-         "human-facing",
-         "--capability",
-         "repo-grounded",
-         "--instructions",
-         "Run them",
          "--model",
          "gpt-5.4-mini",
          "--provider",
@@ -292,12 +283,11 @@ test("agent create writes informational capabilities when requested", async () =
 
    assert.equal(result.status, 0);
    const content = await readFile(
-      path.join(projectRoot, ".aiman", "agents", "cap-tester.md"),
+      path.join(projectRoot, ".aiman", "agents", "advanced-tester.md"),
       "utf8"
    );
-   assert.match(content, /capabilities:/);
-   assert.match(content, /- "human-facing"/);
-   assert.match(content, /- "repo-grounded"/);
+   assert.match(content, /^model: gpt-5.4-mini$/m);
+   assert.match(content, /^reasoningEffort: medium$/m);
 });
 
 test("agent create writes timeoutMs when requested", async () => {
@@ -311,14 +301,8 @@ test("agent create writes timeoutMs when requested", async () => {
          "timeout-tester",
          "--description",
          "Runs tests",
-         "--instructions",
-         "Run them",
-         "--model",
-         "gpt-5.4-mini",
          "--provider",
          "codex",
-         "--reasoning-effort",
-         "medium",
          "--timeout-ms",
          "0",
          "--scope",
@@ -336,6 +320,7 @@ test("agent create writes timeoutMs when requested", async () => {
       "utf8"
    );
    assert.match(content, /timeoutMs: 0/);
+   assert.doesNotMatch(content, /^model:/m);
 
    const checkResult = runCli(["agent", "check", "timeout-tester", "--json"], {
       cwd: projectRoot,
@@ -380,7 +365,7 @@ test("agent create rejects unsupported provider reasoning effort", async () => {
    assert.match(result.stderr, /has invalid reasoningEffort/);
 });
 
-test("agent create rejects missing reasoning-effort for Codex", async () => {
+test("agent create uses provider defaults when Codex model and reasoning are omitted", async () => {
    const projectRoot = await createProjectFixture();
    const homeRoot = await createHomeFixture();
 
@@ -388,15 +373,12 @@ test("agent create rejects missing reasoning-effort for Codex", async () => {
       [
          "agent",
          "create",
-         "missing",
+         "codex-defaults",
          "--description",
-         "x",
-         "--instructions",
-         "x",
-         "--model",
-         "gpt-5.4-mini",
+         "Reviews changes",
          "--provider",
-         "codex"
+         "codex",
+         "--json"
       ],
       {
          cwd: projectRoot,
@@ -404,11 +386,21 @@ test("agent create rejects missing reasoning-effort for Codex", async () => {
       }
    );
 
-   assert.notEqual(result.status, 0);
-   assert.match(
-      result.stderr,
-      /Reasoning effort is required for provider "codex"/
+   assert.equal(result.status, 0);
+   const payload = JSON.parse(result.stdout) as {
+      agent: { model: string; reasoningEffort: string };
+      created: boolean;
+   };
+   assert.equal(payload.created, true);
+   assert.equal(payload.agent.model, "gpt-5.4-mini");
+   assert.equal(payload.agent.reasoningEffort, "medium");
+
+   const content = await readFile(
+      path.join(projectRoot, ".aiman", "agents", "codex-defaults.md"),
+      "utf8"
    );
+   assert.doesNotMatch(content, /^model:/m);
+   assert.doesNotMatch(content, /^reasoningEffort:/m);
 });
 
 test('agent create allows Gemini with "auto" model selection', async () => {
@@ -668,6 +660,57 @@ You are a reviewer.
    assert.ok(
       report.warnings.some(
          (warning) => warning.code === "missing-missing-evidence-guidance"
+      )
+   );
+});
+
+test("agent check warns when JSON agents still mention next", async () => {
+   const projectRoot = await createProjectFixture();
+   const homeRoot = await createHomeFixture();
+   await writeFile(
+      path.join(projectRoot, ".aiman", "agents", "mentions-next.md"),
+      `---
+name: mentions-next
+description: x
+provider: codex
+resultMode: schema
+---
+
+## Role
+You are a mapper.
+
+## Task Input
+<task>
+{{task}}
+</task>
+
+## Instructions
+- If needed, include \`next\` for another agent.
+- If required evidence is missing, stop with a blocked outcome instead of guessing.
+
+## Stop Conditions
+- Stop when you can answer clearly.
+
+## Expected Output
+- Return \`summary\`, \`outcome\`, \`result\`, and optional \`next\`.
+`,
+      "utf8"
+   );
+
+   const result = runCli(["agent", "check", "mentions-next", "--json"], {
+      cwd: projectRoot,
+      env: createCliEnv({ homeRoot })
+   });
+
+   assert.equal(result.status, 0);
+   const report = JSON.parse(result.stdout) as {
+      status: string;
+      warnings: Array<{ code: string }>;
+   };
+   assert.equal(report.status, "warnings");
+   assert.ok(
+      report.warnings.some(
+         (warning) => warning.code === "avoid-next-in-json-agents"
       )
    );
 });

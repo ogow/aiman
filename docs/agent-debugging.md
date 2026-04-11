@@ -1,6 +1,6 @@
 # Debugging Authored Agents
 
-Use this guide when an authored `aiman` agent is vague, malformed, hard to chain, or failing unexpectedly.
+Use this guide when an authored `aiman` agent is vague, malformed, or failing unexpectedly.
 
 If you want guided help while repairing one agent, explicitly use `$agent-hardening`. The skill is meant to drive the same loop below with the smallest possible fix.
 
@@ -50,7 +50,6 @@ For example, when hardening a schema agent such as `site-mapper`, prefer a tiny 
 - `finalText` for text-mode runs
 - `structuredResult` for schema-mode runs
 - `outcome`
-- `next`
 - final error, if any
 
 `aiman runs inspect <run-id> --stream prompt` shows the exact rendered prompt:
@@ -66,7 +65,6 @@ For example, when hardening a schema agent such as `site-mapper`, prefer a tiny 
 - optional `finalText`
 - optional `structuredResult`
 - `outcome`
-- `next`
 - `artifacts`
 - immutable `launch` snapshot
 
@@ -95,11 +93,11 @@ The agent returns vague structured output:
 - name the intended `outcome` values
 - make `Expected Output` list-shaped and concrete
 
-The next agent still cannot use the run:
+The run is hard to reuse:
 
-- tighten `next.task`
 - keep the important facts in `result`
 - use `artifacts/` only for larger detail, not as the main contract
+- move routing decisions into the surrounding harness instead of the authored agent
 
 The provider appears successful but the run is still an error:
 
@@ -117,4 +115,4 @@ A healthy authored agent usually has:
 - one clear blocked path when information is missing
 - one short stop rule that prevents endless exploration
 
-If another agent can read the key outcome, final answer or structured result, optional `next`, and relevant artifacts from `run.json` without rereading logs, the contract is in good shape.
+If a human or harness can read the key outcome, final answer or structured result, and relevant artifacts from `run.json` without rereading logs, the contract is in good shape.

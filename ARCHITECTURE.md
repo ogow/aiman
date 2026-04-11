@@ -16,8 +16,8 @@
 `aiman` does not include a built-in orchestration engine. Instead, it is designed to be the "engine" for project-specific orchestration flows.
 
 - **Harnesses**: Environment wrappers that provide context and validation for agent runs.
-- **Loops**: Iterative patterns where an agent refines its work based on its own suggested next tasks.
-- **Flows**: Chained specialists working together to achieve a goal.
+- **Loops**: Iterative patterns owned by a project script or human operator.
+- **Flows**: Chained specialists working together under an external harness.
 
 Orchestration logic is maintained in standalone TypeScript scripts (e.g., `examples/ralph-loop.ts`) that import the `aiman` API. This keeps the core engine simple and allows for highly customized, project-specific coordination logic.
 

@@ -21,12 +21,12 @@
 - Each persisted run includes an immutable `launch` snapshot inside `run.json` so `inspect` and detached workers can trust the frozen launch evidence without re-reading mutable agent files.
 - Authored agent bodies own the task-specific prompt shape; `aiman` only substitutes explicit runtime placeholders such as `{{task}}`, `{{cwd}}`, `{{runId}}`, `{{runFile}}`, and `{{artifactsDir}}`.
 - Authored agents now declare a `resultMode`; `text` is the default path, while `schema` explicitly opts into runtime-enforced JSON validation.
-- For `resultMode: "schema"`, `aiman` appends a small runtime JSON contract that requires `summary`, `outcome`, and `result`, with optional `next`.
+- For `resultMode: "schema"`, `aiman` appends a small runtime JSON contract that requires `summary`, `outcome`, and `result`; legacy `next` payloads remain runtime-compatible but are no longer part of the default public authoring contract.
 - Gemini schema-mode runs now tolerate prose-heavy assistant output by extracting the last valid top-level JSON object from the provider response before schema validation, while still preserving explicit provider error payloads.
-- Authored agents may now also declare an optional informational `capabilities` list for operator visibility; it is surfaced through authored-agent views and frozen into the launch snapshot, but it does not change runtime behavior.
+- Authored agents may still declare an optional informational `capabilities` list for operator visibility, but the normal public authoring path no longer teaches or scaffolds it.
 - Authored agents may also declare an optional `timeoutMs`; omit it to use the runtime default, or set `0` to disable the timeout for that agent.
-- Authored agents must declare `provider`, `model`, `description`, `reasoningEffort` (optional for Gemini), and a Markdown body containing `{{task}}`.
-- `reasoningEffort` is provider-specific: Codex requires `none|low|medium|high`, while Gemini defaults to `none` if omitted.
+- The default authored-agent path is now provider-explicit but low-friction: `provider` and `description` are the main required choices, while omitted `model` and `reasoningEffort` resolve through provider defaults (`gpt-5.4-mini`/`medium` for Codex, `auto`/`none` for Gemini).
+- `aiman agent create` is now interactive-first and generates a minimal scaffold around `Role`, `Task Input`, `Instructions`, `Stop Conditions`, and `Expected Output`.
 - `aiman run` is foreground-first: it runs a worker inline by default and returns the final result when complete, while `--detach` is the explicit background mode.
 - Run supervision uses a 5 minute default timeout unless a run override or authored agent `timeoutMs` says otherwise; `timeoutMs: 0` means no timeout.
 - Each persisted run now records `launchMode: foreground | detached`, and operator-facing views surface that mode instead of assuming every live run came from the same path.

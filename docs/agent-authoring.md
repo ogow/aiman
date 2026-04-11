@@ -1,64 +1,94 @@
 # Agent Authoring Reference
 
-This technical reference provides deep-dive guidance for authors refining `aiman` specialists. For a beginner's guide to creating agents, see [Creating Agents](./creating-agents.md).
+This guide is for tightening authored `aiman` specialists after the first scaffold exists.
 
-## Designing Reliable Specialists
+For the basic path, start with [Creating Agents](./creating-agents.md).
 
-The most effective agents are specialized, predictable, and structurally sound.
+## Design For One Stable Job
 
-If you want guided help while creating or repairing an agent, explicitly use the shipped `$agent-hardening` skill. It drives the current `aiman` workflow with `agent check`, one tiny smoke task, and run inspection instead of requiring new CLI commands.
+The most reliable agents are narrow.
 
-### 1. One Agent, One Specialty
+Good:
 
-Avoid "generalist" agents. A specialist that owns one clear outcome is easier to test and more reliable under repeated use.
+- `change-reviewer`
+- `site-mapper`
+- `doc-updater`
 
-- **Good**: `change-reviewer`, `implementation-architect`, `security-auditor`.
-- **Bad**: `coding-assistant`, `general-helper`.
+Bad:
 
-### 2. Choosing a Result Mode
+- `general-helper`
+- `coding-assistant`
+- `project-operator`
 
-| Mode         | Purpose                         | Provider Payload                                  |
-| :----------- | :------------------------------ | :------------------------------------------------ |
-| **`text`**   | Default. For human consumption. | Stored as `finalText`.                            |
-| **`schema`** | For automation or chaining.     | Must be valid JSON matching the `aiman` contract. |
+Before editing the prompt, lock these decisions:
 
-For `schema` mode, `aiman` automatically appends a contract that requires the model to return a JSON object containing:
+- the one job the agent owns
+- what evidence it must gather before deciding
+- what it should do when evidence is missing
+- when it should stop
+- whether the output is for a human (`text`) or a machine (`schema`)
 
-- `summary`: A concise status sentence.
-- `outcome`: A short status like `"done"`, `"blocked"`, or `"needs_followup"`.
-- `result`: The task-specific structured findings.
-- `next` (optional): An object suggesting the next agent or task.
+## Output Modes
 
-### 3. Choosing a Timeout
+`aiman` supports two public output lanes:
 
-- Omit `timeoutMs` for the normal case and keep the runtime default.
-- Increase `timeoutMs` when the agent's job is legitimately longer-running.
-- Use `timeoutMs: 0` only when hanging indefinitely is acceptable until a human or wrapper stops the run.
+| Mode     | Use it for                                           | Stored as          |
+| -------- | ---------------------------------------------------- | ------------------ |
+| `text`   | Human-readable answers, reviews, plans, explanations | `finalText`        |
+| `schema` | Strict JSON for automation                           | `structuredResult` |
 
-### 4. Using Structural XML
+For schema-mode agents, keep the public contract small:
 
-To increase robustness with Claude and Gemini providers, use XML tags to provide unambiguous boundaries:
+- `summary`
+- `outcome`
+- `result`
 
-- **`<task>`**: Wrap the `{{task}}` placeholder.
-- **`<instructions>`**: Group the core task-specific steps.
-- **`<context>` / `<documents>`**: Wrap any multi-file or large data inputs.
-- **`<expected_output>`**: Clearly define what the model should deliver.
+Do not teach `next` as part of normal authored-agent design. Routing and follow-up decisions belong in the harness or human workflow around the agent.
+
+## Prompt Shape
+
+Use a simple, explicit structure:
+
+1. `Role`
+2. `Task Input`
+3. `Instructions`
+4. `Stop Conditions`
+5. `Expected Output`
+
+Wrap `{{task}}` in XML:
+
+```md
+## Task Input
+
+<task>
+{{task}}
+</task>
+```
+
+That boundary matters because it keeps user-supplied task text separate from the agent’s own instructions.
+
+## Reliability Rules
+
+- Tell the agent what to do when evidence is missing.
+- Prefer a blocked result over guessing.
+- Add explicit stop conditions so the agent does not wander.
+- Keep the expected output concrete enough that another human can tell whether the run succeeded.
+- Keep shared repo guidance in `AGENTS.md`, not copied into every agent.
 
 ## Common Mistakes
 
-- **Vague Success Criteria**: If you can't describe what a "good" run looks like, the agent will likely hallucinate or under-deliver.
-- **No Missing-Evidence Path**: If the body never says what to do when context is missing, the model is more likely to guess.
-- **Missing Stop Conditions**: Agents may over-research or "invent" follow-up work if they don't have clear instructions on when to stop.
-- **Leaking Repo Rules**: Keep shared repo guidance (like build commands) in `AGENTS.md` instead of repeating them in every agent body.
-- **Mixing Data and Instructions**: Without XML tags, a model might interpret part of your task input as a new instruction.
+- Vague success criteria
+- No blocked path when evidence is missing
+- No stop conditions
+- Using `schema` when a human is the real reader
+- Teaching orchestration or handoff behavior inside the agent
 
-## The Authoring Workflow
+## Tightening Workflow
 
-1. **Read Repo Context**: Check `AGENTS.md` and `MEMORY.md` to ensure the new agent fits the current project standards.
-2. **Lock the Contract**: Decide on the exact job, result mode, model, and timeout before drafting.
-   - If the contract is still fuzzy, use `$agent-hardening` to tighten the job, missing-evidence path, stop conditions, and smoke-task choice before expanding the prompt.
-3. **Create the Scaffold**: Use `aiman agent create` to ensure all required frontmatter is present.
-4. **Static Check**: Run `aiman agent check <name>` often.
-5. **Small Smoke Tasks**: Verify behavior with real-world, scoped tasks before full deployment.
+1. Edit the agent body.
+2. Run `aiman agent check <name>`.
+3. Run one small smoke task.
+4. Inspect the prompt and run record if the result is weak.
+5. Make the smallest prompt change that addresses the observed failure.
 
-For the live CLI command structure, see [CLI Notes](./cli.md).
+If you want guided help while repairing one agent, use `$agent-hardening`.

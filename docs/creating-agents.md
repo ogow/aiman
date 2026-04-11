@@ -1,116 +1,91 @@
 # Creating and Using Agents
 
-Agents in `aiman` are specialized Markdown files that define a specific identity, model, and instructions for a task. This guide covers how to choose the right agent for your task, how to use them, and how to structure them for maximum reliability using XML.
+`aiman` is easiest to use when each agent owns one narrow job and stops cleanly.
 
----
+The default workflow is:
 
-## 1. When to Use What: The Decision Matrix
+1. Create one agent.
+2. Run `aiman agent check <name>`.
+3. Run one tiny smoke task.
+4. Inspect the run only if the result is weak or malformed.
 
-Before creating or running an agent, use this matrix to decide on your approach:
+## Choose One Output Style
 
-| Scenario                      | Use Case                                                                     | Agent Type     | Result Mode        |
-| :---------------------------- | :--------------------------------------------------------------------------- | :------------- | :----------------- |
-| **Exploring a new task**      | You need an implementation plan or an explanation of how code works.         | **Architect**  | `text`             |
-| **Checking for errors**       | You want a second pair of eyes on your latest PR or commit.                  | **Reviewer**   | `text` or `schema` |
-| **Running tests/linting**     | You want to automate your build and get a machine-readable failure report.   | **Builder**    | `schema`           |
-| **Auditing security**         | You need to scan a file or diff specifically for sensitive leaks or secrets. | **Auditor**    | `schema`           |
-| **Maintaining documentation** | You need to keep `README.md` or `MEMORY.md` in sync with the latest code.    | **Maintainer** | `schema`           |
+Use one of these two lanes:
 
-### Choosing a Result Mode
+- `text`: for normal human-readable answers. This is the default.
+- `schema`: for strict JSON when another tool really needs to parse the result.
 
-- **Use `text`** when the final reader is a **human**. You want a clear, formatted report or a short answer.
-- **Use `schema`** when the final reader is **another tool** (like an automated build script) or a "parent" agent. This ensures the output is always valid JSON.
+Do not choose `schema` just because it feels cleaner. If a human is the real reader, `text` is usually more reliable and easier to maintain.
 
-### Choosing a Timeout
+## Create An Agent
 
-- **Omit `timeoutMs`** for most agents. That keeps the runtime default 5 minute safeguard.
-- **Increase `timeoutMs`** for agents that legitimately need longer-running provider work.
-- **Use `timeoutMs: 0`** only when you deliberately want no timeout and are comfortable with a run hanging until stopped.
-
----
-
-## 2. Practical XML: Why and How to Use It
-
-XML tags are the most reliable way to separate **instructions** from **data**. Because LLMs can sometimes confuse the task they are doing with the data they are processing, XML provides a hard boundary.
-
-### When to use XML:
-
-1. **Always wrap `{{task}}`**: If your task input contains Markdown headers (like `## Fix this`), the model might think those are instructions for the agent. Wrapping them in `<task>` tags prevents this.
-2. **When instructions are complex**: If you have multiple sections of rules, use `<instructions>` and `<constraints>` to tell the model exactly what to focus on.
-3. **When reading multiple files**: Wrap file contents in `<context>` or `<documents>` tags so the model knows exactly where each file starts and ends.
-
-### Example XML Structure:
-
-While Markdown headings (like `## Task Input`) can be helpful for human readability and editor navigation, they are optional for the model when you use XML tags for structure.
-
-```md
-<task_input>
-{{task}}
-</task_input>
-
-<instructions>
-1. Analyze the input provided in the <task_input> tags.
-2. Cross-reference it with the context provided in your tools.
-3. Stop immediately if the task is finished.
-</instructions>
-```
-
----
-
-## 3. How to Use Your Agents
-
-There are two primary ways to run your agents: through the CLI (for automation and quick tasks) or through the interactive TUI (for deep inspection).
-
-### A. Via the CLI (Quick & Automation)
-
-Use the `run` command to launch an agent directly. This is best for one-off tasks or if you are calling an agent from a script.
+The lightest path is:
 
 ```bash
-# Basic run
-aiman run reviewer --task "Review the changes in src/api.ts"
-
-# Detached run (background)
-# Use this for long-running tasks like full project audits.
-aiman run auditor --task "Scan the entire project for secrets" --detach
+aiman agent create reviewer
 ```
 
-### B. Via the Workbench (TUI)
+The create command now asks for the minimum needed information:
 
-Run `aiman` with no arguments to enter the interactive workbench. This is best when you need to:
+- provider: `codex` or `gemini`
+- one-sentence description of the job
+- output style: `text` or `json`
 
-1. **Browse your agents**: Quickly see what specialists are available.
-2. **Inspect active runs**: Follow logs and see artifacts in real-time.
-3. **Review history**: Browse previous runs and their outcomes.
+Advanced flags such as `--model`, `--reasoning-effort`, and `--timeout-ms` still exist, but the normal path should not need them.
 
-**TUI Shortcuts:**
+Generated agents include:
 
-- `a`: Go to the **Agents** workspace.
-- `t`: Go to the **Tasks** workspace (to write your prompt).
-- `Ctrl+L`: **Launch** the selected agent with your task.
-- `r`: Go to the **Runs** workspace to see results.
+- a narrow role
+- `{{task}}` wrapped in `<task>...</task>`
+- default missing-evidence guidance
+- explicit stop conditions
+- an expected output section
 
----
+## Run The Static Check
 
-## 4. The Creation Workflow
+Use:
 
-If you need a new specialist, follow these four steps:
+```bash
+aiman agent check reviewer
+```
 
-1. **Scaffold**: Use `aiman agent create <name>` to generate the file with the correct frontmatter.
-   - If you want help tightening the contract or expected output, explicitly use `$agent-hardening` before or after drafting.
-2. **Role & XML**: Define the agent's role clearly and keep the scaffolded `<task>{{task}}</task>` wrapper unless you have a stronger XML shape.
-3. **Missing Evidence Behavior**: Say what the agent should do when required evidence or context is missing. A good default is to stop and say it is blocked instead of guessing.
-4. **Stopping Points**: Add explicit "Stop Conditions." (e.g., "Stop once you have identified the primary bug.")
-5. **Runtime Budget**: Decide whether the default 5 minute timeout is enough. Only add `timeoutMs` when this agent genuinely needs a longer budget or no timeout.
-6. **Verification**:
-   - Run `aiman agent check <name>` to ensure the Markdown is valid.
-   - Run a small "smoke task" using `aiman run <name> --task "Test task"`.
-   - Inspect the rendered prompt with `aiman runs inspect <run-id> --stream prompt` to ensure the XML boundaries look correct.
+The check is meant to catch the common reliability problems quickly:
 
-The lightest reliable authoring path is:
+- missing `{{task}}`
+- missing XML wrapper around `{{task}}`
+- missing stop conditions
+- missing missing-evidence guidance
+- weak output-shape guidance
 
-1. draft with `aiman agent create`
-2. tighten with `$agent-hardening` when the contract is still fuzzy
-3. run `aiman agent check`
-4. run one tiny smoke task
+## Run One Tiny Smoke Task
 
-For the full technical reference, see [Agent Authoring Reference](./agent-authoring.md).
+Keep the first task small enough to debug in one pass:
+
+```bash
+aiman run reviewer --task "Review src/api/client.ts for correctness risks."
+```
+
+For JSON agents, use a tiny task that makes malformed output obvious quickly.
+
+## Inspect Only When Needed
+
+If the run is weak, malformed, or surprising:
+
+1. `aiman runs show <run-id>`
+2. `aiman runs inspect <run-id> --stream prompt`
+3. `aiman runs inspect <run-id> --stream run`
+4. `aiman runs inspect <run-id> --stream stdout|stderr`
+
+If you want guided help tightening one agent, explicitly use `$agent-hardening`.
+
+## Later Project Usage
+
+`aiman` does not orchestrate project workflows for you. A project harness or a human should decide:
+
+- which agent to run
+- what task packet to send
+- what checks must pass afterward
+- what the next step is
+
+That is intentional. `aiman` is the agent-definition and execution layer, not the project workflow engine.

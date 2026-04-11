@@ -33,7 +33,6 @@ const recommendedSectionNames = [
    "Role",
    "Task Input",
    "Instructions",
-   "Constraints",
    "Stop Conditions",
    "Expected Output"
 ] as const;
@@ -233,6 +232,14 @@ function usesAutomaticGeminiModel(input: {
    return input.provider === "gemini" && input.model === "auto";
 }
 
+function getDefaultModel(provider: ProviderId): string {
+   return provider === "codex" ? "gpt-5.4-mini" : "auto";
+}
+
+function getDefaultReasoningEffort(provider: ProviderId): ReasoningEffort {
+   return provider === "codex" ? "medium" : "none";
+}
+
 export function formatProfileModel(input: {
    model?: string;
    provider?: string;
@@ -335,11 +342,12 @@ function validateFrontmatterAttributes(
       );
    }
 
-   if (typeof model !== "string" || model.length === 0) {
-      throw new UserError(`Agent "${name}" is missing a model.`);
-   }
+   const effectiveModel =
+      typeof model === "string" && model.length > 0
+         ? model
+         : getDefaultModel(provider as ProviderId);
 
-   if (model === "auto" && provider !== "gemini") {
+   if (effectiveModel === "auto" && provider !== "gemini") {
       throw new UserError(
          `Agent "${name}" has invalid model "auto" for provider "${provider}". Only Gemini supports automatic model selection via "model: auto".`
       );
@@ -347,8 +355,10 @@ function validateFrontmatterAttributes(
 
    let effectiveReasoningEffort = reasoningEffort;
 
-   if (effectiveReasoningEffort === undefined && provider === "gemini") {
-      effectiveReasoningEffort = "none";
+   if (effectiveReasoningEffort === undefined) {
+      effectiveReasoningEffort = getDefaultReasoningEffort(
+         provider as ProviderId
+      );
    }
 
    if (
@@ -379,7 +389,7 @@ function validateFrontmatterAttributes(
       body,
       ...(capabilities !== undefined ? { capabilities } : {}),
       description,
-      model,
+      model: effectiveModel,
       name,
       provider: provider as ProviderId,
       reasoningEffort: effectiveReasoningEffort as ReasoningEffort,
@@ -516,7 +526,11 @@ function parseBodySections(body: string): ParsedBodySection[] {
    });
 }
 
-function collectPromptStructureWarnings(body: string): ValidationIssue[] {
+function collectPromptStructureWarnings(input: {
+   body: string;
+   resultMode: ResultMode;
+}): ValidationIssue[] {
+   const body = input.body;
    const sections = parseBodySections(body);
    const warnings: ValidationIssue[] = [];
    const normalizedTitles = sections.map((section) => section.normalizedTitle);
@@ -585,6 +599,20 @@ function collectPromptStructureWarnings(body: string): ValidationIssue[] {
       );
    }
 
+   if (
+      input.resultMode === "schema" &&
+      /(?:["`]next["`]|optional\s+next|keys\s+"task",\s*"agent",\s+and\s+"inputs")/i.test(
+         body
+      )
+   ) {
+      warnings.push(
+         createIssue(
+            "avoid-next-in-json-agents",
+            'JSON-mode agents should not mention `next` in their authored prompt. Keep the public contract to "summary", "outcome", and "result".'
+         )
+      );
+   }
+
    return warnings;
 }
 
@@ -606,20 +634,24 @@ function dedupeValidationIssues(issues: ValidationIssue[]): ValidationIssue[] {
 function renderProfileMarkdown(input: {
    capabilities?: string[];
    description: string;
-   instructions: string;
-   model: string;
+   instructions?: string;
+   model?: string;
    name: string;
    provider: ProviderId;
-   reasoningEffort: ReasoningEffort;
+   reasoningEffort?: ReasoningEffort;
    resultMode: ResultMode;
    timeoutMs?: number;
 }): string {
+   const instructions =
+      typeof input.instructions === "string" &&
+      input.instructions.trim().length > 0
+         ? input.instructions
+         : `Handle the ${humanizeProfileName(input.name)} task described in the input.`;
    const expectedOutputLines =
       input.resultMode === "schema"
          ? [
               "- Return a concise `summary` and one stable `outcome`.",
-              "- Keep `result` focused on task-specific facts another tool or agent can use.",
-              "- Use `next` only when a concrete follow-up is genuinely needed."
+              "- Keep `result` focused on the task-specific facts the caller needs."
            ]
          : [
               "- Deliver a concise result focused on the task.",
@@ -632,8 +664,10 @@ function renderProfileMarkdown(input: {
       `name: ${input.name}`,
       `provider: ${input.provider}`,
       `description: ${input.description}`,
-      `model: ${input.model}`,
       `resultMode: ${input.resultMode}`,
+      ...(typeof input.model === "string" && input.model.length > 0
+         ? [`model: ${input.model}`]
+         : []),
       ...(input.timeoutMs !== undefined
          ? [`timeoutMs: ${input.timeoutMs}`]
          : []),
@@ -645,9 +679,10 @@ function renderProfileMarkdown(input: {
               )
            ]
          : []),
-      ...(input.provider === "gemini" && input.reasoningEffort === "none"
-         ? []
-         : [`reasoningEffort: ${input.reasoningEffort}`]),
+      ...(typeof input.reasoningEffort === "string" &&
+      input.reasoningEffort.length > 0
+         ? [`reasoningEffort: ${input.reasoningEffort}`]
+         : []),
       "---",
       "",
       "## Role",
@@ -659,16 +694,10 @@ function renderProfileMarkdown(input: {
       "</task>",
       "",
       "## Instructions",
-      ...renderInstructionLines(input.instructions),
+      ...renderInstructionLines(instructions),
       "- Base the answer on the task input and repo evidence that is actually available.",
       "- If required evidence is missing, say so directly and stop instead of guessing.",
       "- Keep the final result scoped to this agent's one job.",
-      "",
-      "## Constraints",
-      "- Use the repo's native context files.",
-      "- Do not invent files, behavior, commands, or verification you did not observe.",
-      "- State assumptions clearly when information is missing.",
-      "- Call out blockers directly instead of guessing.",
       "",
       "## Stop Conditions",
       "- Stop when you can deliver the requested outcome clearly.",
@@ -741,8 +770,8 @@ export async function createProfileFile(
       capabilities?: string[];
       description: string;
       force?: boolean;
-      instructions: string;
-      model: string;
+      instructions?: string;
+      model?: string;
       name: string;
       provider: ProviderId;
       reasoningEffort?: ReasoningEffort;
@@ -753,21 +782,40 @@ export async function createProfileFile(
 ): Promise<ScopedProfileDefinition> {
    const trimmedName = input.name.trim();
    const trimmedDescription = input.description.trim();
-   const trimmedInstructions = input.instructions.trim();
+   const trimmedInstructions = input.instructions?.trim();
    const provider = input.provider;
-   const model = input.model.trim();
+   const model = input.model?.trim();
    const capabilities = normalizeCapabilities(input.capabilities, trimmedName);
    const reasoningEffort =
-      input.reasoningEffort ?? (provider === "gemini" ? "none" : undefined);
+      input.reasoningEffort ?? getDefaultReasoningEffort(provider);
    const resultMode = input.resultMode ?? "text";
    const timeoutMs = normalizeTimeoutMs(
       input.timeoutMs,
       `Agent "${trimmedName}" has invalid timeoutMs`
    );
 
-   if (reasoningEffort === undefined) {
+   if (trimmedName.length === 0) {
+      throw new UserError("Agent name is required.");
+   }
+
+   if (trimmedDescription.length === 0) {
+      throw new UserError(`Agent "${trimmedName}" is missing a description.`);
+   }
+
+   if (
+      typeof model === "string" &&
+      model.length > 0 &&
+      model === "auto" &&
+      provider !== "gemini"
+   ) {
       throw new UserError(
-         `Reasoning effort is required for provider "${provider}".`
+         `Agent "${trimmedName}" has invalid model "auto" for provider "${provider}". Only Gemini supports automatic model selection via "model: auto".`
+      );
+   }
+
+   if (!getAllowedReasoningEfforts(provider).has(reasoningEffort)) {
+      throw new UserError(
+         `Agent "${trimmedName}" has invalid reasoningEffort "${reasoningEffort}" for provider "${provider}". Use one of "${renderReasoningEffortList(provider)}".`
       );
    }
 
@@ -810,11 +858,13 @@ export async function createProfileFile(
    const renderedProfile = renderProfileMarkdown({
       ...(capabilities !== undefined ? { capabilities } : {}),
       description: trimmedDescription,
-      instructions: trimmedInstructions,
-      model,
+      ...(trimmedInstructions !== undefined && trimmedInstructions.length > 0
+         ? { instructions: trimmedInstructions }
+         : {}),
+      ...(typeof model === "string" && model.length > 0 ? { model } : {}),
       name: trimmedName,
       provider,
-      reasoningEffort,
+      ...(input.reasoningEffort !== undefined ? { reasoningEffort } : {}),
       resultMode,
       ...(timeoutMs !== undefined ? { timeoutMs } : {})
    });
@@ -867,7 +917,10 @@ export async function checkProfileDefinition(
       );
    }
 
-   const warnings = collectPromptStructureWarnings(profile.body);
+   const warnings = collectPromptStructureWarnings({
+      body: profile.body,
+      resultMode: profile.resultMode
+   });
 
    return {
       errors: dedupeValidationIssues(errors),

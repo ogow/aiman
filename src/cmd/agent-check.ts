@@ -94,10 +94,6 @@ export async function handler(
                label: "Timeout",
                value: formatAuthoredTimeout(report.profile.timeoutMs)
             },
-            {
-               label: "Capabilities",
-               value: report.profile.capabilities?.join(", ") ?? ""
-            },
             { label: "Path", value: report.profile.path },
             { label: "Errors", value: String(report.errors.length) },
             { label: "Warnings", value: String(report.warnings.length) }

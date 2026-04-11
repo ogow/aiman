@@ -42,8 +42,8 @@ export type CreateAgentInput = {
    capabilities?: string[];
    description: string;
    force?: boolean;
-   instructions: string;
-   model: string;
+   instructions?: string;
+   model?: string;
    name: string;
    provider: ProviderId;
    reasoningEffort?: ReasoningEffort;

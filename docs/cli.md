@@ -1,23 +1,14 @@
 # CLI Notes
 
-`aiman` records one agent run at a time. A human or wrapper chooses which agent to run; `aiman` launches it, persists one canonical `run.json` ledger, and exposes that run through the default TUI or the `run` inspection commands.
+`aiman` runs one agent at a time and records the result to disk.
 
-Each run persists:
-
-- one canonical `run.json`
-- optional `stdout.log`
-- optional `stderr.log`
-- optional `artifacts/`
-
-The run store is global under `~/.aiman/runs/` and is scanned directly from disk. `aiman` does not use SQLite for run lookup.
-
-## Current Commands
+## Main Commands
 
 - `aiman`
 - `aiman agent list [--scope project|user] [--json]`
 - `aiman agent show <agent> [--scope project|user] [--json]`
 - `aiman agent check <agent> [--scope project|user] [--json]`
-- `aiman agent create <name> --scope project|user --provider codex|gemini --model <id|auto> --reasoning-effort <value> --result-mode text|schema [--capability <value>]... [--timeout-ms <ms>] --description <text> [--instructions <text>] [--force] [--json]`
+- `aiman agent create <name> [--scope project|user] [--provider codex|gemini] [--description <text>] [--result-mode text|schema] [--instructions <text>] [--model <id|auto>] [--reasoning-effort <value>] [--timeout-ms <ms>] [--force] [--json]`
 - `aiman run <agent> [--task <text>] [--cwd <path>] [--scope project|user] [--detach] [--json]`
 - `aiman runs list [--all] [--limit <n>] [--json]`
 - `aiman runs show <run-id> [--json]`
@@ -25,97 +16,64 @@ The run store is global under `~/.aiman/runs/` and is scanned directly from disk
 - `aiman runs inspect <run-id> [--json] [--stream run|prompt|stdout|stderr]`
 - `aiman runs stop <run-id> [--json]`
 
-## Agent Scopes
+## Agent Creation
 
-Agents can exist in two scopes:
+`aiman agent create <name>` is the normal authoring path.
 
-- project scope: `<repo>/.aiman/agents/`
-- user scope: `~/.aiman/agents/`
+The default experience is interactive-first:
 
-`aiman agent list`, `aiman agent show`, and `aiman run` consider both scopes by default and prefer the project agent when both scopes define the same name. `aiman agent create` requires an explicit `--scope`.
+- provider: `codex` or `gemini`
+- one-sentence description
+- output style: `text` or `json`
 
-## Agent Authoring
+If you already know what you want, you can still pass flags directly.
 
-For `aiman agent create`, `--scope`, `--provider`, `--model`, and `--description` are required. `--reasoning-effort` is required for Codex and optional for Gemini (defaults to `none`). `--result-mode` defaults to `text`. `--timeout-ms` is optional; omit it to keep the runtime default, or use `0` when you intentionally want no timeout for that agent.
+Advanced flags:
 
-Use repeated `--capability` flags when you want an authored agent to declare informational traits such as `human-facing`, `automation-friendly`, `read-only`, `writes-files`, or `repo-grounded`.
+- `--model`
+- `--reasoning-effort`
+- `--timeout-ms`
 
-Legacy frontmatter such as `mode`, `permissions`, `contextFiles`, `skills`, and `requiredMcps` is rejected by `aiman agent check`.
+Provider defaults:
 
-Agent bodies are explicit prompt templates. `aiman` substitutes runtime values where the body asks for them. New agents created by `aiman agent create` include `{{task}}` by default, and runnable agents should include that placeholder somewhere in the body.
+- Codex: `gpt-5.4-mini`, `medium`
+- Gemini: `auto`, `none`
 
-New scaffolds also wrap `{{task}}` in `<task>...</task>` and include default missing-evidence guidance. `aiman agent check` warns when authored agents drop that XML wrapper or fail to say what to do when required context is missing.
+## Agent Checks
 
-Result modes:
+`aiman agent check <name>` is the fast static gate. It focuses on the common authoring mistakes:
 
-- `text`: default. The final provider answer is stored as `finalText` in `run.json`, and `aiman run` prints it directly.
-- `schema`: opt-in. `aiman` appends a required JSON contract and validates the final provider answer before recording a successful run.
+- missing `{{task}}`
+- missing XML wrapper around `{{task}}`
+- missing stop conditions
+- missing missing-evidence guidance
+- weak output-shape guidance
 
-Timeouts:
+## Result Modes
 
-- runs default to a 5 minute timeout unless the caller or authored agent overrides it
-- authored agents can declare `timeoutMs` in frontmatter
-- `timeoutMs: 0` disables the timeout for that agent
+- `text`: default. `aiman run` prints `finalText` directly when the run succeeds.
+- `schema`: strict JSON. The final answer must contain `summary`, `outcome`, and `result`.
 
-Use `docs/agent-authoring.md` for the higher-level checklist.
-Use `docs/agent-debugging.md` for the practical smoke-test and inspection workflow.
+## Debugging Flow
 
-## Command Structure
+When an agent is weak or malformed:
 
-- `aiman` with no args is the default OpenTUI workbench for humans working in a real TTY.
-- `aiman agent create <name>` is the authoring path for creating structured agent files without hand-writing raw frontmatter.
-- `aiman run <agent>` is the default synchronous worker path. It runs in the foreground, persists the run, and returns the final result when complete.
-- `aiman run <agent> --detach` is the explicit background path. It starts a managed worker and returns immediately with the live run id.
-- `aiman runs stop <id>` stops one active run by run id.
-- `aiman runs inspect <run-id> --stream run` shows the canonical persisted `run.json` file.
-- `aiman runs inspect <run-id> --stream prompt` shows the exact rendered prompt stored in the launch snapshot.
-- `aiman runs inspect <run-id> --stream stdout|stderr` reads the default log files from that run directory.
+1. `aiman agent check <name>`
+2. `aiman run <name> --task "..."`
+3. `aiman runs show <run-id>`
+4. `aiman runs inspect <run-id> --stream prompt`
+5. `aiman runs inspect <run-id> --stream run`
+6. `aiman runs inspect <run-id> --stream stdout|stderr`
 
-Foreground `aiman run` stays human-friendly:
+## Project Boundary
 
-- on success it prints `finalText` directly for text-mode runs
-- otherwise it prints the concise `summary` when one exists
-- on failure it prints a compact failure block
-- detailed inspection stays in `aiman runs show`, `aiman runs logs`, `aiman runs inspect`, and the interactive workbench
+`aiman` is the agent-definition and run-recording layer.
 
-## Debugging Workflow
+It does not own:
 
-When an authored agent is weak, malformed, or hard to chain:
+- multi-agent routing
+- retries
+- task sequencing
+- project verification policy
 
-1. Run `aiman agent check <name>`.
-2. Run one tiny smoke task with `aiman run <name> --task ...`.
-3. Read `aiman runs show <run-id>` first for the parsed summary, `finalText` or `structuredResult`, `outcome`, and final error.
-4. Read `aiman runs inspect <run-id> --stream prompt` to confirm the exact rendered prompt.
-5. Read `aiman runs inspect <run-id> --stream run` to inspect the canonical `run.json`.
-6. Read `aiman runs inspect <run-id> --stream stdout|stderr` when provider output or JSON parsing still looks suspicious.
-
-## Run Layout
-
-Each run lives under:
-
-```text
-~/.aiman/runs/<YYYY-MM-DD>/<timestamp-run-id>/
-```
-
-Default files:
-
-- `run.json`
-- `stdout.log`
-- `stderr.log`
-- `artifacts/`
-
-`run.json` stores the canonical machine-readable run state, including the immutable `launch` snapshot, `resultMode`, optional `finalText`, optional `structuredResult`, derived artifacts, and terminal error data when present.
-
-`active` state is derived from the stored `pid` plus a fresh persisted heartbeat:
-
-- `active: true` means the supervising `aiman` process for that run still exists and the supervisor heartbeat is still fresh
-- `active: false` means the run is either terminal or the supervising process is gone
-
-## Development Commands
-
-- `bun run dev`
-- `bun run test`
-- `bun run test:provider-contract`
-- `bun run typecheck`
-- `bun run build`
-- `bun run lint`
+Those belong in a project harness or human workflow around `aiman`.
