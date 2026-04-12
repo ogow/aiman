@@ -14,6 +14,7 @@ Use this file as a lightweight router. Do not load every document by default. Re
 - [docs/agent-authoring.md](/Users/ogow/Code/aiman/docs/agent-authoring.md): technical reference for refining authored `aiman` specialists
 - [docs/agent-baseline.md](/Users/ogow/Code/aiman/docs/agent-baseline.md): stable neutral baseline for authored `aiman` agents via shared bootstrap context files
 - [docs/agent-debugging.md](/Users/ogow/Code/aiman/docs/agent-debugging.md): practical workflow for debugging weak, malformed, or failing authored `aiman` agents
+- [docs/agent-harnesses.md](/Users/ogow/Code/aiman/docs/agent-harnesses.md): plan-execution harness workflow for builder/check/reviewer orchestration
 - [docs/cli.md](/Users/ogow/Code/aiman/docs/cli.md): command surface and CLI conventions
 - [docs/memory.md](/Users/ogow/Code/aiman/docs/memory.md): memory workflow and daily-file contract
 - [docs/typescript-style.md](/Users/ogow/Code/aiman/docs/typescript-style.md): repo TypeScript rules adapted from the Google TypeScript Style Guide; read when editing `.ts` files

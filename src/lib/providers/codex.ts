@@ -38,6 +38,10 @@ function getCodexOutputArgs(): string[] {
    return ["--json"];
 }
 
+function getCodexTrustArgs(): string[] {
+   return ["--skip-git-repo-check"];
+}
+
 function getWindowsAutomationConfigArgs(): string[] {
    if (process.platform !== "win32") {
       return [];
@@ -117,6 +121,7 @@ export function createCodexAdapter(): ProviderAdapter {
                input.cwd,
                "--output-last-message",
                lastMessagePath,
+               ...getCodexTrustArgs(),
                ...getCodexOutputArgs(),
                ...writableRoots,
                ...getCodexApprovalConfigArgs(),

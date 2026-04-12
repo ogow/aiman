@@ -130,6 +130,7 @@ test("codex adapter prepares a write-enabled invocation with native context file
       "--output-last-message"
    ]);
    assert.match(prepared.args.join(" "), /--json/);
+   assert.match(prepared.args.join(" "), /--skip-git-repo-check/);
    assert.match(
       prepared.args.join(" "),
       new RegExp(
@@ -461,7 +462,7 @@ test("toRunResult reflects the canonical result metadata", async () => {
          findings: []
       },
       rights:
-         "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
+         "write-enabled project workspace via --sandbox workspace-write; Codex git repo check skipped; artifacts dir writable via --add-dir",
       runId: "run-5",
       runFile: path.join(runDir, "run.json"),
       status: "success",

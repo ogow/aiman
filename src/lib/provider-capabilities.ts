@@ -6,10 +6,10 @@ const environmentSummary =
 const providerCapabilities: Record<ProviderId, ProviderCapabilities> = {
    codex: {
       details:
-         "Runs with `codex exec --sandbox workspace-write` rooted at the selected project and grants the external run artifacts directory as an extra writable root via `--add-dir`.",
+         "Runs with `codex exec --sandbox workspace-write --skip-git-repo-check` rooted at the selected project and grants the external run artifacts directory as an extra writable root via `--add-dir`.",
       environmentSummary,
       launchSummary:
-         "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
+         "write-enabled project workspace via --sandbox workspace-write; Codex git repo check skipped; artifacts dir writable via --add-dir",
       provider: "codex"
    },
    gemini: {

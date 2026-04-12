@@ -19,7 +19,7 @@
 - **Loops**: Iterative patterns owned by a project script or human operator.
 - **Flows**: Chained specialists working together under an external harness.
 
-Orchestration logic is maintained in standalone TypeScript scripts (e.g., `examples/ralph-loop.ts`) that import the `aiman` API. This keeps the core engine simple and allows for highly customized, project-specific coordination logic.
+Orchestration logic is maintained in standalone TypeScript scripts (e.g., `examples/eval-harness.ts` and `examples/plan-harness.ts`) that import the `aiman` API. This keeps the core engine simple and allows for highly customized, project-specific coordination logic.
 
 ## Key Boundaries
 

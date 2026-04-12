@@ -250,7 +250,7 @@ describe("AimanWorkbench", () => {
           projectRoot: "/tmp/demo",
           resultMode: "text",
           rights:
-            "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
+            "write-enabled project workspace via --sandbox workspace-write; Codex git repo check skipped; artifacts dir writable via --add-dir",
           runId: "run-001",
           runFile: "/tmp/demo/run.json",
           status: "success",
@@ -429,7 +429,7 @@ describe("AimanWorkbench", () => {
       projectRoot: "/tmp/demo",
       resultMode: "text",
       rights:
-        "write-enabled project workspace via --sandbox workspace-write; artifacts dir writable via --add-dir",
+        "write-enabled project workspace via --sandbox workspace-write; Codex git repo check skipped; artifacts dir writable via --add-dir",
       runId: "run-active",
       runFile: "/tmp/demo/run.json",
       status: "success",

@@ -88,7 +88,7 @@ Typical files:
 
 ## Provider Isolation
 
-- Codex runs use `codex exec --sandbox workspace-write`
+- Codex runs use `codex exec --sandbox workspace-write --skip-git-repo-check`
 - Gemini runs use `gemini --approval-mode yolo`
 - both providers run with explicit argv and an allowlisted environment
 - provider adapters normalize provider-specific output into one shared completion shape

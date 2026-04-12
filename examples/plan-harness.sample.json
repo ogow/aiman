@@ -1,0 +1,46 @@
+{
+   "id": "harness-v1-smoke",
+   "builderAgent": "build",
+   "reviewerAgent": "reviewer",
+   "finalReview": "always",
+   "maxCheckRetries": 1,
+   "checks": [
+      {
+         "name": "typecheck",
+         "command": "bun",
+         "args": ["run", "typecheck"],
+         "timeoutMs": 120000
+      }
+   ],
+   "tasks": [
+      {
+         "id": "task-1",
+         "title": "Document the harness workflow",
+         "goal": "Update the project docs so users can run a human-written plan through the plan harness.",
+         "scope": [
+            "docs/agent-harnesses.md",
+            "examples/plan-harness.sample.json"
+         ],
+         "acceptance": [
+            "The doc explains the builder/check/reviewer/final-review flow.",
+            "The sample plan shows checks as deterministic commands, not agents."
+         ],
+         "risk": "low",
+         "review": "auto",
+         "checks": [
+            {
+               "name": "docs-format",
+               "command": "bun",
+               "args": [
+                  "x",
+                  "prettier",
+                  "--check",
+                  "docs/agent-harnesses.md",
+                  "examples/plan-harness.sample.json"
+               ],
+               "timeoutMs": 120000
+            }
+         ]
+      }
+   ]
+}
